@@ -1,0 +1,66 @@
+# Node.js specific
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.example
+.env.development
+.env.staging
+.env.production
+.env.test
+.env*.local
+
+# Build artifacts
+dist/
+build/
+coverage/
+
+# Logs
+logs/
+*.log
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# Editor directories and files
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Database backups
+*.sqlite
+*.dump
+
+# dotenv environment variables file
+.env
+
+# Dependency directories
+jspm_packages/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Optional npm/yarn/pnpm lockfiles if you don't want them (uncomment below)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# Debug files
+heapdump.*
+error_*.log
