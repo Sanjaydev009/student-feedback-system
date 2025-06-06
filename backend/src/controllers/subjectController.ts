@@ -28,3 +28,16 @@ export const createSubject = async (req: Request, res: Response): Promise<void> 
     res.status(500).json({ message: error.message });
   }
 };
+
+export const getSubjectById = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const subject = await Subject.findById(req.params.id);
+    if (!subject) {
+      res.status(404).json({ message: 'Subject not found' });
+      return;
+    }
+    res.json(subject);
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+};
