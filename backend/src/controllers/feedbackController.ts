@@ -66,3 +66,14 @@ export const getAllFeedback = async (req: Request, res: Response) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+export const getStudentFeedback = async (req: Request, res: Response) => {
+  const { id } = req.params; // student ID
+
+  try {
+    const feedbacks = await Feedback.find({ student: id }).populate('subject');
+    res.json(feedbacks); // ✅ Returns array of feedback objects
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};

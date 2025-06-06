@@ -11,6 +11,13 @@ interface User {
   role: 'student' | 'faculty' | 'hod' | 'dean' | 'admin';
 }
 
+interface DecodedToken {
+  id: string;
+  role: string;
+  iat: number;
+  exp: number;
+}
+
 export default function AdminDashboard() {
   const [users, setUsers] = useState<User[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
@@ -19,7 +26,7 @@ export default function AdminDashboard() {
   const [form, setForm] = useState({
     name: '',
     email: '',
-    role: 'student' as 'student' | 'faculty' | 'hod' | 'dean' | 'admin'
+    role: 'student'
   });
   const [editingUser, setEditingUser] = useState<User | null>(null);
 
@@ -33,7 +40,7 @@ export default function AdminDashboard() {
     }
 
     try {
-      const decoded: any = JSON.parse(atob(storedToken.split('.')[1]));
+      const decoded: DecodedToken = JSON.parse(atob(storedToken.split('.')[1]));
       if (decoded.role !== 'admin') {
         window.location.href = '/';
         return;
@@ -47,23 +54,33 @@ export default function AdminDashboard() {
     }
   }, []);
 
-  // Fetch all users from backend
+  // Fetch all users safely
   const fetchUsers = async (token: string) => {
     try {
       const res = await fetch('http://localhost:5001/api/auth/users', {
         headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          Authorization: `Bearer ${token}`
         }
       });
 
-      if (!res.ok) throw new Error('Failed to load users');
+      // ✅ Only parse JSON if response is JSON
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Received HTML instead of JSON - likely not authenticated');
+      }
+
+      if (!res.ok) {
+        throw new Error('Failed to load users');
+      }
 
       const data = await res.json();
       setUsers(data);
       setFilteredUsers(data.filter((user: User) => user.role === 'student'));
-    } catch (err) {
-      alert('Failed to load users');
+    } catch (err: any) {
+      console.error('Fetch Users Error:', err.message);
+      alert('Failed to load users. Please log in again.');
+      localStorage.removeItem('token');
+      window.location.href = '/login';
     } finally {
       setLoading(false);
     }
@@ -74,10 +91,8 @@ export default function AdminDashboard() {
     setFilteredUsers(users.filter((user) => user.role === role));
   };
 
-  // Handle form input change
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
+  // Form input handler
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setForm({ ...form, [name]: value });
   };
@@ -96,10 +111,14 @@ export default function AdminDashboard() {
         body: JSON.stringify(form)
       });
 
-      const newUser = await res.json();
+      const contentType = res.headers.get('content-type');
+      if (!contentType?.includes('application/json')) {
+        throw new Error('Received HTML instead of JSON during user add');
+      }
 
+      const newUser = await res.json();
       setUsers([...users, newUser]);
-      setFilteredUsers([...users, newUser].filter(u => u.role === form.role));
+      setFilteredUsers([...users].filter(u => u.role === form.role));
       setForm({ name: '', email: '', role: 'student' });
     } catch (err) {
       alert('Failed to add user');
@@ -130,12 +149,15 @@ export default function AdminDashboard() {
         body: JSON.stringify(form)
       });
 
-      const updatedUser = await res.json();
+      const contentType = res.headers.get('content-type');
+      if (!contentType?.includes('application/json')) {
+        throw new Error('Received HTML instead of JSON during update');
+      }
 
+      const updatedUser = await res.json();
       const updatedList = users.map(u =>
         u._id === updatedUser._id ? updatedUser : u
       );
-
       setUsers(updatedList);
       setFilteredUsers(updatedList.filter(u => u.role === form.role));
       setEditingUser(null);
@@ -147,16 +169,17 @@ export default function AdminDashboard() {
 
   // Delete user
   const handleDelete = async (userId: string) => {
-    if (!token) return;
     if (!confirm('Are you sure you want to delete this user?')) return;
 
     try {
-      await fetch(`http://localhost:5001/api/auth/users/${userId}`, {
+      const res = await fetch(`http://localhost:5001/api/auth/users/${userId}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${token}`
         }
       });
+
+      if (!res.ok) throw new Error('Failed to delete user');
 
       const updatedList = users.filter((u) => u._id !== userId);
       setUsers(updatedList);
@@ -179,7 +202,11 @@ export default function AdminDashboard() {
         <div className="flex border-b mb-4">
           <button
             onClick={() => handleTabClick('student')}
-            className="py-2 px-4 text-blue-600 border-b-2 border-blue-600 font-medium"
+            className={`py-2 px-4 text-blue-600 border-b-2 ${
+              filteredUsers.some(u => u.role === 'student')
+                ? 'border-blue-600'
+                : 'border-transparent'
+            } font-medium`}
           >
             Students
           </button>
@@ -214,7 +241,7 @@ export default function AdminDashboard() {
           <h2 className="text-xl font-semibold mb-4">
             {editingUser ? 'Edit User' : 'Add New User'}
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label>Name</label>
               <input
@@ -330,7 +357,7 @@ export default function AdminDashboard() {
           </table>
         </div>
 
-        {/* Export Button */}
+        {/* Export CSV Button */}
         <button
           onClick={() => {
             const csv = [

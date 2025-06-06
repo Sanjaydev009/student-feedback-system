@@ -16,10 +16,12 @@ import express from 'express';
 import { submitFeedback } from '../controllers/feedbackController';
 import { getAllFeedback } from '../controllers/feedbackController';
 import { protect, isAdmin } from '../middleware/authMiddleware';
+import { getStudentFeedback } from '../controllers/feedbackController';
 
 const router = express.Router();
 
 router.post('/', protect, submitFeedback);
 router.get('/', protect, isAdmin, getAllFeedback);
+router.get('/student/:id', protect, getStudentFeedback);
 
 export default router;

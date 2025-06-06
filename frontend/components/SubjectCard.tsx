@@ -19,15 +19,15 @@ export default function SubjectCard({ subject, submitted }: Props) {
       <p className="text-sm text-gray-600 mt-1">Code: {subject.code}</p>
       <p className="text-sm text-gray-600 mt-1">Instructor: {subject.instructor}</p>
 
-      {submitted ? (
-        <p className="mt-4 text-green-600 font-medium">✅ Feedback Submitted</p>
-      ) : (
+      {!submitted ? (
         <Link
           href={`/submit-feedback?subjectId=${subject._id}`}
           className="mt-4 inline-block text-blue-600 hover:underline"
         >
           Give Feedback
         </Link>
+      ) : (
+        <p className="mt-4 text-green-600 font-medium">✅ Feedback Submitted</p>
       )}
     </div>
   );
