@@ -42,19 +42,33 @@
 import { Request, Response } from 'express';
 import Feedback from '../models/Feedback';
 
-export const submitFeedback = async (req: Request, res: Response) => {
+
+export const submitFeedback = async (req: Request, res: Response): Promise<void> => {
   const { student, subject, answers } = req.body;
 
+  if (!student || !subject || !answers || answers.length < 10) {
+    res.status(400).json({ message: 'All fields are required.' });
+    return;
+  }
+
   try {
-    const feedback = await Feedback.create({
+    const existing = await Feedback.findOne({ student, subject });
+
+    if (existing) {
+      res.status(400).json({ message: 'Feedback already submitted for this subject' });
+      return;
+    }
+
+    const newFeedback = await Feedback.create({
       student,
       subject,
       answers
     });
 
-    res.status(201).json(feedback);
-  } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(201).json(newFeedback);
+  } catch (err: any) {
+    console.error('Error submitting feedback:', err.message);
+    res.status(500).json({ message: 'Server error. Failed to submit feedback.' });
   }
 };
 
@@ -67,13 +81,21 @@ export const getAllFeedback = async (req: Request, res: Response) => {
   }
 };
 
-export const getStudentFeedback = async (req: Request, res: Response) => {
-  const { id } = req.params; // student ID
+export const getStudentFeedback = async (req: Request, res: Response): Promise<void> => {
+  const { id } = req.params; // This is student ID
+  const { subject } = req.query; // Optional: filter by subject
 
   try {
-    const feedbacks = await Feedback.find({ student: id }).populate('subject');
-    res.json(feedbacks); // ✅ Returns array of feedback objects
-  } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    let query: any = { student: id };
+    if (subject) {
+      query.subject = subject;
+    }
+
+    const feedbacks = await Feedback.find(query).populate('subject', 'name code instructor');
+
+    res.json(feedbacks);
+  } catch (err: any) {
+    console.error('Error fetching feedback:', err.message);
+    res.status(500).json({ message: 'Server error' });
   }
 };
