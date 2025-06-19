@@ -1,26 +1,26 @@
 import { model, Schema } from 'mongoose';
-import { IFeedback } from '../interfaces/Feedback';
 
-const FeedbackSchema = new Schema<IFeedback>(
-  {
-    student: {
-      type: Schema.Types.ObjectId,
-      ref: 'User',
-      required: true
-    },
-    subject: {
-      type: Schema.Types.ObjectId,
-      ref: 'Subject',
-      required: true
-    },
-    answers: [
-      {
-        question: { type: String, required: true },
-        answer: { type: Number, min: 1, max: 5 }
-      }
-    ]
+const FeedbackSchema = new Schema({
+  student: {
+    type: Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
   },
-  { timestamps: true }
-);
+  subject: {
+    type: Schema.Types.ObjectId,
+    ref: 'Subject',
+    required: true
+  },
+  answers: [
+    {
+      question: String,
+      answer: Number
+    }
+  ],
+  averageRating: Number
+});
 
-export default model<IFeedback>('Feedback', FeedbackSchema);
+// Add unique constraint to prevent duplicate submission
+FeedbackSchema.index({ student: 1, subject: 1 }, { unique: true });
+
+export default model('Feedback', FeedbackSchema);

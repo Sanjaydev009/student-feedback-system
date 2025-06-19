@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
-export default function AdminNavbar() {
+export default function StudentNavbar() {
   const router = useRouter();
 
   const handleLogout = () => {
@@ -12,14 +12,12 @@ export default function AdminNavbar() {
   };
 
   return (
-    <nav className="bg-blue-700 text-white shadow-md mb-6">
+    <nav className="bg-blue-700 text-white shadow-md">
       <div className="container mx-auto px-4 py-3 flex justify-between items-center">
-        <h1 className="text-xl font-bold">Admin Dashboard</h1>
+        <h1 className="text-xl font-bold">Student Feedback System</h1>
         <ul className="flex space-x-6">
-          <li><Link href="/admin-dashboard">Dashboard</Link></li>
-          <li><Link href="/admin-dashboard/subjects">Manage Subjects</Link></li>
-          <li><Link href="/admin-dashboard/users">Manage Users</Link></li>
-          <li><Link href="/admin-dashboard/reports">Reports</Link></li>
+          <li><Link href="/subjects">Subjects</Link></li>
+          <li><Link href="/my-feedback">My Feedback</Link></li>
           <li>
             <button onClick={handleLogout} className="hover:text-red-200 transition">
               Logout

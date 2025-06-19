@@ -1,14 +1,11 @@
 import express from 'express';
-import { getSubjects, getSubjectById } from '../controllers/subjectController';
+import { getSubjects, getSubjectById, createSubject } from '../controllers/subjectController';
+import { protect, isAdmin } from '../middleware/authMiddleware';
 
 const router = express.Router();
 
-// GET /api/subjects
-router.route('/')
-  .get(getSubjects);
-
-// GET /api/subjects/:id
-router.route('/:id')
-  .get(getSubjectById);
+router.get('/', protect, getSubjects);         // Protected route
+router.get('/:id', protect, getSubjectById);
+router.post('/', protect, isAdmin, createSubject);   // Protected route
 
 export default router;

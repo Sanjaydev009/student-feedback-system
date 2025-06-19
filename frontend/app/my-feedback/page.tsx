@@ -2,59 +2,52 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import StudentNavbar from '@/components/StudentNavbar';
 
 interface Feedback {
   _id: string;
   subject: {
     name: string;
+    code: string;
+    instructor: string;
   };
   answers: Array<{
     question: string;
     answer: number;
   }>;
+  averageRating: number;
 }
 
 export default function MyFeedbackPage() {
   const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Get studentId from JWT token
+  // Get token and decode student ID
+  const storedToken = localStorage.getItem('token');
+  const decoded: any = storedToken ? JSON.parse(atob(storedToken.split('.')[1])) : {};
+  const studentId = decoded.id;
+
+  // Load feedback data
   useEffect(() => {
     const fetchFeedback = async () => {
-      const storedToken = localStorage.getItem('token');
-      if (!storedToken) {
-        window.location.href = '/login';
-        return;
-      }
-
       try {
-        const decoded: any = JSON.parse(atob(storedToken.split('.')[1]));
-        const studentId = decoded.id;
-
-        const res = await fetch(`http://localhost:5001/api/feedback/student/${studentId}`, {
+        const res = await fetch('http://localhost:5001/api/feedback/me', {
           headers: {
             Authorization: `Bearer ${storedToken}`
           }
         });
 
-        // ✅ Check if response is valid JSON
         const contentType = res.headers.get('content-type');
+
         if (!contentType?.includes('application/json')) {
-          throw new Error('Received non-JSON response from server');
+          throw new Error('Received HTML instead of JSON - likely not authenticated');
         }
 
         const data = await res.json();
-
-        // ✅ Ensure data is an array before mapping
-        if (Array.isArray(data)) {
-          setFeedbacks(data);
-        } else {
-          console.error('Expected array but got:', data);
-          setFeedbacks([]);
-        }
-
-      } catch (err) {
-        alert('Failed to load feedback. Please log in again.');
+        setFeedbacks(data);
+      } catch (err: any) {
+        console.error('Failed to load feedback:', err.message);
+        alert(err.message || 'Failed to load your feedback. Please log in again.');
         localStorage.removeItem('token');
         window.location.href = '/login';
       } finally {
@@ -65,29 +58,35 @@ export default function MyFeedbackPage() {
     fetchFeedback();
   }, []);
 
-  if (loading) return <p>Loading...</p>;
+  if (loading) return <p>Loading your feedback...</p>;
 
   return (
-    <div className="container mx-auto p-6">
-      <h1 className="text-2xl font-bold mb-6">My Feedback</h1>
+    <div className="min-h-screen bg-gray-100">
+      <StudentNavbar />
 
-      {feedbacks.length === 0 && (
-        <p>No feedback submitted yet.</p>
-      )}
+      <div className="container mx-auto p-6">
+        <h1 className="text-3xl font-bold mb-8">My Feedback</h1>
 
-      <div className="space-y-6">
-        {feedbacks.map((fb) => (
-          <div key={fb._id} className="bg-white p-6 rounded shadow">
-            <h2 className="text-lg font-semibold mb-4">{fb.subject.name}</h2>
-            <div className="space-y-3">
-              {fb.answers.map((ans, i) => (
-                <div key={i}>
-                  <strong>{ans.question}</strong>: {ans.answer}/5
-                </div>
-              ))}
+        {feedbacks.length > 0 ? (
+          feedbacks.map((fb, index) => (
+            <div key={index} className="bg-white shadow rounded p-6 mb-6">
+              <h2 className="text-xl font-semibold">{fb.subject.name}</h2>
+              <p className="mt-2 text-gray-600">Instructor: {fb.subject.instructor}</p>
+              <p className="mt-2 text-gray-600">Average Rating: <strong>{fb.averageRating}/5</strong></p>
+
+              <div className="mt-4 space-y-3">
+                {fb.answers.map((ans, i) => (
+                  <div key={i}>
+                    <p className="text-sm text-gray-800">{ans.question}</p>
+                    <p className="text-lg">⭐ {ans.answer}/5</p>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
+          ))
+        ) : (
+          <p className="text-gray-600">You have not given any feedback yet.</p>
+        )}
       </div>
     </div>
   );
