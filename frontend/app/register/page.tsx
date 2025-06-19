@@ -1,8 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function RegisterPage() {
+  const router = useRouter();
+
   const [form, setForm] = useState({
     name: '',
     rollNumber: '',
@@ -29,6 +32,12 @@ export default function RegisterPage() {
         body: JSON.stringify(form)
       });
 
+      const contentType = res.headers.get('content-type');
+
+      if (!contentType?.includes('application/json')) {
+        throw new Error('Received HTML instead of JSON - likely server error');
+      }
+
       const data = await res.json();
 
       if (!res.ok) {
@@ -36,9 +45,11 @@ export default function RegisterPage() {
       }
 
       localStorage.setItem('token', data.token);
-      window.location.href = '/subjects';
+      alert('✅ Registration successful!');
+      router.push('/subjects');
     } catch (err: any) {
-      alert(err.message || 'Registration failed');
+      console.error('Registration error:', err.message);
+      alert(err.message || 'Something went wrong. Try again.');
     }
   };
 

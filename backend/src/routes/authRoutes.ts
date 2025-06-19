@@ -1,6 +1,6 @@
 // src/routes/authRoutes.ts
 import express from 'express';
-import { registerStudent, loginStudent } from '../controllers/authController';
+import { registerStudent, loginStudent, getMe } from '../controllers/authController';
 import { protect, isAdmin } from '../middleware/authMiddleware';
 import {
   getAllUsers,
@@ -19,5 +19,7 @@ router.delete('/users/:id', protect, isAdmin, deleteUser);
 
 router.post('/register', registerStudent);
 router.post('/login', loginStudent);
+
+router.get('/me', protect, getMe);
 
 export default router;

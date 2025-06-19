@@ -12,9 +12,9 @@ export default function StudentNavbar() {
   };
 
   return (
-    <nav className="bg-blue-700 text-white shadow-md mb-6">
+    <nav className="bg-blue-700 text-white shadow-md">
       <div className="container mx-auto px-4 py-3 flex justify-between items-center">
-        <h1 className="text-xl font-bold">Student Feedback</h1>
+        <h1 className="text-xl font-bold">Student Feedback System</h1>
         <ul className="flex space-x-6">
           <li><Link href="/subjects">Subjects</Link></li>
           <li><Link href="/my-feedback">My Feedback</Link></li>

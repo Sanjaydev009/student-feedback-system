@@ -16,7 +16,8 @@ const FeedbackSchema = new Schema({
       question: String,
       answer: Number
     }
-  ]
+  ],
+  averageRating: Number
 });
 
 // Add unique constraint to prevent duplicate submission

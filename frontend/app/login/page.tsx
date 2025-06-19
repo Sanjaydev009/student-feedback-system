@@ -3,6 +3,12 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
+interface User {
+  _id: string;
+  role: string;
+  branch?: string;
+}
+
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -25,9 +31,8 @@ export default function LoginPage() {
 
       const contentType = res.headers.get('content-type');
 
-      // If response isn't JSON → likely server is down or redirecting
       if (!contentType?.includes('application/json')) {
-        throw new Error('Server not responding - check if backend is running');
+        throw new Error('Received HTML instead of JSON - likely server error');
       }
 
       const data = await res.json();
@@ -39,13 +44,14 @@ export default function LoginPage() {
 
       localStorage.setItem('token', data.token);
 
-      const decodedToken = JSON.parse(atob(data.token.split('.')[1]));
-      const role = decodedToken.role;
+      // Decode token
+      const decoded: any = JSON.parse(atob(data.token.split('.')[1]));
 
-      if (role === 'admin') {
+      if (decoded.role === 'admin') {
         router.push('/admin-dashboard');
-      } else if (role === 'student') {
-        router.push('/subjects');
+      } else if (decoded.role === 'student') {
+        // router.push('/subjects');
+        window.location.href = '/subjects';
       } else {
         router.push('/');
       }
@@ -81,6 +87,16 @@ export default function LoginPage() {
         >
           Login
         </button>
+
+        <h3 className="mt-4 text-center">
+          Don't have an account?{' '}
+          <button
+            onClick={() => router.push('/register')}
+            className="text-blue-600 hover:underline"
+          >
+            Register
+          </button>
+        </h3>
       </div>
     </div>
   );

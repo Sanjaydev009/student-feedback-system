@@ -46,29 +46,16 @@ import Feedback from '../models/Feedback';
 export const submitFeedback = async (req: Request, res: Response): Promise<void> => {
   const { student, subject, answers } = req.body;
 
-  if (!student || !subject || !answers || answers.length < 10) {
-    res.status(400).json({ message: 'All fields are required.' });
+  if (!student || !subject || !Array.isArray(answers) || answers.length < 10) {
+    res.status(400).json({ message: 'All fields including 10 questions are required' });
     return;
   }
 
   try {
-    const existing = await Feedback.findOne({ student, subject });
-
-    if (existing) {
-      res.status(400).json({ message: 'Feedback already submitted for this subject' });
-      return;
-    }
-
-    const newFeedback = await Feedback.create({
-      student,
-      subject,
-      answers
-    });
-
+    const newFeedback = await Feedback.create({ student, subject, answers });
     res.status(201).json(newFeedback);
   } catch (err: any) {
-    console.error('Error submitting feedback:', err.message);
-    res.status(500).json({ message: 'Server error. Failed to submit feedback.' });
+    res.status(500).json({ message: err.message });
   }
 };
 
@@ -97,5 +84,15 @@ export const getStudentFeedback = async (req: Request, res: Response): Promise<v
   } catch (err: any) {
     console.error('Error fetching feedback:', err.message);
     res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// GET /api/feedback/me
+export const getMyFeedback = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const feedbacks = await Feedback.find({ student: req.user?.id }).populate('subject', 'name instructor code');
+    res.json(feedbacks);
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
   }
 };

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import StudentNavbar from '@/components/AdminNavbar';
+import StudentNavbar from '@/components/StudentNavbar';
 
 interface Subject {
   _id: string;
@@ -15,6 +15,7 @@ interface Subject {
 export default function SubjectsPage() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [studentBranch, setStudentBranch] = useState<string | null>(null);
+  const [studentName, setStudentName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Check login status and decode token
@@ -36,7 +37,8 @@ export default function SubjectsPage() {
 
       const userBranch = decoded.branch || 'MCA Regular';
       setStudentBranch(userBranch);
-      fetchSubjects(storedToken, userBranch);
+      fetchStudentName(storedToken);
+      fetchSubjects(storedToken, userBranch); // ✅ Pass branch here
     } catch (err: any) {
       alert('Invalid token. Please log in again.');
       localStorage.removeItem('token');
@@ -44,7 +46,32 @@ export default function SubjectsPage() {
     }
   }, []);
 
-  // Fetch all subjects and filter by branch
+  // Get student name
+  const fetchStudentName = async (token: string) => {
+    try {
+      const res = await fetch('http://localhost:5001/api/auth/me', {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      const contentType = res.headers.get('content-type');
+
+      if (!contentType?.includes('application/json')) {
+        throw new Error('Received HTML instead of JSON - likely not authenticated');
+      }
+
+      const data = await res.json();
+      setStudentName(data.name);
+    } catch (err: any) {
+      console.error('Failed to load student:', err.message);
+      alert('Session expired. Redirecting to login...');
+      localStorage.removeItem('token');
+      window.location.href = '/login';
+    }
+  };
+
+  // Load subjects and filter by branch
   const fetchSubjects = async (token: string, branch: string) => {
     try {
       const res = await fetch('http://localhost:5001/api/subjects', {
@@ -61,7 +88,7 @@ export default function SubjectsPage() {
 
       const data = await res.json();
 
-      // ✅ Filter by student branch
+      // ✅ Filter by branch
       const filtered = data.filter((subject: Subject) => subject.branch === branch);
       setSubjects(filtered);
     } catch (err: any) {
@@ -74,17 +101,29 @@ export default function SubjectsPage() {
     }
   };
 
-  if (loading) return <p>Loading subjects...</p>;
+  if (loading) return <p className="text-center mt-8">Loading your subjects...</p>;
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <StudentNavbar />
+      {/* <StudentNavbar /> */}
 
       <div className="container mx-auto p-6">
-        <h1 className="text-3xl font-bold mb-6">Your Subjects</h1>
-        <p className="mb-6 text-gray-700">
-          Click on a subject to give feedback ({studentBranch})
-        </p>
+        {/* Welcome Banner */}
+        <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg shadow-md p-6 mb-6">
+          <h1 className="text-3xl font-bold">Welcome back, {studentName}!</h1>
+          <p className="mt-2 opacity-90">
+            You're logged in as a student. Here are your subjects for:
+            <span className="font-semibold ml-1">{studentBranch}</span>
+          </p>
+        </div>
+
+        {/* Info Card */}
+        <div className="bg-white shadow-md rounded-lg p-4 mb-6 border-l-4 border-blue-500">
+          <h2 className="text-lg font-medium">📝 Feedback Instructions</h2>
+          <p className="text-sm text-gray-600 mt-1">
+            Click on a subject below to give feedback.
+          </p>
+        </div>
 
         {/* Responsive Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -105,7 +144,7 @@ export default function SubjectsPage() {
             ))
           ) : (
             <div className="col-span-full flex justify-center items-center py-12 bg-white rounded shadow">
-              <p className="text-gray-500">❌ No subjects found for your branch.</p>
+              <p className="text-gray-500 text-lg">❌ No subjects found for your branch.</p>
             </div>
           )}
         </div>
