@@ -37,7 +37,14 @@ export default function BulkStudentUpload({ onUploadComplete }: { onUploadComple
         header: true,
         complete: (results) => {
           try {
-            const data = results.data as any[];
+            const allData = results.data as any[];
+            
+            // Filter out empty rows for validation and preview
+            const data = allData.filter(row => {
+              // Check if the row has any meaningful data
+              const hasAnyData = row.name || row.email || row.rollNumber || row.branch;
+              return hasAnyData;
+            });
             
             // Validate required columns
             const requiredColumns = ['name', 'email', 'rollNumber', 'branch'];
@@ -46,6 +53,11 @@ export default function BulkStudentUpload({ onUploadComplete }: { onUploadComple
             
             if (missingColumns.length > 0) {
               setError(`CSV file is missing required columns: ${missingColumns.join(', ')}`);
+              return;
+            }
+            
+            if (data.length === 0) {
+              setError('CSV file appears to be empty or contains no valid data rows');
               return;
             }
             
@@ -82,15 +94,37 @@ export default function BulkStudentUpload({ onUploadComplete }: { onUploadComple
         });
       });
       
-      // Validate data
-      const students = parseResult as StudentData[];
+      // Filter out empty rows and validate data
+      const allStudents = parseResult as StudentData[];
+      
+      // Filter out completely empty rows (common at the end of CSV files)
+      const students = allStudents.filter(student => {
+        // Check if all fields are empty/undefined/null
+        const hasAnyData = student.name || student.email || student.rollNumber || student.branch;
+        return hasAnyData;
+      });
+      
+      console.log('Total rows from CSV:', allStudents.length);
+      console.log('Valid rows after filtering:', students.length);
+      console.log('First few rows:', students.slice(0, 3));
+      
       const validationErrors = students.reduce<{index: number; message: string}[]>((errors, student, index) => {
-        if (!student.name || !student.email || !student.rollNumber || !student.branch) {
+        // Trim whitespace from all fields
+        const trimmedStudent = {
+          name: student.name?.trim() || '',
+          email: student.email?.trim() || '',
+          rollNumber: student.rollNumber?.trim() || '',
+          branch: student.branch?.trim() || ''
+        };
+        
+        console.log(`Row ${index + 1}:`, trimmedStudent);
+        
+        if (!trimmedStudent.name || !trimmedStudent.email || !trimmedStudent.rollNumber || !trimmedStudent.branch) {
           errors.push({
             index,
-            message: `Row ${index + 1} is missing required fields`
+            message: `Row ${index + 1} is missing required fields (name: '${trimmedStudent.name}', email: '${trimmedStudent.email}', rollNumber: '${trimmedStudent.rollNumber}', branch: '${trimmedStudent.branch}')`
           });
-        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(student.email)) {
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedStudent.email)) {
           errors.push({
             index,
             message: `Row ${index + 1} has an invalid email format`
@@ -105,9 +139,23 @@ export default function BulkStudentUpload({ onUploadComplete }: { onUploadComple
         return;
       }
       
+      if (students.length === 0) {
+        setError('No valid student data found in the CSV file');
+        setUploadStatus('error');
+        return;
+      }
+      
+      // Clean and prepare data for upload
+      const cleanedStudents = students.map(student => ({
+        name: student.name?.trim() || '',
+        email: student.email?.trim() || '',
+        rollNumber: student.rollNumber?.trim() || '',
+        branch: student.branch?.trim() || ''
+      }));
+      
       // Send data to API
       const response = await api.post('/api/auth/register/bulk', {
-        students: students
+        students: cleanedStudents
       });
       
       setUploadSummary(response.data.results);

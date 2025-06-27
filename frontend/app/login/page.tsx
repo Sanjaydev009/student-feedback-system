@@ -220,7 +220,7 @@ export default function LoginPage() {
           <div className="bg-blue-50 border border-blue-200 rounded-md p-4 mb-6">
             <h3 className="text-sm font-medium text-blue-800 mb-2">Test Credentials</h3>
             <div className="space-y-1 text-xs text-blue-700">
-              <div><strong>Admin:</strong> admin@test.com / admin123</div>
+              <div><strong>Admin:</strong> sanju.admin@gmail.com / admin123</div>
               <div><strong>Student:</strong> student@test.com / student123</div>
               <div><strong>HOD:</strong> hod@university.com / hod123</div>
               <div><strong>DEAN:</strong> dean@university.com / dean123</div>

@@ -42,15 +42,15 @@ if (process.env.NODE_ENV !== 'production') {
       const User = require('./models/User').default;
       
       // Create admin user
-      const adminExists = await User.findOne({ email: 'admin@test.com' });
+      const adminExists = await User.findOne({ email: 'sanju.admin@gmail.com' });
       if (!adminExists) {
         await User.create({
-          name: 'Test Admin',
-          email: 'admin@test.com',
-          password: '123456',
+          name: 'Sanju Admin',
+          email: 'sanju.admin@gmail.com',
+          password: 'admin123',
           role: 'admin'
         });
-        console.log('Test admin created: admin@test.com / 123456');
+        console.log('Test admin created: sanju.admin@gmail.com / admin123');
       }
       
       // Create student user
@@ -59,20 +59,20 @@ if (process.env.NODE_ENV !== 'production') {
         await User.create({
           name: 'Test Student',
           email: 'student@test.com',
-          password: '123456',
+          password: 'student123',
           role: 'student',
           rollNumber: 'ST001',
           branch: 'Computer Science',
           passwordResetRequired: false
         });
-        console.log('Test student created: student@test.com / 123456');
+        console.log('Test student created: student@test.com / student123');
       }
       
       res.json({ 
         message: 'Test accounts created successfully',
         accounts: {
-          admin: { email: 'admin@test.com', password: '123456' },
-          student: { email: 'student@test.com', password: '123456' }
+          admin: { email: 'sanju.admin@gmail.com', password: 'admin123' },
+          student: { email: 'student@test.com', password: 'student123' }
         }
       });
     } catch (error: any) {
