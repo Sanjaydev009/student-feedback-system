@@ -1,0 +1,13 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Run Student Feedback System",
+			"type": "shell",
+			"command": "echo \"Starting Student Feedback System servers...\" && cd ${workspaceFolder}/backend && echo \"Starting backend server on port 5001\" && npm run dev & cd ${workspaceFolder}/frontend && echo \"Starting frontend server on port 3000\" && npm run dev",
+			"isBackground": true,
+			"problemMatcher": [],
+			"group": "test"
+		}
+	]
+}

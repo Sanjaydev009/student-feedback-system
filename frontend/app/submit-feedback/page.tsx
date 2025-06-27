@@ -1,226 +1,10 @@
-// 'use client';
-
-// import { useEffect, useState } from 'react';
-// import Link from 'next/link';
-// import StudentNavbar from '@/components/StudentNavbar';
-
-// interface Subject {
-//   _id: string;
-//   name: string;
-//   code: string;
-//   instructor: string;
-//   branch: string;
-//   questions: string[];
-// }
-
-// export default function SubmitFeedbackPage() {
-//   const [subject, setSubject] = useState<Subject | null>(null);
-//   const [answers, setAnswers] = useState<number[]>(Array(10).fill(0));
-//   const [submitted, setSubmitted] = useState(false);
-//   const [loading, setLoading] = useState(true);
-//   const [storedToken, setStoredToken] = useState<string | null>(null);
-//   const [studentBranch, setStudentBranch] = useState<string | null>(null);
-//   const [studentId, setStudentId] = useState<string | null>(null);
-
-//   // Step 1: Get token and decode after mount
-//   useEffect(() => {
-//     const token = localStorage.getItem('token');
-//     if (!token) {
-//       alert('No token found. Please log in again.');
-//       window.location.href = '/login';
-//       return;
-//     }
-
-//     try {
-//       const decoded: any = JSON.parse(atob(token.split('.')[1]));
-//       setStudentBranch(decoded.branch || 'MCA Regular');
-//       setStudentId(decoded.id);
-//       setStoredToken(token);
-//     } catch (err) {
-//       alert('Invalid or expired token. Please log in again.');
-//       localStorage.removeItem('token');
-//       window.location.href = '/login';
-//     }
-//   }, []);
-
-//   // Step 2: Get subjectId from URL after component mounts
-//   useEffect(() => {
-//     if (!storedToken) return;
-
-//     const searchParams = new URLSearchParams(window.location.search);
-//     const subjectId = searchParams.get('subjectId');
-
-//     if (!subjectId) {
-//       alert('No subject selected. Redirecting...');
-//       window.location.href = '/subjects';
-//       return;
-//     }
-
-//     fetchSubject(subjectId, storedToken);
-//   }, [storedToken]);
-
-//   // Step 3: Fetch subject by ID
-//   const fetchSubject = async (subjectId: string, token: string) => {
-//     try {
-//       const res = await fetch(`http://localhost:5001/api/subjects/${subjectId}`, {
-//         headers: {
-//           Authorization: `Bearer ${token}`
-//         }
-//       });
-
-//       const contentType = res.headers.get('content-type');
-
-//       if (!contentType?.includes('application/json')) {
-//         throw new Error('Received HTML instead of JSON - likely not authenticated');
-//       }
-
-//       const data = await res.json();
-
-//       if (!data.questions || data.questions.length < 10) {
-//         alert('This subject has invalid feedback questions.');
-//         window.location.href = '/subjects';
-//         return;
-//       }
-
-//       setSubject(data);
-//     } catch (err: any) {
-//       console.error('Failed to load subject:', err.message);
-//       alert(err.message || 'Failed to load subject');
-//       localStorage.removeItem('token');
-//       window.location.href = '/login';
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
-//   // Step 4: Check if already submitted
-//   useEffect(() => {
-//     const checkIfAlreadySubmitted = async () => {
-//       if (!studentId || !subject?._id) return;
-
-//       try {
-//         const res = await fetch(`http://localhost:5001/api/feedback/student/${studentId}?subject=${subject._id}`, {
-//           headers: {
-//             Authorization: `Bearer ${storedToken}`
-//           }
-//         });
-
-//         const data = await res.json();
-//         setSubmitted(data.length > 0);
-//       } catch (err) {
-//         console.error('Error checking submission status');
-//       }
-//     };
-
-//     checkIfAlreadySubmitted();
-//   }, [subject, studentId]);
-
-//   const handleRatingChange = (index: number, value: number) => {
-//     const updated = [...answers];
-//     updated[index] = value;
-//     setAnswers(updated);
-//   };
-
-//   const handleSubmit = async () => {
-//     if (answers.some(a => a === 0)) {
-//       alert('Please answer all questions');
-//       return;
-//     }
-
-//     if (!storedToken || !subject) {
-//       alert('Session expired. Please log in again.');
-//       localStorage.removeItem('token');
-//       window.location.href = '/login';
-//       return;
-//     }
-
-//     try {
-//       const res = await fetch('http://localhost:5001/api/feedback', {
-//         method: 'POST',
-//         headers: {
-//           'Content-Type': 'application/json',
-//           Authorization: `Bearer ${storedToken}`
-//         },
-//         body: JSON.stringify({
-//           student: studentId,
-//           subject: subject._id,
-//           answers: answers.map((ans, i) => ({
-//             question: subject.questions[i],
-//             answer: ans
-//           }))
-//         })
-//       });
-
-//       const data = await res.json();
-
-//       if (!res.ok) {
-//         throw new Error(data.message || 'Failed to submit feedback');
-//       }
-
-//       alert('✅ Feedback submitted successfully!');
-//       window.location.href = '/my-feedback';
-//     } catch (err: any) {
-//       alert(err.message || 'Something went wrong. Try again.');
-//     }
-//   };
-
-//   if (loading) return <p>Loading subject...</p>;
-//   if (!subject) return <p>Subject not found</p>;
-
-//   return (
-//     <div className="min-h-screen bg-gray-100 py-8 px-4 md:px-0">
-//       <StudentNavbar />
-
-//       <div className="container mx-auto max-w-3xl">
-//         <h1 className="text-2xl font-bold mb-6">{subject.name}</h1>
-//         <p className="mb-6 text-gray-700">Instructor: {subject.instructor}</p>
-
-//         <div className="bg-white p-6 rounded shadow-md space-y-6">
-//           <h2 className="font-medium text-lg">Rate the following:</h2>
-
-//           {subject.questions.slice(0, 10).map((q, index) => (
-//             <div key={index} className="flex flex-col space-y-2">
-//               <label className="font-medium">{q}</label>
-//               <div className="flex items-center space-x-2">
-//                 {[1, 2, 3, 4, 5].map(rating => (
-//                   <button
-//                     key={rating}
-//                     type="button"
-//                     onClick={() => handleRatingChange(index, rating)}
-//                     disabled={submitted}
-//                     className={`w-8 h-8 flex items-center justify-center rounded-full ${
-//                       answers[index] >= rating ? 'bg-yellow-400' : 'bg-gray-200'
-//                     } ${submitted ? 'cursor-not-allowed opacity-60' : ''}`}
-//                   >
-//                     ⭐
-//                   </button>
-//                 ))}
-//               </div>
-//             </div>
-//           ))}
-
-//           <button
-//             disabled={submitted}
-//             onClick={handleSubmit}
-//             className={`mt-6 w-full py-3 rounded ${
-//               submitted
-//                 ? 'bg-gray-400 cursor-not-allowed'
-//                 : 'bg-blue-600 hover:bg-blue-700 text-white'
-//             }`}
-//           >
-//             {submitted ? 'Already Submitted' : 'Submit Feedback'}
-//           </button>
-//         </div>
-//       </div>
-//     </div>
-//   );
-// }
-
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import StudentNavbar from '@/components/StudentNavbar';
+import { decodeToken, isAuthenticated } from '@/utils/auth';
+import api from '@/utils/api';
 
 interface Subject {
   _id: string;
@@ -232,114 +16,101 @@ interface Subject {
 }
 
 export default function SubmitFeedbackPage() {
+  const router = useRouter();
   const [subject, setSubject] = useState<Subject | null>(null);
   const [answers, setAnswers] = useState<number[]>(Array(10).fill(0));
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(true);
-
-  // Get query params safely after component mounts
-  const [storedToken, setStoredToken] = useState<string | null>(null);
-  const [studentBranch, setStudentBranch] = useState<string | null>(null);
   const [studentId, setStudentId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  // Step 1: Load token and decode it
+  // Step 1: Check authentication and get user info
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      alert('No token found. Please log in again.');
-      window.location.href = '/login';
+    if (!isAuthenticated()) {
+      router.push('/login');
       return;
     }
 
     try {
-      const decoded: any = JSON.parse(atob(token.split('.')[1]));
-
+      const token = localStorage.getItem('token');
+      const decoded = decodeToken(token!);
+      
       if (decoded.role !== 'student') {
         alert('Only students can give feedback');
-        window.location.href = '/';
+        
+        // Redirect to appropriate dashboard based on role
+        if (decoded.role === 'admin') {
+          router.push('/admin-dashboard');
+        } else if (decoded.role === 'hod') {
+          router.push('/hod-dashboard');
+        } else {
+          router.push('/');
+        }
+        return;
+      }
+      
+      setStudentId(decoded.id);
+      
+      // Step 2: Get the subject ID from URL
+      const url = new URL(window.location.href);
+      const subjectId = url.searchParams.get('subjectId');
+
+      if (!subjectId) {
+        setError('No subject selected');
+        setTimeout(() => router.push('/subjects'), 2000);
         return;
       }
 
-      setStoredToken(token);
-      setStudentBranch(decoded.branch || 'MCA Regular');
-      setStudentId(decoded.id);
+      // Step 3: Fetch subject details
+      fetchSubject(subjectId);
+      
     } catch (err: any) {
-      alert('Invalid or expired token. Please log in again.');
+      console.error('Authentication error:', err);
       localStorage.removeItem('token');
-      window.location.href = '/login';
+      router.push('/login');
     }
-  }, []);
+  }, [router]);
 
-  // Step 2: Read subjectId from URL
-  useEffect(() => {
-    if (!storedToken) return;
-
-    const searchParams = new URLSearchParams(window.location.search);
-    const subjectId = searchParams.get('subjectId');
-
-    if (!subjectId) {
-      alert('No subject selected. Redirecting...');
-      window.location.href = '/subjects';
-      return;
-    }
-
-    fetchSubject(subjectId, storedToken);
-  }, [storedToken]);
-
-  // Step 3: Fetch subject details
-  const fetchSubject = async (subjectId: string, token: string) => {
+  // Fetch subject details
+  const fetchSubject = async (subjectId: string) => {
     try {
-      const res = await fetch(`http://localhost:5001/api/subjects/${subjectId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-
-      const contentType = res.headers.get('content-type');
-
-      if (!contentType?.includes('application/json')) {
-        throw new Error('Received HTML instead of JSON - likely not authenticated');
-      }
-
-      const data = await res.json();
+      const response = await api.get(`/api/subjects/${subjectId}`);
+      const data = response.data;
 
       if (!data.questions || data.questions.length < 10) {
-        alert('This subject has invalid questions.');
-        window.location.href = '/subjects';
+        setError('This subject has invalid feedback questions');
+        setTimeout(() => router.push('/subjects'), 2000);
         return;
       }
-
+      
       setSubject(data);
+      
+      // Check if student already submitted feedback for this subject
+      checkFeedbackStatus(data._id);
+      
     } catch (err: any) {
-      console.error('Failed to load subject:', err.message);
-      alert(err.message || 'Failed to load subject. Please try again.');
-      localStorage.removeItem('token');
-      window.location.href = '/login';
+      console.error('Failed to load subject:', err);
+      setError('Failed to load subject information');
+      setTimeout(() => router.push('/subjects'), 2000);
     } finally {
       setLoading(false);
     }
   };
 
-  // Step 4: Check if already submitted
-  useEffect(() => {
-    const checkIfAlreadySubmitted = async () => {
-      if (!studentId || !subject?._id) return;
-
-      try {
-        const res = await fetch(`http://localhost:5001/api/feedback/student/${studentId}?subject=${subject._id}`, {
-          headers: {
-            Authorization: `Bearer ${storedToken}`
-          }
-        });
-        const data = await res.json();
-        setSubmitted(data.length > 0);
-      } catch (err) {
-        console.error('Error checking feedback status');
-      }
-    };
-
-    checkIfAlreadySubmitted();
-  }, [subject, studentId]);
+  // Check if student already submitted feedback
+  const checkFeedbackStatus = async (subjectId: string) => {
+    if (!studentId) return;
+    
+    try {
+      // Use our API utility for consistent error handling
+      const response = await api.get(`/api/feedback/student/${studentId}?subject=${subjectId}`);
+      const data = response.data;
+      
+      setSubmitted(Array.isArray(data) && data.length > 0);
+    } catch (err) {
+      console.error('Error checking feedback status:', err);
+    }
+  };
 
   const handleRatingChange = (index: number, value: number) => {
     const updated = [...answers];
@@ -353,106 +124,177 @@ export default function SubmitFeedbackPage() {
       return;
     }
 
-    if (!storedToken || !subject) {
-      alert('Session expired. Please log in again.');
-      localStorage.removeItem('token');
-      window.location.href = '/login';
+    if (!subject) {
+      alert('Subject information missing');
+      return;
+    }
+    
+    if (submitted) {
+      alert('You have already submitted feedback for this subject');
+      router.push('/subjects');
       return;
     }
 
     try {
-      const res = await fetch('http://localhost:5001/api/feedback', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${storedToken}`
-        },
-        body: JSON.stringify({
-          student: studentId,
-          subject: subject._id,
-          answers: answers.map((ans, i) => ({
-            question: subject.questions[i],
-            answer: ans
-          }))
-        })
+      const response = await api.post('/api/feedback', {
+        student: studentId,
+        subject: subject._id,
+        answers: answers.map((ans, i) => ({
+          question: subject.questions[i],
+          answer: ans
+        }))
       });
 
-      const contentType = res.headers.get('content-type');
-
-      if (!contentType?.includes('application/json')) {
-        alert('Authentication failed or session expired.');
-        localStorage.removeItem('token');
-        window.location.href = '/login';
-        return;
-      }
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.message || 'Failed to submit feedback');
-      }
-
+      // Show success message
       alert('✅ Feedback submitted successfully!');
-      window.location.href = '/my-feedback';
+      
+      // Set submitted state to true to update UI
+      setSubmitted(true);
+      
+      // Redirect to my-feedback page
+      setTimeout(() => router.push('/my-feedback'), 1000);
+      
     } catch (err: any) {
-      console.error('Submission error:', err.message);
-      alert('Something went wrong. Please log in again.');
-      localStorage.removeItem('token');
-      window.location.href = '/login';
+      console.error('Failed to submit feedback:', err);
+      
+      // Handle specific error cases
+      if (err.response?.status === 409) {
+        // Conflict - already submitted
+        alert('You have already submitted feedback for this subject');
+        setSubmitted(true);
+        setTimeout(() => router.push('/subjects'), 1000);
+      } else if (err.response?.data?.message) {
+        alert(`Error: ${err.response.data.message}`);
+      } else {
+        alert('Failed to submit feedback. Please try again.');
+      }
     }
   };
 
-  if (loading) return <p>Loading subject...</p>;
-  if (!subject) return <p>Subject not found</p>;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="bg-white p-8 rounded-lg shadow-md text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-3 text-gray-600">Loading subject information...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="bg-white p-8 rounded-lg shadow-md text-center max-w-md">
+          <div className="text-red-500 text-5xl mb-4">⚠️</div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Error</h2>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <p className="text-gray-500 italic">Redirecting to subjects page...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!subject) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="bg-white p-8 rounded-lg shadow-md text-center">
+          <h2 className="text-xl font-medium text-gray-800 mb-2">Subject not found</h2>
+          <button 
+            onClick={() => router.push('/subjects')}
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Back to Subjects
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-100 py-8 px-4 md:px-0">
-      {/* <StudentNavbar /> */}
+    <div className="min-h-screen bg-gray-50">
+      <StudentNavbar />
 
-      <div className="container mx-auto max-w-3xl">
-        <h1 className="text-2xl font-bold mb-6">{subject.name}</h1>
-        <p className="mb-6 text-gray-700">Instructor: {subject.instructor}</p>
+      <div className="container mx-auto py-8 px-4 md:px-6">
+        {/* Subject Card */}
+        <div className="max-w-3xl mx-auto">
+          <div className="bg-white rounded-lg shadow-card overflow-hidden">
+            <div className="bg-gradient-to-r from-blue-600 to-blue-800 py-6 px-6 text-white">
+              <h1 className="text-2xl font-bold">{subject.name}</h1>
+              <div className="flex items-center mt-2">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-blue-200" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
+                </svg>
+                <p className="text-blue-100">Instructor: <span className="font-medium">{subject.instructor}</span></p>
+              </div>
+              <div className="flex items-center mt-1">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-blue-200" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                </svg>
+                <p className="text-blue-100">Code: <span className="font-medium">{subject.code}</span></p>
+              </div>
+            </div>
 
-        <div className="bg-white p-6 rounded shadow-md space-y-6">
-          <h2 className="font-medium text-lg">Rate the following:</h2>
-
-          {/* Safe rendering of questions */}
-          {Array.isArray(subject.questions) && subject.questions.length >= 10 ? (
-            subject.questions.slice(0, 10).map((q, index) => (
-              <div key={index} className="flex flex-col space-y-2">
-                <label className="font-medium">{q}</label>
-                <div className="flex items-center space-x-2">
-                  {[1, 2, 3, 4, 5].map(rating => (
-                    <button
-                      key={rating}
-                      type="button"
-                      onClick={() => handleRatingChange(index, rating)}
-                      disabled={submitted}
-                      className={`w-8 h-8 flex items-center justify-center rounded-full ${
-                        answers[index] >= rating ? 'bg-yellow-400' : 'bg-gray-200'
-                      } ${submitted ? 'cursor-not-allowed opacity-60' : ''}`}
-                    >
-                      ⭐
-                    </button>
-                  ))}
+            {submitted ? (
+              <div className="p-8 text-center">
+                <div className="bg-green-50 border border-green-200 rounded-full w-24 h-24 flex items-center justify-center mx-auto mb-4">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <h2 className="text-2xl font-semibold text-gray-800 mb-2">Feedback Already Submitted</h2>
+                <p className="text-gray-600 mb-6">You have already provided feedback for this subject.</p>
+                <button 
+                  onClick={() => router.push('/my-feedback')}
+                  className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-medium"
+                >
+                  View My Feedback
+                </button>
+              </div>
+            ) : (
+              <div className="p-8">
+                <h2 className="text-xl font-semibold text-gray-800 mb-6">Rate the following aspects:</h2>
+                
+                <div className="space-y-8">
+                  {Array.isArray(subject.questions) && subject.questions.length >= 10 ? (
+                    subject.questions.slice(0, 10).map((q, index) => (
+                      <div key={index} className="p-4 border border-gray-200 rounded-lg bg-gray-50 hover:bg-white transition-medium">
+                        <label className="block font-medium text-gray-800 mb-3">{q}</label>
+                        <div className="flex justify-between items-center">
+                          {[1, 2, 3, 4, 5].map(rating => (
+                            <button
+                              key={rating}
+                              type="button"
+                              onClick={() => handleRatingChange(index, rating)}
+                              className={`flex flex-col items-center justify-center w-16 h-16 rounded-lg transition-transform duration-150 ${
+                                answers[index] === rating 
+                                  ? 'bg-blue-600 text-white scale-110' 
+                                  : answers[index] > rating
+                                    ? 'bg-blue-100 text-blue-800'
+                                    : 'bg-gray-100 hover:bg-gray-200'
+                              }`}
+                            >
+                              <span className="text-xl">{rating}</span>
+                              <span className="text-xs mt-1">{rating === 1 ? 'Poor' : rating === 5 ? 'Excellent' : ''}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-4 border border-red-200 rounded-lg bg-red-50 text-center">
+                      <p className="text-red-600">⚠️ This subject doesn't have valid questions.</p>
+                    </div>
+                  )}                          <button
+                    onClick={handleSubmit}
+                    className="w-full py-3 px-4 mt-8 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium shadow-sm transition-colors duration-200 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                  >
+                    Submit Feedback
+                  </button>
                 </div>
               </div>
-            ))
-          ) : (
-            <p className="text-red-500">⚠️ This subject doesn't have valid questions.</p>
-          )}
-
-          <button
-            disabled={submitted}
-            onClick={handleSubmit}
-            className={`mt-6 w-full py-3 rounded ${
-              submitted
-                ? 'bg-gray-400 cursor-not-allowed'
-                : 'bg-blue-600 hover:bg-blue-700 text-white'
-            }`}
-          >
-            {submitted ? 'Already Submitted' : 'Submit Feedback'}
-          </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

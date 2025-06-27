@@ -1,3 +1,139 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Custom styles for Student Feedback System */
+:root {
+  --primary-color: #3b82f6;   /* blue-500 */
+  --primary-dark: #2563eb;    /* blue-600 */
+  --secondary-color: #8b5cf6; /* violet-500 */
+  --accent-color: #f59e0b;    /* amber-500 */
+  --text-color: #1f2937;      /* gray-800 */
+  --light-bg: #f9fafb;        /* gray-50 */
+  --card-bg: #ffffff;         /* white */
+  --danger-color: #ef4444;    /* red-500 */
+  --success-color: #10b981;   /* emerald-500 */
+}
+
+/* Base Styles */
+body {
+  color: var(--text-color);
+  background-color: var(--light-bg);
+  font-family: 'Inter', system-ui, sans-serif;
+  min-height: 100vh;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+a {
+  color: var(--primary-color);
+  transition: color 0.2s;
+}
+
+a:hover {
+  color: var(--primary-dark);
+}
+
+/* Component Styles */
+.btn {
+  padding: 0.5rem 1rem;
+  border-radius: 0.375rem;
+  font-weight: 500;
+  transition: all 0.2s;
+  outline: none;
+}
+
+.btn:focus {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5);
+}
+
+.btn-primary {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: var(--primary-dark);
+}
+
+.btn-secondary {
+  background-color: var(--secondary-color);
+  color: white;
+}
+
+.btn-secondary:hover {
+  background-color: #7c3aed; /* violet-600 */
+}
+
+.btn-danger {
+  background-color: var(--danger-color);
+  color: white;
+}
+
+.btn-danger:hover {
+  background-color: #dc2626; /* red-600 */
+}
+
+.card {
+  background-color: var(--card-bg);
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  border: 1px solid #f3f4f6;
+}
+
+.card-header {
+  padding: 1rem;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.card-body {
+  padding: 1.5rem;
+}
+
+.form-input {
+  width: 100%;
+  padding: 0.5rem;
+  border-radius: 0.375rem;
+  border: 1px solid #d1d5db;
+  transition: all 0.2s;
+}
+
+.form-input:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+  outline: none;
+}
+
+.form-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #4b5563;
+  margin-bottom: 0.25rem;
+}
+
+.nav-link {
+  color: white;
+  transition: color 0.2s;
+}
+
+.nav-link:hover {
+  color: #bfdbfe; /* blue-200 */
+}
+
+/* Custom Utilities */
+.gradient-bg {
+  background: linear-gradient(to right, var(--primary-color), var(--secondary-color));
+}
+
+.focus-ring {
+  outline: none;
+}
+
+.focus-ring:focus {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5);
+}
