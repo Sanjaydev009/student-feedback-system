@@ -26,19 +26,19 @@ interface RecentFeedback {
     instructor: string;
     branch: string;
   };
-  averageRating: number;
+  averageRating: number | null;
   createdAt: string;
 }
 
 interface BranchRating {
   _id: string;
-  averageRating: number;
+  averageRating: number | null;
   totalFeedbacks: number;
 }
 
 interface TopSubject {
   _id: string;
-  averageRating: number;
+  averageRating: number | null;
   totalFeedbacks: number;
   subjectName: string;
   subjectCode: string;
@@ -91,7 +91,8 @@ export default function DEANDashboard() {
     });
   };
 
-  const getRatingColor = (rating: number) => {
+  const getRatingColor = (rating: number | null) => {
+    if (rating === null || rating === undefined) return 'text-gray-600 bg-gray-100';
     if (rating >= 4) return 'text-green-600 bg-green-100';
     if (rating >= 3) return 'text-yellow-600 bg-yellow-100';
     return 'text-red-600 bg-red-100';
@@ -214,7 +215,7 @@ export default function DEANDashboard() {
                       <p className="text-xs text-gray-500">{formatDate(feedback.createdAt)}</p>
                     </div>
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${getRatingColor(feedback.averageRating)}`}>
-                      {feedback.averageRating.toFixed(1)}★
+                      {feedback.averageRating !== null ? `${feedback.averageRating.toFixed(1)}★` : 'No rating'}
                     </span>
                   </div>
                 </div>
@@ -246,7 +247,7 @@ export default function DEANDashboard() {
                   </div>
                   <div className="text-right">
                     <span className={`px-3 py-1 rounded-full text-sm font-medium ${getRatingColor(branch.averageRating)}`}>
-                      {branch.averageRating.toFixed(1)}★
+                      {branch.averageRating !== null ? `${branch.averageRating.toFixed(1)}★` : 'No rating'}
                     </span>
                   </div>
                 </div>
@@ -281,7 +282,7 @@ export default function DEANDashboard() {
                     <p className="text-xs text-gray-500">{subject.branch}</p>
                   </div>
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${getRatingColor(subject.averageRating)}`}>
-                    {subject.averageRating.toFixed(1)}★
+                    {subject.averageRating !== null ? `${subject.averageRating.toFixed(1)}★` : 'No rating'}
                   </span>
                 </div>
                 <p className="text-xs text-gray-500">{subject.totalFeedbacks} feedback(s)</p>

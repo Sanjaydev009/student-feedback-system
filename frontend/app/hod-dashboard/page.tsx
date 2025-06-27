@@ -24,13 +24,13 @@ interface RecentFeedback {
     code: string;
     instructor: string;
   };
-  averageRating: number;
+  averageRating: number | null;
   createdAt: string;
 }
 
 interface SubjectRating {
   _id: string;
-  averageRating: number;
+  averageRating: number | null;
   totalFeedbacks: number;
   subjectName: string;
   subjectCode: string;
@@ -82,7 +82,8 @@ export default function HODDashboard() {
     });
   };
 
-  const getRatingColor = (rating: number) => {
+  const getRatingColor = (rating: number | null) => {
+    if (rating === null || rating === undefined) return 'text-gray-600 bg-gray-100';
     if (rating >= 4) return 'text-green-600 bg-green-100';
     if (rating >= 3) return 'text-yellow-600 bg-yellow-100';
     return 'text-red-600 bg-red-100';
@@ -189,7 +190,7 @@ export default function HODDashboard() {
                       <p className="text-xs text-gray-500">{formatDate(feedback.createdAt)}</p>
                     </div>
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${getRatingColor(feedback.averageRating)}`}>
-                      {feedback.averageRating.toFixed(1)}★
+                      {feedback.averageRating !== null ? `${feedback.averageRating.toFixed(1)}★` : 'No rating'}
                     </span>
                   </div>
                 </div>
@@ -222,7 +223,7 @@ export default function HODDashboard() {
                   </div>
                   <div className="text-right">
                     <span className={`px-3 py-1 rounded-full text-sm font-medium ${getRatingColor(subject.averageRating)}`}>
-                      {subject.averageRating.toFixed(1)}★
+                      {subject.averageRating !== null ? `${subject.averageRating.toFixed(1)}★` : 'No rating'}
                     </span>
                   </div>
                 </div>

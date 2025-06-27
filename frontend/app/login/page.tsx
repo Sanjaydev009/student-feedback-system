@@ -222,8 +222,8 @@ export default function LoginPage() {
             <div className="space-y-1 text-xs text-blue-700">
               <div><strong>Admin:</strong> admin@test.com / admin123</div>
               <div><strong>Student:</strong> student@test.com / student123</div>
-              <div><strong>HOD:</strong> hod@test.com / kHXY7f48</div>
-              <div><strong>DEAN:</strong> dean@test.com / De1XsgcF</div>
+              <div><strong>HOD:</strong> hod@university.com / hod123</div>
+              <div><strong>DEAN:</strong> dean@university.com / dean123</div>
             </div>
           </div>
         )}
