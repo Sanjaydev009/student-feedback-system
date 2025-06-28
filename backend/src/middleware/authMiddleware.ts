@@ -10,7 +10,7 @@ declare module 'express-serve-static-core' {
   }
 }
 
-export const protect = (req: any, res: Response, next: NextFunction) => {
+export const protect = (req: Request, res: Response, next: NextFunction): void => {
   let token;
 
   if (
@@ -24,6 +24,7 @@ export const protect = (req: any, res: Response, next: NextFunction) => {
         id: string;
         role: string;
         branch?: string;
+        defaultPasswordUsed?: boolean;
       };
       req.user = decoded;
       next();
@@ -35,7 +36,7 @@ export const protect = (req: any, res: Response, next: NextFunction) => {
   }
 };
 
-export const isAdmin = (req: Request, res: Response, next: NextFunction) => {
+export const isAdmin = (req: any, res: Response, next: NextFunction): void => {
   if (req.user?.role === 'admin') return next();
   res.status(403).json({ message: 'Access denied' });
 };

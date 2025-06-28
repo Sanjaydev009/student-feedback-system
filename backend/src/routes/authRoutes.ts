@@ -1,6 +1,6 @@
 // src/routes/authRoutes.ts
 import express from 'express';
-import { registerStudent, loginStudent, getMe } from '../controllers/authController';
+import { bulkRegisterStudents, login, register, resetPassword, updateProfile, getMe } from '../controllers/authController';
 import { protect, isAdmin } from '../middleware/authMiddleware';
 import {
   getAllUsers,
@@ -8,18 +8,111 @@ import {
   updateUser,
   deleteUser
 } from '../controllers/authController';
+import bcrypt from 'bcryptjs';
+import User from '../models/User';
 
 const router = express.Router();
 
-router.get('/users', protect, isAdmin, getAllUsers);
+// Debug route - create test accounts (only in development)
+if (process.env.NODE_ENV !== 'production') {
+  router.get('/setup-test-accounts', async (req, res) => {
+    try {
+      // First, remove any existing test accounts to start fresh
+      await User.deleteMany({ email: { $in: ['admin@test.com', 'student@test.com', 'hod@test.com', 'dean@test.com'] } });
+      
+      // Create the accounts normally (let mongoose middleware handle hashing)
+      const adminPassword = 'admin123';
+      const studentPassword = 'student123';
+      const hodPassword = 'hod123';
+      const deanPassword = 'dean123';
+      
+      const admin = await User.create({
+        name: 'Test Admin',
+        email: 'admin@test.com',
+        password: adminPassword, // Mongoose will hash this
+        role: 'admin',
+        passwordResetRequired: false
+      });
+      
+      const student = await User.create({
+        name: 'Test Student',
+        email: 'student@test.com',
+        rollNumber: 'ST12345',
+        branch: 'MCA Regular',
+        password: studentPassword, // Mongoose will hash this
+        role: 'student',
+        passwordResetRequired: false
+      });
+
+      const hod = await User.create({
+        name: 'Test HOD',
+        email: 'hod@test.com',
+        branch: 'MCA Regular',
+        password: hodPassword, // Mongoose will hash this
+        role: 'hod',
+        passwordResetRequired: false
+      });
+
+      const dean = await User.create({
+        name: 'Test DEAN',
+        email: 'dean@test.com',
+        password: deanPassword, // Mongoose will hash this
+        role: 'dean',
+        passwordResetRequired: false
+      });
+      
+      const results = {
+        admin: { 
+          email: 'admin@test.com', 
+          password: adminPassword,
+          role: 'admin'
+        },
+        student: { 
+          email: 'student@test.com', 
+          password: studentPassword,
+          role: 'student'
+        },
+        hod: { 
+          email: 'hod@test.com', 
+          password: hodPassword,
+          role: 'hod'
+        },
+        dean: { 
+          email: 'dean@test.com', 
+          password: deanPassword,
+          role: 'dean'
+        }
+      };
+      
+      res.json({ 
+        message: 'Test accounts setup complete', 
+        accounts: results
+      });
+    } catch (error) {
+      console.error('Error setting up test accounts:', error);
+      res.status(500).json({ message: 'Error creating test accounts' });
+    }
+  });
+}
+
+// router.get('/users', protect, isAdmin, getAllUsers);
 router.post('/users', protect, isAdmin, createUser);
 router.put('/users/:id', protect, isAdmin, updateUser);
 router.delete('/users/:id', protect, isAdmin, deleteUser);
 
 
-router.post('/register', registerStudent);
-router.post('/login', loginStudent);
+router.post('/login', login);
+router.post('/register', protect, isAdmin, register);
+router.get('/users', protect, isAdmin, getAllUsers);
+
+// Health check endpoint is now in server.ts
+
+router.post('/reset-password', resetPassword);
 
 router.get('/me', protect, getMe);
+router.put('/me', protect, updateProfile);
+
+
+router.post('/register/bulk', protect, isAdmin, bulkRegisterStudents);
 
 export default router;

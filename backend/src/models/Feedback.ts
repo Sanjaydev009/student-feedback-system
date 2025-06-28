@@ -18,7 +18,7 @@ const FeedbackSchema = new Schema({
     }
   ],
   averageRating: Number
-});
+}, { timestamps: true }); // Add timestamps for createdAt and updatedAt
 
 // Add unique constraint to prevent duplicate submission
 FeedbackSchema.index({ student: 1, subject: 1 }, { unique: true });
