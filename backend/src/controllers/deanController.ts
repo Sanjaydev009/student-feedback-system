@@ -408,39 +408,201 @@ export const getDEANAnalytics = async (req: Request, res: Response): Promise<voi
       return;
     }
 
-    // Get feedback trends over time
-    const feedbackTrends = await Feedback.aggregate([
+    const { timeRange = '6months' } = req.query;
+    
+    // Calculate date range based on timeRange parameter
+    const endDate = new Date();
+    const startDate = new Date();
+    
+    switch(timeRange) {
+      case '1month':
+        startDate.setMonth(endDate.getMonth() - 1);
+        break;
+      case '3months':
+        startDate.setMonth(endDate.getMonth() - 3);
+        break;
+      case '1year':
+        startDate.setFullYear(endDate.getFullYear() - 1);
+        break;
+      case '6months':
+      default:
+        startDate.setMonth(endDate.getMonth() - 6);
+    }
+    
+    // Get overview statistics
+    const totalStudents = await User.countDocuments({ role: 'student' });
+    const totalFaculty = await User.countDocuments({ role: 'faculty' });
+    const totalSubjects = await Subject.countDocuments({});
+    const totalFeedback = await Feedback.countDocuments({ 
+      createdAt: { $gte: startDate, $lte: endDate } 
+    });
+    
+    // Calculate overall average rating
+    const ratingResult = await Feedback.aggregate([
+      {
+        $match: { createdAt: { $gte: startDate, $lte: endDate } }
+      },
+      {
+        $group: {
+          _id: null,
+          averageRating: { $avg: '$averageRating' }
+        }
+      }
+    ]);
+    
+    const averageRating = ratingResult.length > 0 ? ratingResult[0].averageRating : 0;
+    
+    // Calculate response rate
+    const totalPossibleFeedback = totalStudents * totalSubjects;
+    const responseRate = totalPossibleFeedback > 0 ? (totalFeedback / totalPossibleFeedback) * 100 : 0;
+    
+    // Get branch statistics
+    const branchStats = await Subject.aggregate([
+      {
+        $group: {
+          _id: '$branch',
+          subjects: { $sum: 1 },
+          branches: { $addToSet: { 
+            name: '$branch',
+            code: '$branch' // Using branch as code as well for simplicity
+          }}
+        }
+      },
+      {
+        $lookup: {
+          from: 'users',
+          let: { branch: '$_id' },
+          pipeline: [
+            { 
+              $match: { 
+                $expr: { 
+                  $and: [
+                    { $eq: ['$branch', '$$branch'] },
+                    { $eq: ['$role', 'student'] }
+                  ]
+                }
+              }
+            },
+            { $count: 'count' }
+          ],
+          as: 'studentsInfo'
+        }
+      },
+      {
+        $lookup: {
+          from: 'feedbacks',
+          let: { branch: '$_id' },
+          pipeline: [
+            {
+              $lookup: {
+                from: 'subjects',
+                localField: 'subject',
+                foreignField: '_id',
+                as: 'subjectInfo'
+              }
+            },
+            { 
+              $match: { 
+                $expr: { 
+                  $eq: [{ $arrayElemAt: ['$subjectInfo.branch', 0] }, '$$branch']
+                },
+                createdAt: { $gte: startDate, $lte: endDate }
+              }
+            },
+            {
+              $group: {
+                _id: null,
+                count: { $sum: 1 },
+                averageRating: { $avg: '$averageRating' }
+              }
+            }
+          ],
+          as: 'feedbackInfo'
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          branch: {
+            _id: '$_id',
+            name: { $arrayElemAt: ['$branches.name', 0] },
+            code: { $arrayElemAt: ['$branches.code', 0] },
+          },
+          students: { $ifNull: [{ $arrayElemAt: ['$studentsInfo.count', 0] }, 0] },
+          subjects: '$subjects',
+          feedback: { $ifNull: [{ $arrayElemAt: ['$feedbackInfo.count', 0] }, 0] },
+          averageRating: { $ifNull: [{ $arrayElemAt: ['$feedbackInfo.averageRating', 0] }, 0] },
+          responseRate: {
+            $let: {
+              vars: {
+                students: { $ifNull: [{ $arrayElemAt: ['$studentsInfo.count', 0] }, 0] },
+                subjects: '$subjects',
+                feedbackCount: { $ifNull: [{ $arrayElemAt: ['$feedbackInfo.count', 0] }, 0] },
+              },
+              in: {
+                $cond: {
+                  if: { $gt: [{ $multiply: ['$$students', '$$subjects'] }, 0] },
+                  then: { $multiply: [{ $divide: ['$$feedbackCount', { $multiply: ['$$students', '$$subjects'] }] }, 100] },
+                  else: 0
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        $sort: { 'averageRating': -1 }
+      }
+    ]);
+
+    // Get rating trends by month
+    const ratingTrends = await Feedback.aggregate([
+      {
+        $match: {
+          createdAt: { $gte: startDate, $lte: endDate }
+        }
+      },
       {
         $group: {
           _id: {
             year: { $year: '$createdAt' },
             month: { $month: '$createdAt' }
           },
-          count: { $sum: 1 },
-          averageRating: { $avg: '$averageRating' }
+          averageRating: { $avg: '$averageRating' },
+          totalFeedback: { $sum: 1 }
         }
       },
       {
         $sort: { '_id.year': 1, '_id.month': 1 }
-      }
-    ]);
-
-    // Get rating distribution
-    const ratingDistribution = await Feedback.aggregate([
+      },
       {
-        $bucket: {
-          groupBy: '$averageRating',
-          boundaries: [0, 1, 2, 3, 4, 5],
-          default: 'other',
-          output: {
-            count: { $sum: 1 }
-          }
+        $project: {
+          _id: 0,
+          month: {
+            $concat: [
+              { $toString: '$_id.year' }, '-',
+              {
+                $cond: {
+                  if: { $lt: ['$_id.month', 10] },
+                  then: { $concat: ['0', { $toString: '$_id.month' }] },
+                  else: { $toString: '$_id.month' }
+                }
+              }
+            ]
+          },
+          averageRating: 1,
+          totalFeedback: 1
         }
       }
     ]);
-
-    // Get top and bottom performing instructors
-    const instructorPerformance = await Feedback.aggregate([
+    
+    // Get top performing subjects
+    const topPerformingSubjects = await Feedback.aggregate([
+      {
+        $match: {
+          createdAt: { $gte: startDate, $lte: endDate }
+        }
+      },
       {
         $lookup: {
           from: 'subjects',
@@ -451,24 +613,101 @@ export const getDEANAnalytics = async (req: Request, res: Response): Promise<voi
       },
       {
         $group: {
-          _id: { $arrayElemAt: ['$subjectInfo.instructor', 0] },
+          _id: '$subject',
           averageRating: { $avg: '$averageRating' },
-          totalFeedbacks: { $sum: 1 },
-          subjects: { $addToSet: { $arrayElemAt: ['$subjectInfo.name', 0] } }
+          totalFeedback: { $sum: 1 },
+          subjectDetails: { $first: { $arrayElemAt: ['$subjectInfo', 0] } }
         }
       },
       {
-        $match: { totalFeedbacks: { $gte: 3 } } // At least 3 feedbacks
+        $match: {
+          totalFeedback: { $gte: 3 } // At least 3 feedbacks
+        }
       },
       {
         $sort: { averageRating: -1 }
+      },
+      {
+        $limit: 10
+      },
+      {
+        $project: {
+          _id: 0,
+          subject: {
+            _id: '$_id',
+            name: '$subjectDetails.name',
+            code: '$subjectDetails.code',
+          },
+          faculty: {
+            name: '$subjectDetails.instructor'
+          },
+          averageRating: 1,
+          totalFeedback: 1
+        }
       }
     ]);
+    
+    // Get feedback distribution by rating
+    const feedbackDistribution = await Feedback.aggregate([
+      {
+        $match: {
+          createdAt: { $gte: startDate, $lte: endDate }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            $switch: {
+              branches: [
+                { case: { $and: [{ $gte: ['$averageRating', 0] }, { $lt: ['$averageRating', 1] }] }, then: 1 },
+                { case: { $and: [{ $gte: ['$averageRating', 1] }, { $lt: ['$averageRating', 2] }] }, then: 1 },
+                { case: { $and: [{ $gte: ['$averageRating', 2] }, { $lt: ['$averageRating', 3] }] }, then: 2 },
+                { case: { $and: [{ $gte: ['$averageRating', 3] }, { $lt: ['$averageRating', 4] }] }, then: 3 },
+                { case: { $and: [{ $gte: ['$averageRating', 4] }, { $lte: ['$averageRating', 5] }] }, then: 4 }
+              ],
+              default: 5
+            }
+          },
+          count: { $sum: 1 }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          rating: '$_id',
+          count: 1
+        }
+      }
+    ]);
+    
+    // Transform feedback distribution to the expected format
+    const distributionMap = feedbackDistribution.reduce((acc, item) => {
+      acc[item.rating] = item.count;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    const formattedDistribution = {
+      1: distributionMap[1] || 0,
+      2: distributionMap[2] || 0,
+      3: distributionMap[3] || 0,
+      4: distributionMap[4] || 0,
+      5: distributionMap[5] || 0,
+    };
 
+    // Return data in the format expected by the frontend
     res.json({
-      feedbackTrends,
-      ratingDistribution,
-      instructorPerformance
+      overview: {
+        totalStudents,
+        totalFaculty,
+        totalSubjects,
+        totalFeedback,
+        averageRating,
+        responseRate
+      },
+      branchStats,
+      ratingTrends,
+      topPerformingSubjects,
+      feedbackDistribution: formattedDistribution
     });
   } catch (error: any) {
     console.error('Get DEAN analytics error:', error);

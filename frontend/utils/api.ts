@@ -5,12 +5,26 @@ const api = axios.create({
   timeout: 10000, // Set timeout to 10 seconds
 });
 
-// Add token to all requests
+// Add token and cache-busting to all requests
 api.interceptors.request.use(config => {
+  // Add token if available
   const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  
+  // Add cache-busting parameter to GET requests - UPDATED WITH FINAL UNIQUE IDENTIFIER
+  if (config.method === 'get') {
+    console.log('🚨🚨🚨 API UTILITY: Cache-busting active for request:', config.url);
+    config.params = config.params || {};
+    config.params['_t'] = new Date().getTime();
+    
+    // Disable browser caching for GET requests
+    config.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+    config.headers['Pragma'] = 'no-cache';
+    config.headers['Expires'] = '0';
+  }
+  
   return config;
 }, error => {
   return Promise.reject(error);

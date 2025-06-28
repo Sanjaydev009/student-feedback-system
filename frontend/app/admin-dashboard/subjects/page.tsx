@@ -194,20 +194,86 @@ export default function AdminSubjectsPage() {
 
   // Delete subject
   const handleDelete = async (subjectId: string) => {
-    if (!confirm('Are you sure?')) return;
+    if (!confirm('Are you sure you want to delete this subject? This action cannot be undone.')) return;
+    
+    if (!token) {
+      alert('Session expired. Please log in again.');
+      window.location.href = '/login';
+      return;
+    }
 
     try {
-      const res = await fetch(`http://localhost:5001/api/subjects/${subjectId}`, {
+      console.log('Attempting to delete subject with ID:', subjectId);
+      
+      // First try normal delete
+      let res = await fetch(`http://localhost:5001/api/subjects/${subjectId}`, {
         method: 'DELETE',
         headers: {
-          Authorization: `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
       });
+      
+      let responseData;
+      
+      // Get JSON response if available
+      try {
+        const clonedRes = res.clone();
+        responseData = await clonedRes.json();
+      } catch (e) {
+        console.log('Response is not JSON:', e);
+      }
+      
+      // If it fails due to feedback entries, ask user if they want to force delete
+      if (res.status === 400 && responseData?.message && responseData.message.includes('feedback entries')) {
+        console.log('Feedback entries exist for this subject');
+        
+        const forceDelete = confirm(
+          'This subject has feedback entries associated with it. Do you want to delete it anyway? ' +
+          'This will also delete all associated feedback data.'
+        );
+        
+        if (forceDelete) {
+          console.log('Force deleting subject and its feedback...');
+          res = await fetch(`http://localhost:5001/api/subjects/${subjectId}?force=true`, {
+            method: 'DELETE',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          // Get new response data
+          try {
+            responseData = await res.json();
+          } catch (e) {
+            console.log('Force delete response is not JSON');
+          }
+        } else {
+          throw new Error('Operation canceled by user');
+        }
+      }
 
+      console.log('Delete response status:', res.status);
+      console.log('Response data:', responseData);
+
+      // Check if the operation was successful
+      if (!res.ok) {
+        // Handle error with the parsed data if available
+        const errorMessage = responseData?.message || 'Failed to delete subject';
+        throw new Error(errorMessage);
+      }
+
+      console.log('Delete successful!');
+      
+      // Only update the UI if the server request was successful
       const updatedList = subjects.filter(s => s._id !== subjectId);
       setSubjects(updatedList);
+      alert('Subject deleted successfully!');
+      
     } catch (err: any) {
-      alert('Failed to delete subject');
+      console.error('Delete Subject Error:', err.message);
+      alert(err.message || 'Failed to delete subject. Please try again.');
     }
   };
 

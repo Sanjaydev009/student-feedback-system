@@ -8,6 +8,8 @@ import subjectRoutes from './routes/subjectRoutes';
 import feedbackRoutes from './routes/feedbackRoutes';
 import hodRoutes from './routes/hodRoutes';
 import deanRoutes from './routes/deanRoutes';
+import settingsRoutes from './routes/settingsRoutes';
+import adminRoutes from './routes/adminRoutes';
 
 const app = express();
 
@@ -24,6 +26,8 @@ app.use('/api/subjects', subjectRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/hod', hodRoutes);
 app.use('/api/dean', deanRoutes);
+app.use('/api/settings', settingsRoutes);
+app.use('/api/admin', adminRoutes);
  
 // Test routes
 app.get('/', (req, res) => {

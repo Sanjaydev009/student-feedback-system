@@ -1,72 +1,40 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { useState, useEffect } from 'react';
 import AdminNavbar from '@/components/AdminNavbar';
 import AdminSidebar from '@/components/AdminSidebar';
-import { ToastProvider } from '@/components/ToastProvider';
+import { usePathname } from 'next/navigation';
 
-export default function AdminDashboardLayout({
+export default function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [token, setToken] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(false); // Mobile closed by default
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
-
+  const [mounted, setMounted] = useState(false);
+  
+  // Set mounted state on client-side
   useEffect(() => {
-    const storedToken = localStorage.getItem('token');
-    if (!storedToken) {
-      window.location.href = '/login';
-      return;
-    }
-
-    try {
-      const decoded: any = JSON.parse(atob(storedToken.split('.')[1]));
-      if (decoded.role !== 'admin') {
-        // Redirect with error message
-        localStorage.setItem('loginError', 'Only admins can access this page');
-        window.location.href = '/login';
-        return;
-      }
-
-      setToken(storedToken);
-    } catch (err) {
-      localStorage.setItem('loginError', 'Invalid or expired token. Please log in again.');
-      localStorage.removeItem('token');
-      window.location.href = '/login';
-    }
+    setMounted(true);
   }, []);
 
-  if (!token) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-      </div>
-    );
-  }
+  // Toggle the sidebar
+  const toggleSidebar = () => {
+    setSidebarOpen(!sidebarOpen);
+  };
 
   return (
-    <ToastProvider>
-      <div className="min-h-screen">
-        <AdminNavbar onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
-        
-        <div className="flex pt-16"> {/* Add top padding for fixed navbar */}
-          {/* Sidebar */}
-          <AdminSidebar 
-            isOpen={sidebarOpen} 
-            currentPath={pathname} 
-            onClose={() => setSidebarOpen(false)}
-          />
-          
-          {/* Main Content - Always account for sidebar on desktop */}
-          <main className="flex-1 lg:ml-64 p-4 md:p-6">
+    <div className="min-h-screen bg-gray-50">
+      <AdminNavbar onMenuClick={toggleSidebar} />
+      <div className="flex">
+        <AdminSidebar isOpen={sidebarOpen} currentPath={pathname} onClose={() => setSidebarOpen(false)} />
+        <main className={`flex-1 pt-24 ${mounted ? 'lg:ml-72' : ''}`}>
+          <div className="p-4 md:p-8">
             {children}
-          </main>
-        </div>
+          </div>
+        </main>
       </div>
-    </ToastProvider>
+    </div>
   );
 }

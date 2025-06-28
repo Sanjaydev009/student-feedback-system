@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useToast } from '@/components/ToastProvider';
+import api from '@/utils/api';
 
 interface AnalyticsData {
   overview: {
@@ -62,20 +63,9 @@ export default function AnalyticsPage() {
 
   const fetchAnalytics = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5001/api/dean/analytics?timeRange=${timeRange}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch analytics');
-      }
-
-      const data = await response.json();
-      setAnalytics(data);
+      const response = await api.get(`/api/dean/analytics?timeRange=${timeRange}`);
+      setAnalytics(response.data);
+      showToast('Analytics loaded successfully', 'success');
     } catch (error) {
       console.error('Error fetching analytics:', error);
       showToast('Failed to load analytics', 'error');

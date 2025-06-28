@@ -13,7 +13,7 @@
 // export default router;
 
 import express from 'express';
-import { submitFeedback, getAllFeedback, getMyFeedback, getStudentFeedback, getDashboardStats, getRecentFeedback } from '../controllers/feedbackController';
+import { submitFeedback, getAllFeedback, getMyFeedback, getStudentFeedback, getDashboardStats, getRecentFeedback, getFeedbackSummary, getRecentActivities, getReports } from '../controllers/feedbackController';
 import { protect, isAdmin } from '../middleware/authMiddleware';
 
 const router = express.Router();
@@ -25,6 +25,11 @@ router.get('/', protect, isAdmin, getAllFeedback);
 // Admin dashboard routes
 router.get('/stats', protect, isAdmin, getDashboardStats);
 router.get('/recent', protect, isAdmin, getRecentFeedback);
+router.get('/activities', protect, isAdmin, getRecentActivities);
+
+// Reports routes
+router.get('/reports', protect, isAdmin, getReports);
+router.get('/summary/:subjectId', protect, isAdmin, getFeedbackSummary);
 
 // Student feedback routes
 router.get('/student/me', protect, getMyFeedback); // Get current user's feedback

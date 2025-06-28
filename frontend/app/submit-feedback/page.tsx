@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import StudentNavbar from '@/components/StudentNavbar';
 import { decodeToken, isAuthenticated } from '@/utils/auth';
+import { useToast } from '@/components/ToastProvider';
 import api from '@/utils/api';
 
 interface Subject {

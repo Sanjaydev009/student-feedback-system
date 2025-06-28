@@ -36,7 +36,7 @@ router.get('/subjects', protect, isDEAN, getAllSubjects);
 router.get('/reports', protect, isDEAN, getDEANReports);
 
 // DEAN Subject Feedback Details
-router.get('/feedback/:subjectId', protect, isDEAN, getSubjectFeedbackDetails);
+router.get('/feedback/:subjectId/details', protect, isDEAN, getSubjectFeedbackDetails);
 
 // DEAN Analytics
 router.get('/analytics', protect, isDEAN, getDEANAnalytics);

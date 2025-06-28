@@ -2,11 +2,23 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { motion } from 'framer-motion';
 
-export default function HODSidebar() {
+interface HODSidebarProps {
+  isOpen?: boolean;
+  currentPath: string;
+  onClose?: () => void;
+}
+
+export default function HODSidebar({ isOpen = true, currentPath, onClose }: HODSidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const pathname = usePathname();
+  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+
+  // Animation variants
+  const sidebarVariants = {
+    expanded: { width: "16rem" },
+    collapsed: { width: "5rem" }
+  };
 
   const menuItems = [
     {
@@ -86,7 +98,7 @@ export default function HODSidebar() {
       <nav className="mt-4">
         <ul className="space-y-1 px-2">
           {menuItems.map((item) => {
-            const isActive = pathname === item.href;
+            const isActive = currentPath === item.href;
             return (
               <li key={item.href}>
                 <Link
