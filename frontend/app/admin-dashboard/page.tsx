@@ -29,7 +29,7 @@ interface RecentFeedback {
   };
   rating: number;
   comments: string;
-  createdAt: string;
+  createdAt?: string; // Make optional
 }
 
 interface ActivityItem {
@@ -41,12 +41,22 @@ interface ActivityItem {
     role: string;
   };
   description: string;
-  timestamp: string;
+  timestamp?: string; // Make optional
 }
 
 export default function Page() {
+  // Default fallback data
+  const defaultStats: DashboardStats = {
+    totalStudents: 0,
+    totalFaculty: 0,
+    totalSubjects: 0,
+    totalFeedbacks: 0,
+    averageRating: 0,
+    feedbackCompletion: 0
+  };
+  
   // State management
-  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [stats, setStats] = useState<DashboardStats>(defaultStats);
   const [recentFeedback, setRecentFeedback] = useState<RecentFeedback[]>([]);
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,17 +98,53 @@ export default function Page() {
       console.log('🚀 Fetching dashboard data...');
       setLoading(true);
       try {
-        // Fetch real-time dashboard statistics
-        const [statsRes, recentFeedbackRes, recentActivityRes] = await Promise.all([
-          api.get('/api/feedback/stats'),
-          api.get('/api/feedback/recent?limit=5'),
-          api.get('/api/feedback/activities')
-        ]);
+        // Verify token exists
+        const token = localStorage.getItem('token');
+        if (!token) {
+          console.error('No token found');
+          window.location.href = '/login';
+          return;
+        }
         
-        setStats(statsRes.data);
-        setRecentFeedback(recentFeedbackRes.data);
-        setRecentActivity(recentActivityRes.data);
-        setError('');
+        console.log('Making API calls with token');
+        
+        // Use individual try/catch blocks for each API call
+        let statsData = null;
+        try {
+          const statsRes = await api.get('/api/feedback/stats');
+          console.log('Stats API response:', statsRes);
+          statsData = statsRes.data;
+          setStats(statsData);
+        } catch (statsErr) {
+          console.error('Stats API error:', statsErr);
+        }
+        
+        let feedbackData = [];
+        try {
+          const recentFeedbackRes = await api.get('/api/feedback/recent?limit=5');
+          console.log('Recent feedback API response:', recentFeedbackRes);
+          feedbackData = recentFeedbackRes.data || [];
+          setRecentFeedback(feedbackData);
+        } catch (feedbackErr) {
+          console.error('Feedback API error:', feedbackErr);
+        }
+        
+        let activityData = [];
+        try {
+          const recentActivityRes = await api.get('/api/feedback/activities');
+          console.log('Activities API response:', recentActivityRes);
+          activityData = recentActivityRes.data || [];
+          setRecentActivity(activityData);
+        } catch (activityErr) {
+          console.error('Activity API error:', activityErr);
+        }
+        
+        // Only clear error if we have at least some data
+        if (statsData || feedbackData.length || activityData.length) {
+          setError('');
+        } else {
+          setError('Failed to load dashboard data. Please try again later.');
+        }
       } catch (err) {
         console.error('Error fetching dashboard data:', err);
         setError('Failed to load dashboard data. Please try again later.');
@@ -111,14 +157,30 @@ export default function Page() {
   }, [isClient]);
 
   // Format date for UI display
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | undefined) => {
+    // Handle invalid or empty date strings
+    if (!dateString) {
+      return 'No date';
+    }
+    
     const date = new Date(dateString);
-    return new Intl.DateTimeFormat('en-US', { 
-      month: 'short', 
-      day: 'numeric', 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    }).format(date);
+    
+    // Check if the date is valid
+    if (isNaN(date.getTime())) {
+      return 'Invalid date';
+    }
+    
+    try {
+      return new Intl.DateTimeFormat('en-US', { 
+        month: 'short', 
+        day: 'numeric', 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      }).format(date);
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'Format error';
+    }
   };
 
   // Simple loading state for SSR
@@ -344,7 +406,9 @@ export default function Page() {
                   </div>
                   <span className="inline-block text-red-600 text-sm font-semibold mb-2 bg-red-50 rounded-full px-3 py-1">Rating</span>
                   <div className="mt-4 flex items-baseline">
-                    <h2 className="text-3xl font-extrabold text-gray-900">{stats?.averageRating?.toFixed(1) || "0.0"}</h2>
+                    <h2 className="text-3xl font-extrabold text-gray-900">
+                      {typeof stats.averageRating === 'number' ? stats.averageRating.toFixed(1) : "0.0"}
+                    </h2>
                     <p className="ml-2 text-sm text-gray-500">out of 5.0</p>
                   </div>
                   <div className="mt-4">
@@ -352,7 +416,7 @@ export default function Page() {
                       {[...Array(5)].map((_, i) => (
                         <svg 
                           key={i}
-                          className={`h-5 w-5 ${i < Math.round(stats?.averageRating || 0) ? 'text-yellow-400' : 'text-gray-300'}`}
+                          className={`h-5 w-5 ${i < Math.round(stats.averageRating || 0) ? 'text-yellow-400' : 'text-gray-300'}`}
                           xmlns="http://www.w3.org/2000/svg" 
                           viewBox="0 0 20 20"
                           fill="currentColor"
@@ -504,8 +568,8 @@ export default function Page() {
                   <div className="overflow-hidden">
                     <ul className="divide-y divide-gray-100">
                       {recentActivity.length > 0 ? (
-                        recentActivity.map((activity) => (
-                          <li key={activity._id} className="px-6 py-5 hover:bg-blue-50 transition-all duration-300">
+                        recentActivity.map((activity, index) => (
+                          <li key={activity._id || `activity-${index}`} className="px-6 py-5 hover:bg-blue-50 transition-all duration-300">
                             <div className="flex items-center space-x-4">
                               <div className="flex-shrink-0">
                                 {activity.type === 'feedback' && (
@@ -540,14 +604,14 @@ export default function Page() {
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-center mb-1">
                                   <p className="text-sm font-semibold text-gray-900 truncate mr-2">
-                                    {activity.user && activity.user.name}
+                                    {activity.user?.name || 'Unknown User'}
                                   </p>
                                   <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                    {activity.user && activity.user.role}
+                                    {activity.user?.role || 'Unknown'}
                                   </span>
                                 </div>
                                 <p className="text-sm text-gray-600">
-                                  {activity.description}
+                                  {activity.description || 'No description available'}
                                 </p>
                                 <p className="text-xs text-gray-500 mt-1 flex items-center">
                                   <svg className="h-3 w-3 mr-1" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
@@ -611,18 +675,18 @@ export default function Page() {
                 <div className="overflow-hidden">
                   {recentFeedback.length > 0 ? (
                     <ul className="divide-y divide-gray-100">
-                      {recentFeedback.map((feedback) => (
-                        <li key={feedback._id} className="p-6 hover:bg-blue-50 transition-all duration-300">
+                      {recentFeedback.map((feedback, index) => (
+                        <li key={feedback._id || `feedback-${index}`} className="p-6 hover:bg-blue-50 transition-all duration-300">
                           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                             <div className="flex items-start">
                               <div className="flex-shrink-0">
                                 <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-lg shadow-md">
-                                  {feedback.student.name.charAt(0).toUpperCase()}
+                                  {feedback.student?.name ? feedback.student.name.charAt(0).toUpperCase() : 'S'}
                                 </div>
                               </div>
                               <div className="ml-4">
                                 <h4 className="text-base font-semibold text-gray-900 flex items-center">
-                                  {feedback.student.name}
+                                  {feedback.student?.name || 'Unknown Student'}
                                   <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                                     Student
                                   </span>
@@ -631,14 +695,14 @@ export default function Page() {
                                   <svg className="h-4 w-4 mr-1 text-indigo-500" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
                                     <path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z"></path>
                                   </svg>
-                                  <span className="font-medium">{feedback.subject.name}</span>
-                                  <span className="ml-1 text-gray-500">({feedback.subject.code})</span>
+                                  <span className="font-medium">{feedback.subject?.name || 'Unknown Subject'}</span>
+                                  <span className="ml-1 text-gray-500">({feedback.subject?.code || 'N/A'})</span>
                                 </div>
                                 <div className="mt-1 flex items-center text-sm text-gray-500">
                                   <svg className="h-4 w-4 mr-1 text-green-500" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
                                     <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z"></path>
                                   </svg>
-                                  Instructor: {feedback.subject.instructor}
+                                  Instructor: {feedback.subject?.instructor || 'Unknown'}
                                 </div>
                               </div>
                             </div>
@@ -648,7 +712,7 @@ export default function Page() {
                                   {[...Array(5)].map((_, i) => (
                                     <svg 
                                       key={i}
-                                      className={`h-5 w-5 ${i < Math.round(feedback.rating) ? 'text-yellow-400' : 'text-gray-300'}`}
+                                      className={`h-5 w-5 ${i < Math.round(feedback.rating || 0) ? 'text-yellow-400' : 'text-gray-300'}`}
                                       xmlns="http://www.w3.org/2000/svg" 
                                       viewBox="0 0 20 20"
                                       fill="currentColor"
@@ -657,7 +721,9 @@ export default function Page() {
                                     </svg>
                                   ))}
                                 </div>
-                                <span className="font-semibold text-gray-900">{feedback.rating.toFixed(1)}</span>
+                                <span className="font-semibold text-gray-900">
+                                  {typeof feedback.rating === 'number' ? feedback.rating.toFixed(1) : '0.0'}
+                                </span>
                               </div>
                               <div className="mt-2 text-xs text-gray-500 flex items-center">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" viewBox="0 0 20 20" fill="currentColor">
@@ -667,11 +733,11 @@ export default function Page() {
                               </div>
                             </div>
                           </div>
-                          {feedback.comments && (
+                          {feedback.comments ? (
                             <div className="mt-4 bg-blue-50 rounded-lg p-4 border-l-4 border-blue-500">
                               <p className="text-sm text-gray-700">"{feedback.comments}"</p>
                             </div>
-                          )}
+                          ) : null}
                         </li>
                       ))}
                     </ul>
