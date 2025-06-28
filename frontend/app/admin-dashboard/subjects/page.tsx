@@ -29,6 +29,48 @@ export default function AdminSubjectsPage() {
     questions: ['', '', '', '', '', '', '', '', '', '']
   });
   const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
+  const [autoQuestionsEnabled, setAutoQuestionsEnabled] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState('teaching');
+  
+  // Predefined question templates
+  const questionTemplates = {
+    teaching: [
+      "How would you rate the teaching methodology for this subject?",
+      "How effective were the lectures in explaining complex concepts?",
+      "How well did the instructor respond to student questions?",
+      "How well-organized was the course material?",
+      "How accessible was the instructor outside of class hours?",
+      "How fair were the assignments and exams for this subject?",
+      "How useful were the practical exercises or lab sessions?",
+      "How relevant was the course content to real-world applications?",
+      "How effectively did the instructor use examples to clarify concepts?",
+      "How would you rate the overall quality of this course?"
+    ],
+    technical: [
+      "How well did the lab sessions help you understand the theoretical concepts?",
+      "How effective were the programming assignments in building practical skills?",
+      "How would you rate the quality of technical resources provided?",
+      "How well did the course prepare you for industry-standard technologies?",
+      "How relevant were the projects to current industry practices?",
+      "How effectively did the instructor demonstrate technical concepts?",
+      "How would you rate the balance between theory and practical application?",
+      "How accessible were the technical tools and resources needed for this course?",
+      "How well did the course cover emerging trends in this field?",
+      "How would you rate your confidence in applying these skills after completion?"
+    ],
+    academic: [
+      "How well does this subject align with your academic goals?",
+      "How effective is the curriculum in covering essential concepts?",
+      "How would you rate the quality of learning materials provided?",
+      "How fair and transparent is the evaluation system for this subject?",
+      "How would you rate the difficulty level of this subject?",
+      "How well does this subject build upon your previous knowledge?",
+      "How effectively does this course develop critical thinking skills?",
+      "How satisfied are you with the pace of instruction in this subject?",
+      "How well-integrated are the theoretical and practical components?",
+      "How would you rate the overall learning experience in this subject?"
+    ]
+  };
 
   // Check login status and decode role
   useEffect(() => {
@@ -93,6 +135,40 @@ export default function AdminSubjectsPage() {
       setForm({ ...form, branch: value });
     } else {
       setForm({ ...form, [name]: value });
+    }
+  };
+  
+  // Apply auto-generated questions
+  const applyAutoQuestions = () => {
+    if (autoQuestionsEnabled) {
+      let questionsToUse;
+      
+      if (selectedTemplate === 'mixed') {
+        // Create a mixed set of questions from all templates
+        const allTemplates = Object.values(questionTemplates).flat();
+        
+        // Shuffle array
+        const shuffled = [...allTemplates].sort(() => 0.5 - Math.random());
+        
+        // Get first 10 questions
+        questionsToUse = shuffled.slice(0, 10);
+      } else {
+        questionsToUse = questionTemplates[selectedTemplate as keyof typeof questionTemplates];
+      }
+      
+      // Customize questions with subject name if available
+      let customizedQuestions = [...questionsToUse];
+      if (form.name) {
+        customizedQuestions = customizedQuestions.map(q => {
+          // Replace generic terms with the actual subject name where appropriate
+          return q.replace(/this subject|the course|this course/gi, form.name);
+        });
+      }
+      
+      setForm({
+        ...form,
+        questions: customizedQuestions
+      });
     }
   };
 
@@ -348,7 +424,81 @@ export default function AdminSubjectsPage() {
             </select>
           </div>
 
-          <h3 className="font-medium mt-4">Feedback Questions (10 Required)</h3>
+          <div className="mt-4 mb-2 border-t pt-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-medium">Feedback Questions (10 Required)</h3>
+              <div className="flex items-center space-x-4">
+                <label className="flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={autoQuestionsEnabled}
+                    onChange={(e) => {
+                      setAutoQuestionsEnabled(e.target.checked);
+                      if (e.target.checked) {
+                        // Auto apply template when enabling
+                        setTimeout(() => applyAutoQuestions(), 100);
+                      }
+                    }}
+                    className="mr-2 h-4 w-4"
+                  />
+                  Auto-generate questions
+                </label>
+                
+                {autoQuestionsEnabled && (
+                  <>
+                    <select
+                      value={selectedTemplate}
+                      onChange={(e) => {
+                        setSelectedTemplate(e.target.value);
+                        setTimeout(() => applyAutoQuestions(), 100);
+                      }}
+                      className="p-2 border rounded"
+                    >
+                      <option value="teaching">Teaching-focused</option>
+                      <option value="technical">Technical-focused</option>
+                      <option value="academic">Academic-focused</option>
+                      <option value="mixed">Mixed (Random)</option>
+                    </select>
+                    <div className="flex space-x-2">
+                      <button
+                        type="button"
+                        onClick={applyAutoQuestions}
+                        className="bg-green-600 hover:bg-green-700 text-white py-1 px-3 rounded text-sm"
+                      >
+                        Apply Template
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          // Generate a random set of 10 questions from all templates
+                          const allTemplates = Object.values(questionTemplates).flat();
+                          const shuffled = [...allTemplates].sort(() => 0.5 - Math.random());
+                          const randomQuestions = shuffled.slice(0, 10);
+                          
+                          // Customize with subject name
+                          let customizedQuestions = [...randomQuestions];
+                          if (form.name) {
+                            customizedQuestions = customizedQuestions.map(q => {
+                              return q.replace(/this subject|the course|this course/gi, form.name);
+                            });
+                          }
+                          
+                          setForm({
+                            ...form,
+                            questions: customizedQuestions
+                          });
+                        }}
+                        className="bg-purple-600 hover:bg-purple-700 text-white py-1 px-3 rounded text-sm"
+                      >
+                        Randomize
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
           {form.questions.map((q, i) => (
             <input
               key={i}
