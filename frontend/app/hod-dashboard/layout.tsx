@@ -70,7 +70,7 @@ export default function HODDashboardLayout({
         <div className="flex pt-16">
           {/* Sidebar - AnimatePresence for mobile animation */}
           <AnimatePresence>
-            {(sidebarOpen || typeof window !== 'undefined' && window.innerWidth >= 1024) && (
+            {(sidebarOpen || (typeof window !== 'undefined' && window.innerWidth >= 1024)) && (
               <motion.div
                 initial={{ x: -300, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
@@ -89,7 +89,7 @@ export default function HODDashboardLayout({
           
           {/* Main Content */}
           <motion.main 
-            className="flex-1 lg:ml-64 p-4 md:p-8"
+            className="flex-1 lg:ml-64 p-4 md:p-8 min-h-screen w-full"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}

@@ -173,7 +173,10 @@ export default function HODDashboard() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900">Recent Feedback</h2>
             <button
-              onClick={() => router.push('/hod-dashboard/reports')}
+              onClick={() => {
+                showToast('Loading reports...', 'info');
+                router.push('/hod-dashboard/reports');
+              }}
               className="text-blue-600 hover:text-blue-800 text-sm font-medium"
             >
               View All →
@@ -270,7 +273,10 @@ export default function HODDashboard() {
           </button>
 
           <button
-            onClick={() => router.push('/hod-dashboard/reports')}
+            onClick={() => {
+              showToast('Loading reports dashboard...', 'info');
+              router.push('/hod-dashboard/reports');
+            }}
             className="flex items-center p-4 bg-orange-50 hover:bg-orange-100 rounded-lg transition-colors"
           >
             <svg className="h-6 w-6 text-orange-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">

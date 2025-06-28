@@ -19,7 +19,7 @@ export default function HODNavbar({ onMenuClick }: HODNavbarProps) {
   };
 
   return (
-    <nav className="bg-gradient-to-r from-indigo-700 to-indigo-800 text-white shadow-md fixed top-0 left-0 right-0 z-10">
+    <nav className="bg-gradient-to-r from-indigo-700 to-indigo-800 text-white shadow-md fixed top-0 left-0 right-0 z-20">
       <div className="container mx-auto px-4 py-3 flex justify-between items-center">
         <div className="flex items-center space-x-4">
           {/* Menu button for mobile */}
