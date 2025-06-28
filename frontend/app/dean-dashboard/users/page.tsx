@@ -35,6 +35,8 @@ export default function UsersPage() {
 
   const fetchUsers = async () => {
     try {
+      if (typeof window === 'undefined') return;
+      
       const token = localStorage.getItem('token');
       const response = await fetch('http://localhost:5001/api/dean/users', {
         headers: {
@@ -59,6 +61,8 @@ export default function UsersPage() {
 
   const toggleUserStatus = async (userId: string, currentStatus: boolean) => {
     try {
+      if (typeof window === 'undefined') return;
+      
       const token = localStorage.getItem('token');
       const response = await fetch(`http://localhost:5001/api/dean/users/${userId}/toggle-status`, {
         method: 'PUT',

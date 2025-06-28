@@ -4,9 +4,25 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-export default function DEANSidebar() {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+interface DEANSidebarProps {
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
+}
+
+export default function DEANSidebar({ isCollapsed = false, onToggleCollapse }: DEANSidebarProps) {
+  const [localCollapsed, setLocalCollapsed] = useState(false);
   const pathname = usePathname();
+  
+  // Use prop value if provided, otherwise use local state
+  const collapsed = onToggleCollapse ? isCollapsed : localCollapsed;
+  
+  const handleToggle = () => {
+    if (onToggleCollapse) {
+      onToggleCollapse();
+    } else {
+      setLocalCollapsed(!localCollapsed);
+    }
+  };
 
   const menuItems = [
     {
@@ -47,6 +63,24 @@ export default function DEANSidebar() {
       )
     },
     {
+      title: 'Simple Dashboard',
+      href: '/dean-dashboard/fixed',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+        </svg>
+      )
+    },
+    {
+      title: 'Debug Token',
+      href: '/debug/token',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+        </svg>
+      )
+    },
+    {
       title: 'Reports',
       href: '/dean-dashboard/reports',
       icon: (
@@ -67,21 +101,21 @@ export default function DEANSidebar() {
   ];
 
   return (
-    <div className={`bg-white shadow-lg transition-all duration-300 ${isCollapsed ? 'w-16' : 'w-64'}`}>
+    <div className={`bg-white shadow-lg transition-all duration-300 fixed top-16 left-0 h-screen z-10 overflow-y-auto ${collapsed ? 'w-16' : 'w-64'}`}>
       <div className="p-4">
         <div className="flex items-center justify-between">
-          {!isCollapsed && (
+          {!collapsed && (
             <div>
               <h2 className="text-lg font-semibold text-gray-800">DEAN Panel</h2>
               <p className="text-sm text-gray-500">Institution Management</p>
             </div>
           )}
           <button
-            onClick={() => setIsCollapsed(!isCollapsed)}
+            onClick={handleToggle}
             className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
           >
             <svg 
-              className={`w-4 h-4 transition-transform ${isCollapsed ? 'rotate-180' : ''}`} 
+              className={`w-4 h-4 transition-transform ${collapsed ? 'rotate-180' : ''}`} 
               fill="none" 
               stroke="currentColor" 
               viewBox="0 0 24 24"
@@ -105,12 +139,12 @@ export default function DEANSidebar() {
                       ? 'bg-purple-500 text-white'
                       : 'text-gray-700 hover:bg-gray-100'
                   }`}
-                  title={isCollapsed ? item.title : undefined}
+                  title={collapsed ? item.title : undefined}
                 >
                   <span className={`${isActive ? 'text-white' : 'text-gray-500'}`}>
                     {item.icon}
                   </span>
-                  {!isCollapsed && (
+                  {!collapsed && (
                     <span className="ml-3 font-medium">{item.title}</span>
                   )}
                 </Link>
@@ -120,7 +154,7 @@ export default function DEANSidebar() {
         </ul>
       </nav>
 
-      {!isCollapsed && (
+      {!collapsed && (
         <div className="mt-8 px-4">
           <div className="bg-purple-50 rounded-lg p-4">
             <div className="flex items-center">

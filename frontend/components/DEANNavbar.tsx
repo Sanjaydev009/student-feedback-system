@@ -1,19 +1,31 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 export default function DEANNavbar() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const router = useRouter();
 
+  useEffect(() => {
+    // Check authentication status safely
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('token');
+      setIsAuthenticated(!!token);
+    }
+  }, []);
+
   const handleLogout = () => {
-    localStorage.removeItem('token');
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+    }
     router.push('/login');
   };
 
   return (
-    <nav className="bg-white shadow-lg border-b border-gray-200">
+    <nav className="bg-white shadow-lg border-b border-gray-200 fixed top-0 left-0 right-0 z-10">
       <div className="px-6 py-4">
         <div className="flex items-center justify-between">
           {/* Logo and Title */}
@@ -26,6 +38,7 @@ export default function DEANNavbar() {
             <div>
               <h1 className="text-xl font-bold text-gray-900">Student Feedback System</h1>
               <p className="text-sm text-purple-600 font-medium">DEAN Dashboard</p>
+              <span className="text-xs text-green-600">{isAuthenticated ? '✓ Authenticated' : '✗ Not Authenticated'}</span>
             </div>
           </div>
 
