@@ -2,14 +2,21 @@
 
 import { useState, useEffect } from 'react';
 import api from '@/utils/api';
+import UserFormModal from '@/components/UserFormModal';
+import { motion } from 'framer-motion';
 
-interface User {
-  _id: string;
+interface UserFormData {
+  _id?: string;
   name: string;
   email: string;
   role: 'student' | 'faculty' | 'hod' | 'dean' | 'admin';
   rollNumber?: string;
   branch?: string;
+  passwordResetRequired?: boolean;
+}
+
+interface User extends UserFormData {
+  _id: string;
   passwordResetRequired: boolean;
   createdAt: string;
 }
@@ -17,11 +24,15 @@ interface User {
 export default function UserManagement() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [formLoading, setFormLoading] = useState(false);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [showUserFormModal, setShowUserFormModal] = useState(false);
+  const [userToEdit, setUserToEdit] = useState<User | null>(null);
+  const [successMessage, setSuccessMessage] = useState('');
 
   useEffect(() => {
     fetchUsers();
@@ -48,10 +59,53 @@ export default function UserManagement() {
       setUsers(users.filter(user => user._id !== userToDelete._id));
       setShowDeleteModal(false);
       setUserToDelete(null);
+      showSuccessMessage('User deleted successfully');
     } catch (err) {
       console.error('Error deleting user:', err);
       setError('Failed to delete user. Please try again.');
     }
+  };
+  
+  const handleEditUser = (user: User) => {
+    setUserToEdit(user);
+    setShowUserFormModal(true);
+  };
+  
+  const handleCreateUser = () => {
+    setUserToEdit(null); // Ensure we're creating, not editing
+    setShowUserFormModal(true);
+  };
+  
+  const handleUserFormSubmit = async (userData: UserFormData) => {
+    setFormLoading(true);
+    setError('');
+    
+    try {
+      if (userData._id) {
+        // Update existing user
+        const response = await api.put(`/api/auth/users/${userData._id}`, userData);
+        setUsers(users.map(u => u._id === userData._id ? response.data : u));
+        showSuccessMessage('User updated successfully');
+      } else {
+        // Create new user
+        const response = await api.post('/api/auth/users', userData);
+        setUsers([...users, response.data.user]);
+        showSuccessMessage(`User created successfully. Temporary password: ${response.data.generatedPassword}`);
+      }
+      
+      setShowUserFormModal(false);
+    } catch (err: any) {
+      console.error('Error saving user:', err);
+      setError(err.response?.data?.message || 'Failed to save user. Please try again.');
+    } finally {
+      setFormLoading(false);
+    }
+  };
+  
+  const showSuccessMessage = (message: string) => {
+    setSuccessMessage(message);
+    // Auto-hide after 5 seconds
+    setTimeout(() => setSuccessMessage(''), 5000);
   };
 
   const filteredUsers = users.filter(user => {
@@ -94,15 +148,22 @@ export default function UserManagement() {
             <p className="text-gray-600">Manage all system users and their permissions</p>
           </div>
           <div className="flex space-x-3 mt-4 lg:mt-0">
-            <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+            <motion.button 
+              onClick={handleCreateUser}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+            >
               Add User
-            </button>
-            <button 
+            </motion.button>
+            <motion.button 
               onClick={() => window.location.href = '/admin-dashboard/users/bulk-upload'}
               className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
             >
               Bulk Upload
-            </button>
+            </motion.button>
           </div>
         </div>
 
@@ -137,6 +198,18 @@ export default function UserManagement() {
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
           <div className="text-red-600">{error}</div>
         </div>
+      )}
+      
+      {/* Success Message */}
+      {successMessage && (
+        <motion.div 
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          className="bg-green-50 border border-green-200 rounded-lg p-4"
+        >
+          <div className="text-green-600">{successMessage}</div>
+        </motion.div>
       )}
 
       {/* Statistics */}
@@ -212,18 +285,25 @@ export default function UserManagement() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex items-center justify-end space-x-2">
-                      <button className="text-blue-600 hover:text-blue-900 px-2 py-1 rounded">
+                      <motion.button 
+                        onClick={() => handleEditUser(user)}
+                        className="text-blue-600 hover:text-blue-900 px-2 py-1 rounded"
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                      >
                         Edit
-                      </button>
-                      <button 
+                      </motion.button>
+                      <motion.button 
                         onClick={() => {
                           setUserToDelete(user);
                           setShowDeleteModal(true);
                         }}
                         className="text-red-600 hover:text-red-900 px-2 py-1 rounded"
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
                       >
                         Delete
-                      </button>
+                      </motion.button>
                     </div>
                   </td>
                 </tr>
@@ -277,6 +357,15 @@ export default function UserManagement() {
           </div>
         </div>
       )}
+
+      {/* User Form Modal */}
+      <UserFormModal
+        user={userToEdit}
+        isOpen={showUserFormModal}
+        onClose={() => setShowUserFormModal(false)}
+        onSubmit={handleUserFormSubmit}
+        isLoading={formLoading}
+      />
     </div>
   );
 }
