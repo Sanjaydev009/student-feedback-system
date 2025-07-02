@@ -65,6 +65,10 @@ const UserSchema = new Schema({
     enum: ['student', 'faculty', 'hod', 'dean', 'admin'],
     default: 'student'
   },
+  department: {
+    type: String,
+    enum: ['Engineering', 'MCA', 'MBA']
+  },
   branch: {
     type: String,
     enum: [
@@ -78,7 +82,10 @@ const UserSchema = new Schema({
       'Aerospace',
       'Biotechnology',
       'MCA Regular', 
-      'MCA DS'
+      'MCA DS',
+      'MBA Finance',
+      'MBA Marketing',
+      'MBA HR'
     ]
   },
   year: {

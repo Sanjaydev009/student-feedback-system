@@ -9,6 +9,7 @@ interface UserFormData {
   email: string;
   role: 'student' | 'faculty' | 'hod' | 'dean' | 'admin';
   rollNumber?: string;
+  department?: string;
   branch?: string;
   year?: number;
   passwordResetRequired?: boolean;
@@ -30,9 +31,54 @@ export default function UserFormModal({ user, isOpen, onClose, onSubmit, isLoadi
     email: '',
     role: 'student',
     rollNumber: '',
+    department: '',
     branch: '',
     year: 1
   });
+
+  // Department-Branch-Year hierarchy configuration
+  const departmentConfig = {
+    "Engineering": {
+      branches: {
+        "Computer Science": { years: [1, 2, 3, 4] },
+        "Electronics": { years: [1, 2, 3, 4] },
+        "Mechanical": { years: [1, 2, 3, 4] },
+        "Civil": { years: [1, 2, 3, 4] },
+        "Electrical": { years: [1, 2, 3, 4] },
+        "Information Technology": { years: [1, 2, 3, 4] },
+        "Chemical": { years: [1, 2, 3, 4] },
+        "Aerospace": { years: [1, 2, 3, 4] },
+        "Biotechnology": { years: [1, 2, 3, 4] }
+      }
+    },
+    "MCA": {
+      branches: {
+        "MCA Regular": { years: [1, 2] },
+        "MCA DS": { years: [1, 2] }
+      }
+    },
+    "MBA": {
+      branches: {
+        "MBA Finance": { years: [1, 2] },
+        "MBA Marketing": { years: [1, 2] },
+        "MBA HR": { years: [1, 2] }
+      }
+    }
+  } as const;
+
+  // Get available branches for selected department
+  const getAvailableBranches = (department: string) => {
+    const deptData = departmentConfig[department as keyof typeof departmentConfig];
+    return deptData ? Object.keys(deptData.branches) : [];
+  };
+
+  // Get available years for selected department and branch
+  const getAvailableYears = (department: string, branch: string) => {
+    const deptData = departmentConfig[department as keyof typeof departmentConfig];
+    if (!deptData) return [];
+    const branchData = deptData.branches[branch as keyof typeof deptData.branches] as { years: number[] } | undefined;
+    return branchData?.years || [];
+  };
 
   // Reset form when user prop changes
   useEffect(() => {
@@ -43,6 +89,7 @@ export default function UserFormModal({ user, isOpen, onClose, onSubmit, isLoadi
         email: user.email || '',
         role: user.role || 'student',
         rollNumber: user.rollNumber || '',
+        department: user.department || '',
         branch: user.branch || '',
         year: user.year || 1,
         passwordResetRequired: user.passwordResetRequired
@@ -53,6 +100,7 @@ export default function UserFormModal({ user, isOpen, onClose, onSubmit, isLoadi
         email: '',
         role: 'student',
         rollNumber: '',
+        department: '',
         branch: '',
         year: 1
       });
@@ -61,8 +109,24 @@ export default function UserFormModal({ user, isOpen, onClose, onSubmit, isLoadi
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
+    
     if (name === 'year') {
       setFormData((prev: UserFormData) => ({ ...prev, [name]: value ? parseInt(value) : undefined }));
+    } else if (name === 'department') {
+      // Reset branch and year when department changes
+      setFormData((prev: UserFormData) => ({ 
+        ...prev, 
+        department: value,
+        branch: '',
+        year: undefined
+      }));
+    } else if (name === 'branch') {
+      // Reset year when branch changes
+      setFormData((prev: UserFormData) => ({ 
+        ...prev, 
+        branch: value,
+        year: undefined
+      }));
     } else {
       setFormData((prev: UserFormData) => ({ ...prev, [name]: value }));
     }
@@ -93,70 +157,113 @@ export default function UserFormModal({ user, isOpen, onClose, onSubmit, isLoadi
                 required
               />
             </div>
+            
             <div className="mb-4">
-              <label htmlFor="branch" className="block text-sm font-medium text-gray-700 mb-1">
-                Branch
+              <label htmlFor="department" className="block text-sm font-medium text-gray-700 mb-1">
+                Department
               </label>
               <select
-                id="branch"
-                name="branch"
-                value={formData.branch || ''}
+                id="department"
+                name="department"
+                value={formData.department || ''}
                 onChange={handleChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               >
-                <option value="">Select Branch</option>
-                <option value="Computer Science">Computer Science</option>
-                <option value="Electronics">Electronics</option>
-                <option value="Mechanical">Mechanical</option>
-                <option value="Civil">Civil</option>
-                <option value="Electrical">Electrical</option>
-                <option value="Information Technology">Information Technology</option>
-                <option value="Chemical">Chemical</option>
-                <option value="Aerospace">Aerospace</option>
-                <option value="Biotechnology">Biotechnology</option>
-                <option value="MCA Regular">MCA Regular</option>
-                <option value="MCA DS">MCA DS</option>
+                <option value="">Select Department</option>
+                {Object.keys(departmentConfig).map(dept => (
+                  <option key={dept} value={dept}>{dept}</option>
+                ))}
               </select>
             </div>
-            <div className="mb-4">
-              <label htmlFor="year" className="block text-sm font-medium text-gray-700 mb-1">
-                Year
-              </label>
-              <select
-                id="year"
-                name="year"
-                value={formData.year?.toString() || ''}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              >
-                <option value="">Select Year</option>
-                <option value="1">1st Year</option>
-                <option value="2">2nd Year</option>
-                <option value="3">3rd Year</option>
-                <option value="4">4th Year</option>
-              </select>
-            </div>
+
+            {formData.department && (
+              <div className="mb-4">
+                <label htmlFor="branch" className="block text-sm font-medium text-gray-700 mb-1">
+                  Branch
+                </label>
+                <select
+                  id="branch"
+                  name="branch"
+                  value={formData.branch || ''}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                >
+                  <option value="">Select Branch</option>
+                  {getAvailableBranches(formData.department).map(branch => (
+                    <option key={branch} value={branch}>{branch}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {formData.department && formData.branch && (
+              <div className="mb-4">
+                <label htmlFor="year" className="block text-sm font-medium text-gray-700 mb-1">
+                  Year
+                </label>
+                <select
+                  id="year"
+                  name="year"
+                  value={formData.year?.toString() || ''}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                >
+                  <option value="">Select Year</option>
+                  {getAvailableYears(formData.department, formData.branch).map(year => (
+                    <option key={year} value={year}>{year === 1 ? '1st Year' : year === 2 ? '2nd Year' : year === 3 ? '3rd Year' : '4th Year'}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </>
         );
       case 'faculty':
       case 'hod':
         return (
-          <div className="mb-4">
-            <label htmlFor="branch" className="block text-sm font-medium text-gray-700 mb-1">
-              Department
-            </label>
-            <input
-              type="text"
-              id="branch"
-              name="branch"
-              value={formData.branch || ''}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            />
-          </div>
+          <>
+            <div className="mb-4">
+              <label htmlFor="department" className="block text-sm font-medium text-gray-700 mb-1">
+                Department
+              </label>
+              <select
+                id="department"
+                name="department"
+                value={formData.department || ''}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              >
+                <option value="">Select Department</option>
+                {Object.keys(departmentConfig).map(dept => (
+                  <option key={dept} value={dept}>{dept}</option>
+                ))}
+              </select>
+            </div>
+            
+            {formData.department && (
+              <div className="mb-4">
+                <label htmlFor="branch" className="block text-sm font-medium text-gray-700 mb-1">
+                  Specialization/Branch
+                </label>
+                <select
+                  id="branch"
+                  name="branch"
+                  value={formData.branch || ''}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                >
+                  <option value="">Select Specialization</option>
+                  {getAvailableBranches(formData.department).map(branch => (
+                    <option key={branch} value={branch}>{branch}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </>
         );
       default:
         return null;

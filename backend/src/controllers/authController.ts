@@ -96,7 +96,7 @@ function generateRandomPassword(length = 8) {
 // Update the create user method
 export const createUser = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { name, email, role, rollNumber, branch, year } = req.body;
+    const { name, email, role, rollNumber, department, branch, year } = req.body;
     
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -127,10 +127,12 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
     // Add role-specific fields
     if (role === 'student') {
       if (rollNumber) userData.rollNumber = rollNumber;
+      if (department) userData.department = department;
       if (branch) userData.branch = branch;
       if (year) userData.year = parseInt(year.toString());
     } else if (role === 'faculty' || role === 'hod') {
-      if (branch) userData.branch = branch; // For faculty/hod, branch represents department
+      if (department) userData.department = department;
+      if (branch) userData.branch = branch; // For faculty/hod, branch represents specialization
     }
     
     // Create new user with all fields
@@ -161,7 +163,7 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
 
 export const updateUser = async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { name, email, role, rollNumber, branch, year, passwordResetRequired } = req.body;
+  const { name, email, role, rollNumber, department, branch, year, passwordResetRequired } = req.body;
 
   try {
     // Create update data object
@@ -170,10 +172,12 @@ export const updateUser = async (req: Request, res: Response) => {
     // Add role-specific fields
     if (role === 'student') {
       if (rollNumber !== undefined) updateData.rollNumber = rollNumber;
+      if (department !== undefined) updateData.department = department;
       if (branch !== undefined) updateData.branch = branch;
       if (year !== undefined) updateData.year = parseInt(year.toString());
     } else if (role === 'faculty' || role === 'hod') {
-      if (branch !== undefined) updateData.branch = branch; // For faculty/hod, branch represents department
+      if (department !== undefined) updateData.department = department;
+      if (branch !== undefined) updateData.branch = branch; // For faculty/hod, branch represents specialization
     }
     
     // Add passwordResetRequired if provided
