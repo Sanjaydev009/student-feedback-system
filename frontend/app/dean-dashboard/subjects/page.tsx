@@ -2,27 +2,29 @@
 
 import { useState, useEffect } from 'react';
 import { useToast } from '@/components/ToastProvider';
+import api from '@/utils/api-debug'; // Use debug API
 
 interface Subject {
   _id: string;
   name: string;
   code: string;
-  credits: number;
+  credits?: number;
   semester: number;
   branch: {
     _id: string;
     name: string;
     code: string;
-  };
+  } | string;  // Handle both object and string branch formats
   faculty: {
     _id: string;
     name: string;
     email: string;
-  } | null;
-  totalFeedback: number;
-  averageRating: number;
-  isActive: boolean;
-  createdAt: string;
+  } | string | null;  // Handle both object and string faculty formats
+  totalFeedback?: number;
+  averageRating?: number;
+  isActive?: boolean;
+  createdAt?: string;
+  instructor?: string;  // For compatibility with the backend model
 }
 
 export default function SubjectsPage() {
@@ -34,28 +36,41 @@ export default function SubjectsPage() {
   const { showToast } = useToast();
 
   useEffect(() => {
-    fetchSubjects();
+    try {
+      fetchSubjects();
+    } catch (error) {
+      console.error('Unexpected error in subjects useEffect:', error);
+      showToast('An unexpected error occurred while loading subjects', 'error');
+      setLoading(false);
+    }
   }, []);
 
   const fetchSubjects = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5001/api/dean/subjects', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch subjects');
+      setLoading(true);
+      
+      // Use the api utility which handles token management
+      const response = await api.get('/api/dean/subjects');
+      console.log('Subjects data received:', response.data); // For debugging
+      
+      // Handle possible response formats
+      if (Array.isArray(response.data)) {
+        setSubjects(response.data);
+      } else if (response.data && response.data.subjects && Array.isArray(response.data.subjects)) {
+        // Handle case where subjects might be wrapped in an object
+        setSubjects(response.data.subjects);
+      } else {
+        console.error('Unexpected response format:', response.data);
+        setSubjects([]);
       }
-
-      const data = await response.json();
-      setSubjects(data.subjects || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching subjects:', error);
-      showToast('Failed to load subjects', 'error');
+      if (error.response?.status === 403) {
+        showToast('Access denied. Dean privileges required.', 'error');
+        // Could add redirection to login here
+      } else {
+        showToast(`Failed to load subjects: ${error.message || 'Unknown error'}`, 'error');
+      }
     } finally {
       setLoading(false);
     }
@@ -65,19 +80,37 @@ export default function SubjectsPage() {
     const matchesSearch = subject.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          subject.code.toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchesBranch = branchFilter === 'all' || subject.branch._id === branchFilter;
-    const matchesSemester = semesterFilter === 'all' || subject.semester.toString() === semesterFilter;
+    // Make branch filtering safe by checking if branch object exists
+    const matchesBranch = branchFilter === 'all' || 
+                         (typeof subject.branch === 'object' && subject.branch && subject.branch._id === branchFilter) || 
+                         (typeof subject.branch === 'string' && subject.branch === branchFilter);
+    
+    const matchesSemester = semesterFilter === 'all' || subject.semester?.toString() === semesterFilter;
 
     return matchesSearch && matchesBranch && matchesSemester;
   });
 
-  const uniqueBranches = Array.from(new Set(subjects.map(s => s.branch._id)))
-    .map(branchId => subjects.find(s => s.branch._id === branchId)?.branch)
-    .filter(Boolean);
+  // Handle both object branches and string branches by extracting IDs safely
+  const uniqueBranches = subjects
+    .filter(s => s.branch)
+    .map(s => {
+      if (typeof s.branch === 'object' && s.branch !== null) {
+        return { _id: s.branch._id, name: s.branch.name, code: s.branch.code };
+      } else {
+        // Handle string branch case
+        return { _id: s.branch, name: s.branch, code: '' };
+      }
+    })
+    .filter((branch, index, self) => 
+      branch && index === self.findIndex(b => b && b._id === branch._id)
+    );
 
-  const uniqueSemesters = Array.from(new Set(subjects.map(s => s.semester))).sort((a, b) => a - b);
+  const uniqueSemesters = Array.from(
+    new Set(subjects.filter(s => s.semester !== undefined).map(s => s.semester))
+  ).sort((a, b) => a - b);
 
-  const getRatingColor = (rating: number) => {
+  const getRatingColor = (rating: number | undefined) => {
+    if (!rating) return 'text-gray-600';
     if (rating >= 4) return 'text-green-600';
     if (rating >= 3) return 'text-yellow-600';
     return 'text-red-600';
@@ -177,21 +210,29 @@ export default function SubjectsPage() {
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Branch</span>
                 <div className="text-right">
-                  <p className="text-sm font-medium text-gray-900">{subject.branch.name}</p>
-                  <p className="text-xs text-gray-500">{subject.branch.code}</p>
+                  {typeof subject.branch === 'object' && subject.branch !== null ? (
+                    <>
+                      <p className="text-sm font-medium text-gray-900">{subject.branch.name}</p>
+                      <p className="text-xs text-gray-500">{subject.branch.code}</p>
+                    </>
+                  ) : (
+                    <p className="text-sm font-medium text-gray-900">{subject.branch}</p>
+                  )}
                 </div>
               </div>
               
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Faculty</span>
                 <div className="text-right">
-                  {subject.faculty ? (
+                  {!subject.faculty ? (
+                    <span className="text-sm text-red-600">Not Assigned</span>
+                  ) : typeof subject.faculty === 'object' ? (
                     <>
                       <p className="text-sm font-medium text-gray-900">{subject.faculty.name}</p>
                       <p className="text-xs text-gray-500">{subject.faculty.email}</p>
                     </>
                   ) : (
-                    <span className="text-sm text-red-600">Not Assigned</span>
+                    <p className="text-sm font-medium text-gray-900">{subject.faculty}</p>
                   )}
                 </div>
               </div>
@@ -200,8 +241,8 @@ export default function SubjectsPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">Feedback</span>
                   <div className="text-right">
-                    <p className="text-sm font-medium text-gray-900">{subject.totalFeedback} responses</p>
-                    {subject.totalFeedback > 0 && (
+                    <p className="text-sm font-medium text-gray-900">{subject.totalFeedback ?? 0} responses</p>
+                    {subject.totalFeedback && subject.totalFeedback > 0 && subject.averageRating !== undefined && (
                       <div className="flex items-center justify-end space-x-1">
                         <span className={`text-sm font-medium ${getRatingColor(subject.averageRating)}`}>
                           {subject.averageRating.toFixed(1)}
@@ -211,7 +252,7 @@ export default function SubjectsPage() {
                             <svg
                               key={i}
                               className={`h-3 w-3 ${
-                                i < Math.floor(subject.averageRating) ? 'text-yellow-400' : 'text-gray-300'
+                                i < Math.floor(subject.averageRating ?? 0) ? 'text-yellow-400' : 'text-gray-300'
                               }`}
                               fill="currentColor"
                               viewBox="0 0 20 20"

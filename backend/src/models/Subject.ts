@@ -5,11 +5,32 @@ const SubjectSchema = new Schema({
   code: String,
   instructor: String,
   department: String,
-  semester: Number,
+  year: {
+    type: Number,
+    enum: [1, 2, 3, 4],
+    required: true
+  },
+  term: {
+    type: Number,
+    enum: [1, 2, 3, 4],
+    required: true
+  },
   branch: {
-    type: String,
-    enum: ['MCA Regular', 'MCA DS'],
-    default: 'MCA Regular'
+    type: [String], // Array to support multiple branches
+    enum: [
+      'Computer Science', 
+      'Electronics', 
+      'Mechanical', 
+      'Civil', 
+      'Electrical',
+      'Information Technology',
+      'Chemical',
+      'Aerospace',
+      'Biotechnology',
+      'MCA Regular', 
+      'MCA DS'
+    ],
+    default: ['Computer Science']
   },
   questions: [String]
 });

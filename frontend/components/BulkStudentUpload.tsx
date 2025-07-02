@@ -9,6 +9,7 @@ interface StudentData {
   email: string;
   rollNumber: string;
   branch: string;
+  year: number;
 }
 
 export default function BulkStudentUpload({ onUploadComplete }: { onUploadComplete: () => void }) {
@@ -42,12 +43,12 @@ export default function BulkStudentUpload({ onUploadComplete }: { onUploadComple
             // Filter out empty rows for validation and preview
             const data = allData.filter(row => {
               // Check if the row has any meaningful data
-              const hasAnyData = row.name || row.email || row.rollNumber || row.branch;
+              const hasAnyData = row.name || row.email || row.rollNumber || row.branch || row.year;
               return hasAnyData;
             });
             
             // Validate required columns
-            const requiredColumns = ['name', 'email', 'rollNumber', 'branch'];
+            const requiredColumns = ['name', 'email', 'rollNumber', 'branch', 'year'];
             const headers = Object.keys(data[0] || {});
             const missingColumns = requiredColumns.filter(col => !headers.includes(col));
             
@@ -100,7 +101,7 @@ export default function BulkStudentUpload({ onUploadComplete }: { onUploadComple
       // Filter out completely empty rows (common at the end of CSV files)
       const students = allStudents.filter(student => {
         // Check if all fields are empty/undefined/null
-        const hasAnyData = student.name || student.email || student.rollNumber || student.branch;
+        const hasAnyData = student.name || student.email || student.rollNumber || student.branch || student.year;
         return hasAnyData;
       });
       
@@ -114,7 +115,8 @@ export default function BulkStudentUpload({ onUploadComplete }: { onUploadComple
           name: student.name?.trim() || '',
           email: student.email?.trim() || '',
           rollNumber: student.rollNumber?.trim() || '',
-          branch: student.branch?.trim() || ''
+          branch: student.branch?.trim() || '',
+          year: parseInt(student.year?.toString() || '1')
         };
         
         console.log(`Row ${index + 1}:`, trimmedStudent);
@@ -128,6 +130,11 @@ export default function BulkStudentUpload({ onUploadComplete }: { onUploadComple
           errors.push({
             index,
             message: `Row ${index + 1} has an invalid email format`
+          });
+        } else if (![1, 2, 3, 4].includes(trimmedStudent.year)) {
+          errors.push({
+            index,
+            message: `Row ${index + 1} has invalid year (must be 1, 2, 3, or 4)`
           });
         }
         return errors;
@@ -150,7 +157,8 @@ export default function BulkStudentUpload({ onUploadComplete }: { onUploadComple
         name: student.name?.trim() || '',
         email: student.email?.trim() || '',
         rollNumber: student.rollNumber?.trim() || '',
-        branch: student.branch?.trim() || ''
+        branch: student.branch?.trim() || '',
+        year: parseInt(student.year?.toString() || '1')
       }));
       
       // Send data to API
@@ -184,7 +192,7 @@ export default function BulkStudentUpload({ onUploadComplete }: { onUploadComple
       <div className="mb-6">
         <p className="text-gray-700 mb-2">Upload a CSV file with the following columns:</p>
         <div className="bg-gray-50 p-3 rounded-md border border-gray-200">
-          <code>name, email, rollNumber, branch</code>
+          <code>name, email, rollNumber, branch, year</code>
         </div>
       </div>
       
@@ -225,6 +233,7 @@ export default function BulkStudentUpload({ onUploadComplete }: { onUploadComple
                           <th className="px-4 py-2 text-left">Email</th>
                           <th className="px-4 py-2 text-left">Roll Number</th>
                           <th className="px-4 py-2 text-left">Branch</th>
+                          <th className="px-4 py-2 text-left">Year</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -234,6 +243,7 @@ export default function BulkStudentUpload({ onUploadComplete }: { onUploadComple
                             <td className="px-4 py-2">{student.email}</td>
                             <td className="px-4 py-2">{student.rollNumber}</td>
                             <td className="px-4 py-2">{student.branch}</td>
+                            <td className="px-4 py-2">{student.year}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -275,6 +285,7 @@ export default function BulkStudentUpload({ onUploadComplete }: { onUploadComple
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
               </svg>
               <p className="text-green-700 font-medium">Upload completed successfully!</p>
+              <p className="text-sm text-green-600 mt-1">✅ Login credentials have been sent to all students via email</p>
             </div>
           </div>
           

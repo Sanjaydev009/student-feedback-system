@@ -14,8 +14,9 @@ interface Subject {
   name: string;
   code: string;
   instructor: string;
-  branch: string;
-  semester: number;
+  branch: string[]; // Array to support multiple branches (common subjects)
+  year: number;
+  term: number;
 }
 
 interface FeedbackSummary {
@@ -124,11 +125,11 @@ export default function ReportsPage() {
     }
   };
 
-  // Filter subjects based on branch and semester
+  // Filter subjects based on branch and term
   const filteredSubjects = subjects.filter(subject => {
-    const matchesBranch = branchFilter === 'all' || subject.branch === branchFilter;
-    const matchesSemester = semesterFilter === 'all' || subject.semester === parseInt(semesterFilter);
-    return matchesBranch && matchesSemester;
+    const matchesBranch = branchFilter === 'all' || (Array.isArray(subject.branch) ? subject.branch.includes(branchFilter) : subject.branch === branchFilter);
+    const matchesTerm = semesterFilter === 'all' || subject.term === parseInt(semesterFilter);
+    return matchesBranch && matchesTerm;
   });
 
   const handleExportCSV = () => {
@@ -353,21 +354,21 @@ export default function ReportsPage() {
           </div>
           
           <div>
-            <label htmlFor="semester" className="block text-sm font-medium text-gray-700 mb-1">
-              Filter by Semester
+            <label htmlFor="term" className="block text-sm font-medium text-gray-700 mb-1">
+              Filter by Term
             </label>
             <select
-              id="semester"
-              name="semester"
+              id="term"
+              name="term"
               className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-3 pr-10 py-2 sm:text-sm border-gray-300 rounded-md"
               value={semesterFilter}
               onChange={(e) => setSemesterFilter(e.target.value)}
             >
-              <option value="all">All Semesters</option>
-              <option value="1">Semester 1</option>
-              <option value="2">Semester 2</option>
-              <option value="3">Semester 3</option>
-              <option value="4">Semester 4</option>
+              <option value="all">All Terms</option>
+              <option value="1">Term 1</option>
+              <option value="2">Term 2</option>
+              <option value="3">Term 3</option>
+              <option value="4">Term 4</option>
             </select>
           </div>
           

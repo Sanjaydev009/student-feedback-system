@@ -128,14 +128,6 @@ export default function Home() {
             >
               {isAuth ? (
                 <div className="flex space-x-4">
-                  <motion.button 
-                    onClick={redirectToDashboard} 
-                    className="px-5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium rounded-lg shadow-md"
-                    whileHover={{ scale: 1.03, boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1)" }}
-                    whileTap={{ scale: 0.97 }}
-                  >
-                    Go to Dashboard
-                  </motion.button>
                   <motion.div
                     whileHover={{ scale: 1.03 }}
                     whileTap={{ scale: 0.97 }}
@@ -201,7 +193,7 @@ export default function Home() {
                         href="/login" 
                         className="px-8 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium rounded-lg shadow-md inline-block"
                       >
-                        Get Started
+                        Login
                       </Link>
                     </motion.div>
                     <motion.div
@@ -218,14 +210,19 @@ export default function Home() {
                   </>
                 )}
                 {isAuth && (
-                  <motion.button
-                    onClick={redirectToDashboard}
-                    className="px-8 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium rounded-lg shadow-md"
-                    whileHover={{ scale: 1.03, boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1)" }}
-                    whileTap={{ scale: 0.97 }}
-                  >
-                    Continue to Dashboard
-                  </motion.button>
+                  <div className="flex flex-wrap gap-4">
+                    <motion.div
+                      whileHover={{ scale: 1.03 }}
+                      whileTap={{ scale: 0.97 }}
+                    >
+                      <Link 
+                        href="#features" 
+                        className="px-8 py-3 border border-gray-300 text-gray-700 font-medium rounded-lg inline-block"
+                      >
+                        Learn More
+                      </Link>
+                    </motion.div>
+                  </div>
                 )}
               </div>
             </motion.div>
@@ -403,26 +400,15 @@ export default function Home() {
               Join thousands of educational institutions using our platform to collect and analyze student feedback.
             </p>
             
-            {!isAuth ? (
-              <motion.div 
-                className="inline-block"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <Link href="/login" className="px-8 py-4 bg-white text-blue-600 text-lg font-medium rounded-lg shadow-lg hover:shadow-xl transition-all duration-300">
-                  Get Started Today
-                </Link>
-              </motion.div>
-            ) : (
-              <motion.button
-                onClick={redirectToDashboard}
-                className="px-8 py-4 bg-white text-blue-600 text-lg font-medium rounded-lg shadow-lg hover:shadow-xl transition-all duration-300"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                Go to Your Dashboard
-              </motion.button>
-            )}
+            <motion.div 
+              className="inline-block"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <Link href="/login" className="px-8 py-4 bg-white text-blue-600 text-lg font-medium rounded-lg shadow-lg hover:shadow-xl transition-all duration-300">
+                Login Here
+              </Link>
+            </motion.div>
           </motion.div>
         </div>
       </section>

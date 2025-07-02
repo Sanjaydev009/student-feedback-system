@@ -9,12 +9,13 @@ yarn-error.log*
 .env.development.local
 .env.test.local
 .env.production.local
-.env.example
 .env.development
 .env.staging
 .env.production
 .env.test
 .env*.local
+# Allow .env.example to be committed
+!.env.example
 
 # Build artifacts
 dist/
@@ -47,7 +48,16 @@ temp/
 *.sqlite
 *.dump
 
-# dotenv environment variables file
+# Temporary test files and API response files
+admin_token.json
+login_response.json
+createUsers.js
+test-*.js
+test-*.ts
+*-test.js
+
+# TypeScript build info
+*.tsbuildinfo
 .env
 
 # Dependency directories

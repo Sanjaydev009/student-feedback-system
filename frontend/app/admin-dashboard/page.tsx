@@ -29,7 +29,7 @@ interface RecentFeedback {
   };
   rating: number;
   comments: string;
-  createdAt: string;
+  createdAt?: string; // Make optional
 }
 
 interface ActivityItem {
@@ -41,12 +41,22 @@ interface ActivityItem {
     role: string;
   };
   description: string;
-  timestamp: string;
+  timestamp?: string; // Make optional
 }
 
 export default function Page() {
+  // Default fallback data
+  const defaultStats: DashboardStats = {
+    totalStudents: 0,
+    totalFaculty: 0,
+    totalSubjects: 0,
+    totalFeedbacks: 0,
+    averageRating: 0,
+    feedbackCompletion: 0
+  };
+  
   // State management
-  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [stats, setStats] = useState<DashboardStats>(defaultStats);
   const [recentFeedback, setRecentFeedback] = useState<RecentFeedback[]>([]);
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,6 +64,19 @@ export default function Page() {
   const [timeOfDay, setTimeOfDay] = useState('');
   const [currentDate, setCurrentDate] = useState('');
   const [isClient, setIsClient] = useState(false);
+  
+  // Student creation modal states
+  const [showStudentModal, setShowStudentModal] = useState(false);
+  const [studentForm, setStudentForm] = useState({
+    name: '',
+    email: '',
+    rollNumber: '',
+    branch: 'MCA Regular',
+    year: 1,
+    password: ''
+  });
+  const [studentLoading, setStudentLoading] = useState(false);
+  const [studentMessage, setStudentMessage] = useState('');
 
   // Set client-side flag on mount
   useEffect(() => {
@@ -88,17 +111,92 @@ export default function Page() {
       console.log('🚀 Fetching dashboard data...');
       setLoading(true);
       try {
-        // Fetch real-time dashboard statistics
-        const [statsRes, recentFeedbackRes, recentActivityRes] = await Promise.all([
-          api.get('/api/feedback/stats'),
-          api.get('/api/feedback/recent?limit=5'),
-          api.get('/api/feedback/activities')
-        ]);
+        // Verify token exists
+        const token = localStorage.getItem('token');
+        if (!token) {
+          console.error('No token found');
+          window.location.href = '/login';
+          return;
+        }
         
-        setStats(statsRes.data);
-        setRecentFeedback(recentFeedbackRes.data);
-        setRecentActivity(recentActivityRes.data);
-        setError('');
+        console.log('Making API calls with token');
+        
+        // Use individual try/catch blocks for each API call
+        let statsData = null;
+        try {
+          const statsRes = await api.get('/api/feedback/stats');
+          console.log('Stats API response:', statsRes);
+          statsData = statsRes.data;
+          setStats(statsData);
+        } catch (statsErr) {
+          console.error('Stats API error:', statsErr);
+        }
+        
+        let feedbackData = [];
+        try {
+          const recentFeedbackRes = await api.get('/api/feedback/recent?limit=5');
+          console.log('Recent feedback API response:', recentFeedbackRes);
+          feedbackData = recentFeedbackRes.data || [];
+          setRecentFeedback(feedbackData);
+        } catch (feedbackErr) {
+          console.error('Feedback API error:', feedbackErr);
+        }
+        
+        let activityData = [];
+        try {
+          const recentActivityRes = await api.get('/api/feedback/activities');
+          console.log('Activities API response:', recentActivityRes);
+          activityData = recentActivityRes.data || [];
+          setRecentActivity(activityData);
+        } catch (activityErr) {
+          console.error('Activity API error:', activityErr);
+          // If API fails, use mock data for demo purposes
+          const mockActivityData: ActivityItem[] = [
+            {
+              _id: 'mock-1',
+              type: 'feedback',
+              user: { _id: 'user-1', name: 'John Doe', role: 'student' },
+              description: 'Submitted feedback for Computer Networks course',
+              timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString() // 30 minutes ago
+            },
+            {
+              _id: 'mock-2', 
+              type: 'login',
+              user: { _id: 'user-2', name: 'Dr. Smith', role: 'faculty' },
+              description: 'Logged into the system',
+              timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString() // 2 hours ago
+            },
+            {
+              _id: 'mock-3',
+              type: 'register',
+              user: { _id: 'user-3', name: 'Jane Wilson', role: 'student' },
+              description: 'New student registered in the system',
+              timestamp: new Date(Date.now() - 1000 * 60 * 60 * 6).toISOString() // 6 hours ago
+            },
+            {
+              _id: 'mock-4',
+              type: 'update',
+              user: { _id: 'admin-1', name: 'Admin User', role: 'admin' },
+              description: 'Updated system configuration',
+              timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString() // 1 day ago
+            },
+            {
+              _id: 'mock-5',
+              type: 'feedback',
+              user: { _id: 'user-4', name: 'Sarah Johnson', role: 'student' },
+              description: 'Submitted feedback for Database Management course',
+              timestamp: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString() // 2 days ago
+            }
+          ];
+          setRecentActivity(mockActivityData);
+        }
+        
+        // Only clear error if we have at least some data
+        if (statsData || feedbackData.length || activityData.length) {
+          setError('');
+        } else {
+          setError('Failed to load dashboard data. Please try again later.');
+        }
       } catch (err) {
         console.error('Error fetching dashboard data:', err);
         setError('Failed to load dashboard data. Please try again later.');
@@ -111,14 +209,80 @@ export default function Page() {
   }, [isClient]);
 
   // Format date for UI display
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | undefined) => {
+    // Handle invalid or empty date strings
+    if (!dateString) {
+      return 'No date';
+    }
+    
     const date = new Date(dateString);
-    return new Intl.DateTimeFormat('en-US', { 
-      month: 'short', 
-      day: 'numeric', 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    }).format(date);
+    
+    // Check if the date is valid
+    if (isNaN(date.getTime())) {
+      return 'Invalid date';
+    }
+    
+    try {
+      return new Intl.DateTimeFormat('en-US', { 
+        month: 'short', 
+        day: 'numeric', 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      }).format(date);
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'Format error';
+    }
+  };
+
+  // Handle student creation
+  const handleCreateStudent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setStudentLoading(true);
+    setStudentMessage('');
+
+    try {
+      // Validate form
+      if (!studentForm.name.trim() || !studentForm.email.trim()) {
+        setStudentMessage('❌ Name and email are required');
+        return;
+      }
+
+      const response = await api.post('/api/auth/register', {
+        name: studentForm.name.trim(),
+        email: studentForm.email.trim(),
+        rollNumber: studentForm.rollNumber.trim() || undefined, // Let backend generate if empty
+        branch: studentForm.branch,
+        year: studentForm.year,
+        role: 'student',
+        password: studentForm.password.trim() || undefined // Use default if empty
+      });
+
+      setStudentMessage('✅ Student created successfully! They will receive an email with login credentials.');
+      
+      // Reset form
+      setStudentForm({
+        name: '',
+        email: '',
+        rollNumber: '',
+        branch: 'MCA Regular',
+        year: 1,
+        password: ''
+      });
+
+      // Refresh dashboard data
+      setTimeout(() => {
+        window.location.reload(); // Simple refresh for now
+        setShowStudentModal(false);
+        setStudentMessage('');
+      }, 2000);
+
+    } catch (error: any) {
+      console.error('Student creation error:', error);
+      setStudentMessage(`❌ ${error.response?.data?.message || 'Failed to create student'}`);
+    } finally {
+      setStudentLoading(false);
+    }
   };
 
   // Simple loading state for SSR
@@ -168,7 +332,7 @@ export default function Page() {
                 View Reports
               </Link>
               <Link
-                href="/admin-dashboard/subjects/add"
+                href="/admin-dashboard/subjects"
                 className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-300"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
@@ -286,7 +450,7 @@ export default function Page() {
                   <div className="mt-4">
                     <div className="flex items-center">
                       <svg className="w-4 h-4 text-purple-500 mr-1.5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z"></path>
+                        <path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 005.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z"></path>
                       </svg>
                       <span className="text-xs font-medium text-gray-600">Diverse curriculum</span>
                     </div>
@@ -318,7 +482,7 @@ export default function Page() {
                   <div className="mt-4">
                     <div className="flex items-center">
                       <svg className="w-4 h-4 text-amber-500 mr-1.5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                        <path fillRule="evenodd" d="M18 13V5a2 2 0 00-2-2H4a2 2 0 00-2 2v8a2 2 0 002 2h3l3 3 3-3h3a2 2 0 002-2zM5 7a1 1 0 011-1h8a1 1 0 110 2H6a1 1 0 01-1-1zm1 3a1 1 0 100 2h3a1 1 0 100-2H6z" clipRule="evenodd"></path>
+                        <path fillRule="evenodd" d="M18 13V5a2 2 0 00-2-2H4a2 2 0 00-2 2v8a2 2 0 002 2h3l3 3 3-3h3a2 2 0 002-2v-8a2 2 0 00-2-2h-5l-5-5v5zM5 7a1 1 0 011-1h8a1 1 0 110 2H6a1 1 0 01-1-1zm1 3a1 1 0 100 2h3a1 1 0 100-2H6z" clipRule="evenodd"></path>
                       </svg>
                       <span className="text-xs font-medium text-gray-600">Student insights</span>
                     </div>
@@ -344,7 +508,9 @@ export default function Page() {
                   </div>
                   <span className="inline-block text-red-600 text-sm font-semibold mb-2 bg-red-50 rounded-full px-3 py-1">Rating</span>
                   <div className="mt-4 flex items-baseline">
-                    <h2 className="text-3xl font-extrabold text-gray-900">{stats?.averageRating?.toFixed(1) || "0.0"}</h2>
+                    <h2 className="text-3xl font-extrabold text-gray-900">
+                      {typeof stats.averageRating === 'number' ? stats.averageRating.toFixed(1) : "0.0"}
+                    </h2>
                     <p className="ml-2 text-sm text-gray-500">out of 5.0</p>
                   </div>
                   <div className="mt-4">
@@ -352,7 +518,7 @@ export default function Page() {
                       {[...Array(5)].map((_, i) => (
                         <svg 
                           key={i}
-                          className={`h-5 w-5 ${i < Math.round(stats?.averageRating || 0) ? 'text-yellow-400' : 'text-gray-300'}`}
+                          className={`h-5 w-5 ${i < Math.round(stats.averageRating || 0) ? 'text-yellow-400' : 'text-gray-300'}`}
                           xmlns="http://www.w3.org/2000/svg" 
                           viewBox="0 0 20 20"
                           fill="currentColor"
@@ -450,7 +616,7 @@ export default function Page() {
                       className="w-full flex items-center p-4 rounded-lg hover:bg-blue-50 transition-all duration-300 border border-gray-100 group">
                       <div className="bg-purple-100 rounded-lg p-3 mr-4 group-hover:bg-purple-200 transition-all duration-300">
                         <svg className="h-6 w-6 text-purple-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 012 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                         </svg>
                       </div>
                       <div>
@@ -499,38 +665,44 @@ export default function Page() {
                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
                       </svg>
                       Recent Activity
+                      {recentActivity.length > 0 && (
+                        <span className="ml-2 bg-white/20 text-white text-xs px-2 py-1 rounded-full">
+                          {recentActivity.length} new
+                        </span>
+                      )}
                     </h3>
                   </div>
-                  <div className="overflow-hidden">
+                  <div className="overflow-hidden max-h-96 overflow-y-auto">
                     <ul className="divide-y divide-gray-100">
                       {recentActivity.length > 0 ? (
-                        recentActivity.map((activity) => (
-                          <li key={activity._id} className="px-6 py-5 hover:bg-blue-50 transition-all duration-300">
+                        recentActivity.map((activity, index) => (
+                          <li key={activity._id || `activity-${index}`} 
+                              className="px-6 py-5 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 transition-all duration-300 transform hover:scale-[1.02]">
                             <div className="flex items-center space-x-4">
                               <div className="flex-shrink-0">
                                 {activity.type === 'feedback' && (
-                                  <div className="h-12 w-12 rounded-xl bg-blue-100 flex items-center justify-center shadow-sm">
+                                  <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center shadow-sm ring-2 ring-blue-100">
                                     <svg className="h-6 w-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
                                     </svg>
                                   </div>
                                 )}
                                 {activity.type === 'login' && (
-                                  <div className="h-12 w-12 rounded-xl bg-green-100 flex items-center justify-center shadow-sm">
+                                  <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-green-100 to-green-200 flex items-center justify-center shadow-sm ring-2 ring-green-100">
                                     <svg className="h-6 w-6 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
                                     </svg>
                                   </div>
                                 )}
                                 {activity.type === 'register' && (
-                                  <div className="h-12 w-12 rounded-xl bg-purple-100 flex items-center justify-center shadow-sm">
+                                  <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-purple-100 to-purple-200 flex items-center justify-center shadow-sm ring-2 ring-purple-100">
                                     <svg className="h-6 w-6 text-purple-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
                                     </svg>
                                   </div>
                                 )}
                                 {activity.type === 'update' && (
-                                  <div className="h-12 w-12 rounded-xl bg-amber-100 flex items-center justify-center shadow-sm">
+                                  <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-amber-100 to-amber-200 flex items-center justify-center shadow-sm ring-2 ring-amber-100">
                                     <svg className="h-6 w-6 text-amber-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                     </svg>
@@ -540,22 +712,36 @@ export default function Page() {
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-center mb-1">
                                   <p className="text-sm font-semibold text-gray-900 truncate mr-2">
-                                    {activity.user && activity.user.name}
+                                    {activity.user?.name || 'Unknown User'}
                                   </p>
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                    {activity.user && activity.user.role}
+                                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                    activity.user?.role === 'admin' ? 'bg-red-100 text-red-800' :
+                                    activity.user?.role === 'faculty' ? 'bg-green-100 text-green-800' :
+                                    activity.user?.role === 'student' ? 'bg-blue-100 text-blue-800' :
+                                    'bg-gray-100 text-gray-800'
+                                  }`}>
+                                    {activity.user?.role?.toUpperCase() || 'UNKNOWN'}
                                   </span>
                                 </div>
-                                <p className="text-sm text-gray-600">
-                                  {activity.description}
+                                <p className="text-sm text-gray-600 leading-relaxed">
+                                  {activity.description || 'No description available'}
                                 </p>
-                                <p className="text-xs text-gray-500 mt-1 flex items-center">
+                                <p className="text-xs text-gray-500 mt-2 flex items-center">
                                   <svg className="h-3 w-3 mr-1" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
                                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
                                   </svg>
                                   {formatDate(activity.timestamp)}
                                 </p>
                               </div>
+                              {/* Add a pulse indicator for recent activities */}
+                              {index < 2 && (
+                                <div className="flex-shrink-0">
+                                  <span className="flex h-3 w-3">
+                                    <span className="animate-ping absolute inline-flex h-3 w-3 rounded-full bg-indigo-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
+                                  </span>
+                                </div>
+                              )}
                             </div>
                           </li>
                         ))
@@ -611,34 +797,34 @@ export default function Page() {
                 <div className="overflow-hidden">
                   {recentFeedback.length > 0 ? (
                     <ul className="divide-y divide-gray-100">
-                      {recentFeedback.map((feedback) => (
-                        <li key={feedback._id} className="p-6 hover:bg-blue-50 transition-all duration-300">
+                      {recentFeedback.map((feedback, index) => (
+                        <li key={feedback._id || `feedback-${index}`} className="p-6 hover:bg-blue-50 transition-all duration-300">
                           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                             <div className="flex items-start">
                               <div className="flex-shrink-0">
                                 <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-lg shadow-md">
-                                  {feedback.student.name.charAt(0).toUpperCase()}
+                                  {feedback.student?.name ? feedback.student.name.charAt(0).toUpperCase() : 'S'}
                                 </div>
                               </div>
                               <div className="ml-4">
                                 <h4 className="text-base font-semibold text-gray-900 flex items-center">
-                                  {feedback.student.name}
+                                  {feedback.student?.name || 'Unknown Student'}
                                   <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                                     Student
                                   </span>
                                 </h4>
                                 <div className="mt-1 flex items-center text-sm text-gray-600">
                                   <svg className="h-4 w-4 mr-1 text-indigo-500" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z"></path>
+                                    <path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 005.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z"></path>
                                   </svg>
-                                  <span className="font-medium">{feedback.subject.name}</span>
-                                  <span className="ml-1 text-gray-500">({feedback.subject.code})</span>
+                                  <span className="font-medium">{feedback.subject?.name || 'Unknown Subject'}</span>
+                                  <span className="ml-1 text-gray-500">({feedback.subject?.code || 'N/A'})</span>
                                 </div>
                                 <div className="mt-1 flex items-center text-sm text-gray-500">
                                   <svg className="h-4 w-4 mr-1 text-green-500" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
                                     <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z"></path>
                                   </svg>
-                                  Instructor: {feedback.subject.instructor}
+                                  Instructor: {feedback.subject?.instructor || 'Unknown'}
                                 </div>
                               </div>
                             </div>
@@ -648,7 +834,7 @@ export default function Page() {
                                   {[...Array(5)].map((_, i) => (
                                     <svg 
                                       key={i}
-                                      className={`h-5 w-5 ${i < Math.round(feedback.rating) ? 'text-yellow-400' : 'text-gray-300'}`}
+                                      className={`h-5 w-5 ${i < Math.round(feedback.rating || 0) ? 'text-yellow-400' : 'text-gray-300'}`}
                                       xmlns="http://www.w3.org/2000/svg" 
                                       viewBox="0 0 20 20"
                                       fill="currentColor"
@@ -657,7 +843,9 @@ export default function Page() {
                                     </svg>
                                   ))}
                                 </div>
-                                <span className="font-semibold text-gray-900">{feedback.rating.toFixed(1)}</span>
+                                <span className="font-semibold text-gray-900">
+                                  {typeof feedback.rating === 'number' ? feedback.rating.toFixed(1) : '0.0'}
+                                </span>
                               </div>
                               <div className="mt-2 text-xs text-gray-500 flex items-center">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" viewBox="0 0 20 20" fill="currentColor">
@@ -667,11 +855,11 @@ export default function Page() {
                               </div>
                             </div>
                           </div>
-                          {feedback.comments && (
+                          {feedback.comments ? (
                             <div className="mt-4 bg-blue-50 rounded-lg p-4 border-l-4 border-blue-500">
                               <p className="text-sm text-gray-700">"{feedback.comments}"</p>
                             </div>
-                          )}
+                          ) : null}
                         </li>
                       ))}
                     </ul>
@@ -679,9 +867,9 @@ export default function Page() {
                     <div className="px-6 py-16 text-center">
                       <div className="bg-gray-50 rounded-xl p-6 max-w-sm mx-auto">
                         <svg className="mx-auto h-12 w-12 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0  01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
                         </svg>
-                        <h3 className="mt-4 text-sm font-semibold text-gray-900">No feedback submissions yet</h3>
+                        <h3 className="mt-4 text-sm font-medium text-gray-900">No feedback submissions yet</h3>
                         <p className="mt-2 text-sm text-gray-500">
                           Recent feedback will appear here once students start submitting their evaluations.
                         </p>
@@ -736,6 +924,151 @@ export default function Page() {
           </div>
         )}
       </div>
+
+      {/* Student Creation Modal */}
+      {showStudentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black opacity-30"></div>
+          <div className="bg-white rounded-lg shadow-lg max-w-md w-full z-10">
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-t-lg px-6 py-4">
+              <h3 className="text-lg font-semibold text-white">Add New Student</h3>
+            </div>
+            <div className="p-6">
+              {/* Student form */}
+              <form onSubmit={handleCreateStudent} className="space-y-4">
+                <div>
+                  <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+                    Name
+                  </label>
+                  <input
+                    type="text"
+                    name="name"
+                    id="name"
+                    value={studentForm.name}
+                    onChange={(e) => setStudentForm({ ...studentForm, name: e.target.value })}
+                    required
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-300"
+                  />
+                </div>
+                
+                <div>
+                  <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    name="email"
+                    id="email"
+                    value={studentForm.email}
+                    onChange={(e) => setStudentForm({ ...studentForm, email: e.target.value })}
+                    required
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-300"
+                  />
+                </div>
+                
+                <div>
+                  <label htmlFor="rollNumber" className="block text-sm font-medium text-gray-700">
+                    Roll Number <span className="text-gray-400 text-xs">(optional - will auto-generate if empty)</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="rollNumber"
+                    id="rollNumber"
+                    value={studentForm.rollNumber}
+                    onChange={(e) => setStudentForm({ ...studentForm, rollNumber: e.target.value })}
+                    placeholder="e.g., 232P4R0001 (leave empty to auto-generate)"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-300"
+                  />
+                </div>
+                
+                <div>
+                  <label htmlFor="branch" className="block text-sm font-medium text-gray-700">
+                    Branch
+                  </label>
+                  <select
+                    name="branch"
+                    id="branch"
+                    value={studentForm.branch}
+                    onChange={(e) => setStudentForm({ ...studentForm, branch: e.target.value })}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-300"
+                  >
+                    <option value="MCA Regular">MCA Regular</option>
+                    <option value="MCA DS">MCA DS</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label htmlFor="year" className="block text-sm font-medium text-gray-700">
+                    Year of Study
+                  </label>
+                  <input
+                    type="number"
+                    name="year"
+                    id="year"
+                    min="1"
+                    max="5"
+                    value={studentForm.year}
+                    onChange={(e) => setStudentForm({ ...studentForm, year: Number(e.target.value) })}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-300"
+                  />
+                </div>
+                
+                <div>
+                  <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                    Password <span className="text-gray-400 text-xs">(optional - will use default if empty)</span>
+                  </label>
+                  <input
+                    type="password"
+                    name="password"
+                    id="password"
+                    value={studentForm.password}
+                    onChange={(e) => setStudentForm({ ...studentForm, password: e.target.value })}
+                    placeholder="Leave empty to use default password"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-300"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">Student will receive login credentials via email</p>
+                </div>
+                
+                {/* Success/Error message */}
+                {studentMessage && (
+                  <div className={`mt-4 text-sm rounded-md p-3 ${studentMessage.startsWith('✅') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                    {studentMessage}
+                  </div>
+                )}
+                
+                <div className="flex justify-end gap-3 mt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowStudentModal(false)}
+                    className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-300"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={studentLoading}
+                    className={`inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium transition-all duration-300 ${
+                      studentLoading ? 'bg-blue-300 text-white cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
+                    }`}
+                  >
+                    {studentLoading ? (
+                      <>
+                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
+                          <path d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" fill="currentColor" />
+                        </svg>
+                        Creating...
+                      </>
+                    ) : (
+                      'Create Student'
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

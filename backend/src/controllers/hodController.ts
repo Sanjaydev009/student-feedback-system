@@ -209,15 +209,23 @@ export const getHODSubjects = async (req: Request, res: Response): Promise<void>
 // GET /api/hod/reports
 export const getHODReports = async (req: Request, res: Response): Promise<void> => {
   try {
+    // Validate user is HOD
     const hodUser = await User.findById(req.user?.id);
     if (!hodUser || hodUser.role !== 'hod') {
       res.status(403).json({ message: 'Access denied. HOD role required.' });
       return;
     }
+    
+    // Log incoming request for debugging purposes
+    console.log(`HOD Reports request from ${hodUser.name}, branch: ${hodUser.branch}`, {
+      filters: req.query
+    });
 
-    const { subject, semester, startDate, endDate } = req.query;
+    const { subject, term, startDate, endDate } = req.query;
     const hodBranch = hodUser.branch;
 
+    console.log(`Processing HOD reports for branch: ${hodBranch}`);
+    
     // Build aggregation pipeline
     let pipeline: any[] = [
       {
@@ -229,11 +237,23 @@ export const getHODReports = async (req: Request, res: Response): Promise<void> 
         }
       },
       {
+        // Make sure we only process records where student lookup returned results
+        $match: {
+          'studentInfo': { $ne: [] }
+        }
+      },
+      {
         $lookup: {
           from: 'subjects',
           localField: 'subject',
           foreignField: '_id',
           as: 'subjectInfo'
+        }
+      },
+      {
+        // Make sure we only process records where subject lookup returned results
+        $match: {
+          'subjectInfo': { $ne: [] }
         }
       },
       {
@@ -250,9 +270,9 @@ export const getHODReports = async (req: Request, res: Response): Promise<void> 
       });
     }
 
-    if (semester) {
+    if (term) {
       pipeline.push({
-        $match: { 'subjectInfo.semester': Number(semester) }
+        $match: { 'subjectInfo.term': Number(term) }
       });
     }
 
@@ -285,12 +305,31 @@ export const getHODReports = async (req: Request, res: Response): Promise<void> 
       }
     );
 
-    const reports = await Feedback.aggregate(pipeline);
-
-    res.json(reports);
+    try {
+      const reports = await Feedback.aggregate(pipeline);
+      console.log(`Retrieved ${reports.length} feedback reports for branch ${hodBranch}`);
+      
+      // Log the first report for debugging (if any)
+      if (reports.length > 0) {
+        console.log('Sample report:', JSON.stringify(reports[0], null, 2));
+      } else {
+        console.log('No reports found with current filters');
+      }
+      
+      res.json(reports);
+    } catch (aggregateError: any) {
+      console.error('Aggregation error:', aggregateError);
+      res.status(500).json({ 
+        message: 'Error processing feedback reports',
+        error: aggregateError.message 
+      });
+    }
   } catch (error: any) {
     console.error('Get HOD reports error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ 
+      message: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 };
 

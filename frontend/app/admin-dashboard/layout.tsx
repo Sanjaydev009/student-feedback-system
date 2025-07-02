@@ -29,7 +29,7 @@ export default function AdminLayout({
       <AdminNavbar onMenuClick={toggleSidebar} />
       <div className="flex">
         <AdminSidebar isOpen={sidebarOpen} currentPath={pathname} onClose={() => setSidebarOpen(false)} />
-        <main className={`flex-1 pt-24 ${mounted ? 'lg:ml-72' : ''}`}>
+        <main className={`flex-1 pt-24 transition-all duration-300 ease-in-out ${mounted ? 'lg:ml-72' : ''}`}>
           <div className="p-4 md:p-8">
             {children}
           </div>

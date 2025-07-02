@@ -29,6 +29,8 @@ export default function BranchesPage() {
 
   const fetchBranches = async () => {
     try {
+      if (typeof window === 'undefined') return;
+      
       const token = localStorage.getItem('token');
       const response = await fetch('http://localhost:5001/api/dean/branches', {
         headers: {

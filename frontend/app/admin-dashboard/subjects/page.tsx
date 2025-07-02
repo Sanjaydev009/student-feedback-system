@@ -10,8 +10,9 @@ interface Subject {
   code: string;
   instructor: string;
   department: string;
-  semester: number;
-  branch: string;
+  year: number;
+  term: number;
+  branch: string[];
   questions: string[];
 }
 
@@ -24,11 +25,54 @@ export default function AdminSubjectsPage() {
     code: '',
     instructor: '',
     department: '',
-    semester: '',
-    branch: 'MCA Regular',
+    year: '',
+    term: '',
+    branch: [] as string[],
     questions: ['', '', '', '', '', '', '', '', '', '']
   });
   const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
+  const [autoQuestionsEnabled, setAutoQuestionsEnabled] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState('teaching');
+  
+  // Predefined question templates
+  const questionTemplates = {
+    teaching: [
+      "How would you rate the teaching methodology for this subject?",
+      "How effective were the lectures in explaining complex concepts?",
+      "How well did the instructor respond to student questions?",
+      "How well-organized was the course material?",
+      "How accessible was the instructor outside of class hours?",
+      "How fair were the assignments and exams for this subject?",
+      "How useful were the practical exercises or lab sessions?",
+      "How relevant was the course content to real-world applications?",
+      "How effectively did the instructor use examples to clarify concepts?",
+      "How would you rate the overall quality of this course?"
+    ],
+    technical: [
+      "How well did the lab sessions help you understand the theoretical concepts?",
+      "How effective were the programming assignments in building practical skills?",
+      "How would you rate the quality of technical resources provided?",
+      "How well did the course prepare you for industry-standard technologies?",
+      "How relevant were the projects to current industry practices?",
+      "How effectively did the instructor demonstrate technical concepts?",
+      "How would you rate the balance between theory and practical application?",
+      "How accessible were the technical tools and resources needed for this course?",
+      "How well did the course cover emerging trends in this field?",
+      "How would you rate your confidence in applying these skills after completion?"
+    ],
+    academic: [
+      "How well does this subject align with your academic goals?",
+      "How effective is the curriculum in covering essential concepts?",
+      "How would you rate the quality of learning materials provided?",
+      "How fair and transparent is the evaluation system for this subject?",
+      "How would you rate the difficulty level of this subject?",
+      "How well does this subject build upon your previous knowledge?",
+      "How effectively does this course develop critical thinking skills?",
+      "How satisfied are you with the pace of instruction in this subject?",
+      "How well-integrated are the theoretical and practical components?",
+      "How would you rate the overall learning experience in this subject?"
+    ]
+  };
 
   // Check login status and decode role
   useEffect(() => {
@@ -88,17 +132,60 @@ export default function AdminSubjectsPage() {
   // Handle form input change
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
+    setForm({ ...form, [name]: value });
+  };
 
-    if (value === 'MCA Regular' || value === 'MCA DS') {
-      setForm({ ...form, branch: value });
-    } else {
-      setForm({ ...form, [name]: value });
+  // Handle branch selection (multiple branches)
+  const handleBranchChange = (branch: string) => {
+    const updatedBranches = form.branch.includes(branch) 
+      ? form.branch.filter(b => b !== branch)
+      : [...form.branch, branch];
+    setForm({ ...form, branch: updatedBranches });
+  };
+  
+  // Apply auto-generated questions
+  const applyAutoQuestions = () => {
+    if (autoQuestionsEnabled) {
+      let questionsToUse;
+      
+      if (selectedTemplate === 'mixed') {
+        // Create a mixed set of questions from all templates
+        const allTemplates = Object.values(questionTemplates).flat();
+        
+        // Shuffle array
+        const shuffled = [...allTemplates].sort(() => 0.5 - Math.random());
+        
+        // Get first 10 questions
+        questionsToUse = shuffled.slice(0, 10);
+      } else {
+        questionsToUse = questionTemplates[selectedTemplate as keyof typeof questionTemplates];
+      }
+      
+      // Customize questions with subject name if available
+      let customizedQuestions = [...questionsToUse];
+      if (form.name) {
+        customizedQuestions = customizedQuestions.map(q => {
+          // Replace generic terms with the actual subject name where appropriate
+          return q.replace(/this subject|the course|this course/gi, form.name);
+        });
+      }
+      
+      setForm({
+        ...form,
+        questions: customizedQuestions
+      });
     }
   };
 
   // Submit new subject
   const handleAddSubject = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validate that at least one branch is selected
+    if (!form.branch || form.branch.length === 0) {
+      alert('Please select at least one branch');
+      return;
+    }
 
     const hasEmpty = form.questions.some(q => q.trim() === '');
     if (hasEmpty) {
@@ -135,8 +222,9 @@ export default function AdminSubjectsPage() {
         code: '',
         instructor: '',
         department: '',
-        semester: '',
-        branch: 'MCA Regular',
+        year: '',
+        term: '',
+        branch: ['MCA Regular'],
         questions: ['', '', '', '', '', '', '', '', '', '']
       });
     } catch (err: any) {
@@ -152,7 +240,8 @@ export default function AdminSubjectsPage() {
       code: subject.code,
       instructor: subject.instructor,
       department: subject.department,
-      semester: String(subject.semester),
+      year: String(subject.year),
+      term: String(subject.term),
       branch: subject.branch,
       questions: [...subject.questions]
     });
@@ -161,6 +250,19 @@ export default function AdminSubjectsPage() {
   // Save edited subject
   const handleUpdate = async () => {
     if (!editingSubject || !token) return;
+
+    // Validate that at least one branch is selected
+    if (!form.branch || form.branch.length === 0) {
+      alert('Please select at least one branch');
+      return;
+    }
+
+    // Validate questions
+    const hasEmpty = form.questions.some(q => q.trim() === '');
+    if (hasEmpty) {
+      alert('Please fill all 10 questions');
+      return;
+    }
 
     try {
       const res = await fetch(`http://localhost:5001/api/subjects/${editingSubject._id}`, {
@@ -183,8 +285,9 @@ export default function AdminSubjectsPage() {
         code: '',
         instructor: '',
         department: '',
-        semester: '',
-        branch: 'MCA Regular',
+        year: '',
+        term: '',
+        branch: ['MCA Regular'],
         questions: ['', '', '', '', '', '', '', '', '', '']
       });
     } catch (err: any) {
@@ -328,27 +431,131 @@ export default function AdminSubjectsPage() {
               required
               className="w-full p-2 border rounded mt-1"
             />
-            <input
-              type="number"
-              name="semester"
-              placeholder="Semester"
-              value={form.semester}
+            <select
+              name="year"
+              value={form.year}
               onChange={handleChange}
               required
               className="w-full p-2 border rounded mt-1"
-            />
+            >
+              <option value="">Select Year</option>
+              <option value="1">1st Year</option>
+              <option value="2">2nd Year</option>
+              <option value="3">3rd Year</option>
+            </select>
             <select
-              name="branch"
-              value={form.branch}
+              name="term"
+              value={form.term}
               onChange={handleChange}
+              required
               className="w-full p-2 border rounded mt-1"
             >
-              <option value="MCA Regular">MCA Regular</option>
-              <option value="MCA DS">MCA DS</option>
+              <option value="">Select Term</option>
+              <option value="1">Term 1</option>
+              <option value="2">Term 2</option>
+              <option value="3">Term 3</option>
+              <option value="4">Term 4</option>
             </select>
+            <div className="w-full p-2 border rounded mt-1">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Branches (Select applicable branches):</label>
+              <div className="space-y-2">
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={form.branch.includes('MCA Regular')}
+                    onChange={() => handleBranchChange('MCA Regular')}
+                    className="mr-2"
+                  />
+                  MCA Regular
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={form.branch.includes('MCA DS')}
+                    onChange={() => handleBranchChange('MCA DS')}
+                    className="mr-2"
+                  />
+                  MCA DS (Data Science)
+                </label>
+              </div>
+            </div>
           </div>
 
-          <h3 className="font-medium mt-4">Feedback Questions (10 Required)</h3>
+          <div className="mt-4 mb-2 border-t pt-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-medium">Feedback Questions (10 Required)</h3>
+              <div className="flex items-center space-x-4">
+                <label className="flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={autoQuestionsEnabled}
+                    onChange={(e) => {
+                      setAutoQuestionsEnabled(e.target.checked);
+                      if (e.target.checked) {
+                        // Auto apply template when enabling
+                        setTimeout(() => applyAutoQuestions(), 100);
+                      }
+                    }}
+                    className="mr-2 h-4 w-4"
+                  />
+                  Auto-generate questions
+                </label>
+                
+                {autoQuestionsEnabled && (
+                  <>
+                    <select
+                      value={selectedTemplate}
+                      onChange={(e) => {
+                        setSelectedTemplate(e.target.value);
+                        setTimeout(() => applyAutoQuestions(), 100);
+                      }}
+                      className="p-2 border rounded"
+                    >
+                      <option value="teaching">Teaching-focused</option>
+                      <option value="technical">Technical-focused</option>
+                      <option value="academic">Academic-focused</option>
+                      <option value="mixed">Mixed (Random)</option>
+                    </select>
+                    <div className="flex space-x-2">
+                      <button
+                        type="button"
+                        onClick={applyAutoQuestions}
+                        className="bg-green-600 hover:bg-green-700 text-white py-1 px-3 rounded text-sm"
+                      >
+                        Apply Template
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          // Generate a random set of 10 questions from all templates
+                          const allTemplates = Object.values(questionTemplates).flat();
+                          const shuffled = [...allTemplates].sort(() => 0.5 - Math.random());
+                          const randomQuestions = shuffled.slice(0, 10);
+                          
+                          // Customize with subject name
+                          let customizedQuestions = [...randomQuestions];
+                          if (form.name) {
+                            customizedQuestions = customizedQuestions.map(q => {
+                              return q.replace(/this subject|the course|this course/gi, form.name);
+                            });
+                          }
+                          
+                          setForm({
+                            ...form,
+                            questions: customizedQuestions
+                          });
+                        }}
+                        className="bg-purple-600 hover:bg-purple-700 text-white py-1 px-3 rounded text-sm"
+                      >
+                        Randomize
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
           {form.questions.map((q, i) => (
             <input
               key={i}
@@ -391,8 +598,9 @@ export default function AdminSubjectsPage() {
                     code: '',
                     instructor: '',
                     department: '',
-                    semester: '',
-                    branch: 'MCA Regular',
+                    year: '',
+                    term: '',
+                    branch: ['MCA Regular'],
                     questions: ['', '', '', '', '', '', '', '', '', '']
                   });
                 }}
@@ -412,6 +620,9 @@ export default function AdminSubjectsPage() {
                 <th className="py-3 px-4 text-left">Name</th>
                 <th className="py-3 px-4 text-left">Code</th>
                 <th className="py-3 px-4 text-left">Instructor</th>
+                <th className="py-3 px-4 text-left">Year</th>
+                <th className="py-3 px-4 text-left">Term</th>
+                <th className="py-3 px-4 text-left">Branch</th>
                 <th className="py-3 px-4 text-left">Actions</th>
               </tr>
             </thead>
@@ -422,6 +633,13 @@ export default function AdminSubjectsPage() {
                     <td className="py-3 px-4">{subject.name}</td>
                     <td className="py-3 px-4">{subject.code}</td>
                     <td className="py-3 px-4">{subject.instructor}</td>
+                    <td className="py-3 px-4">{subject.year}</td>
+                    <td className="py-3 px-4">{subject.term}</td>
+                    <td className="py-3 px-4">
+                      {Array.isArray(subject.branch) 
+                        ? subject.branch.join(', ') 
+                        : subject.branch}
+                    </td>
                     <td className="py-3 px-4 space-x-2">
                       <button
                         onClick={() => handleEdit(subject)}
@@ -440,7 +658,7 @@ export default function AdminSubjectsPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={4} className="py-6 text-center text-gray-500">
+                  <td colSpan={7} className="py-6 text-center text-gray-500">
                     No subjects found.
                   </td>
                 </tr>

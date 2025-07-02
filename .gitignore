@@ -1,0 +1,78 @@
+# Root level gitignore for Student Feedback System
+
+# Operating System Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Editor/IDE directories and files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Node.js dependencies (root level)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Package manager files
+package-lock.json
+
+# Temporary test files and scripts
+test-*.html
+test-*.js
+*-test.html
+*-test.js
+admin-login-test.html
+frontend-test.html
+test-api.html
+create-admin.js
+update-user.js
+gmail-troubleshoot.js
+force-delete-test.js
+test-delete-subject.js
+test-endpoints.js
+test-subject-deletion.js
+
+# Temporary CSV files
+test-students.csv
+sample-students.csv
+
+# Temporary configuration files
+.env.temp
+.env.backup
+*.tmp
+*.temp
+
+# Log files
+*.log
+logs/
+
+# Build directories
+dist/
+build/
+
+# Documentation that's auto-generated or temporary
+TESTING_SUMMARY.md
+
+# Backend specific temporary files
+backend/admin_token.json
+backend/login_response.json
+backend/createUsers.js
+backend/test-*.js
+backend/test-*.ts
+
+# Any other temporary files
+*.bak
+*.swp
+*.swo

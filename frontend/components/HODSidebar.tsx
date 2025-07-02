@@ -12,12 +12,12 @@ interface HODSidebarProps {
 
 export default function HODSidebar({ isOpen = true, currentPath, onClose }: HODSidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
-
-  // Animation variants
-  const sidebarVariants = {
-    expanded: { width: "16rem" },
-    collapsed: { width: "5rem" }
+  
+  // Check if we're on mobile and close sidebar when a link is clicked
+  const handleLinkClick = () => {
+    if (typeof window !== 'undefined' && window.innerWidth < 1024 && onClose) {
+      onClose();
+    }
   };
 
   const menuItems = [
@@ -70,8 +70,8 @@ export default function HODSidebar({ isOpen = true, currentPath, onClose }: HODS
   ];
 
   return (
-    <div className={`bg-white shadow-lg transition-all duration-300 ${isCollapsed ? 'w-16' : 'w-64'}`}>
-      <div className="p-4">
+    <div className={`bg-white shadow-lg transition-all duration-300 fixed top-16 bottom-0 left-0 overflow-y-auto z-10 ${isCollapsed ? 'w-16' : 'w-64'}`}>
+      <div className="p-4 sticky top-0 bg-white z-10">
         <div className="flex items-center justify-between">
           {!isCollapsed && (
             <div>
@@ -103,6 +103,7 @@ export default function HODSidebar({ isOpen = true, currentPath, onClose }: HODS
               <li key={item.href}>
                 <Link
                   href={item.href}
+                  onClick={handleLinkClick}
                   className={`flex items-center px-3 py-2 rounded-lg transition-colors ${
                     isActive
                       ? 'bg-blue-500 text-white'

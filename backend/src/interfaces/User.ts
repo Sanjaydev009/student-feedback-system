@@ -6,4 +6,8 @@ export interface IUser extends Document {
   email: string;
   password: string;
   role: 'student' | 'faculty' | 'hod' | 'dean' | 'admin';
+  department?: string;
+  branch?: string;
+  year?: number; // for students
+  passwordResetRequired?: boolean;
 }
