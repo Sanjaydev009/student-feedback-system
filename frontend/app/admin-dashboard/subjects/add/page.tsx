@@ -13,7 +13,8 @@ export default function AddSubjectForm({ onSuccess }: Props) {
     code: '',
     instructor: '',
     department: '',
-    semester: '',
+    year: 1,
+    term: 1,
     branch: 'MCA Regular',
     questions: ['', '', '', '', '', '', '', '', '', '']
   });
@@ -69,7 +70,8 @@ export default function AddSubjectForm({ onSuccess }: Props) {
         code: '',
         instructor: '',
         department: '',
-        semester: '',
+        year: 1,
+        term: 1,
         branch: 'MCA Regular',
         questions: ['', '', '', '', '', '', '', '', '', '']
       });
@@ -124,15 +126,32 @@ export default function AddSubjectForm({ onSuccess }: Props) {
             className="w-full p-2 border rounded mt-1"
             required
           />
-          <input
-            type="number"
-            name="semester"
-            placeholder="Semester"
-            value={form.semester}
-            onChange={handleChange}
+          <select
+            name="year"
+            value={form.year}
+            onChange={(e) => setForm({ ...form, year: parseInt(e.target.value) })}
             className="w-full p-2 border rounded mt-1"
             required
-          />
+          >
+            <option value="">Select Year</option>
+            <option value="1">1st Year</option>
+            <option value="2">2nd Year</option>
+            <option value="3">3rd Year</option>
+          </select>
+          
+          <select
+            name="term"
+            value={form.term}
+            onChange={(e) => setForm({ ...form, term: parseInt(e.target.value) })}
+            className="w-full p-2 border rounded mt-1"
+            required
+          >
+            <option value="">Select Term</option>
+            <option value="1">Term 1</option>
+            <option value="2">Term 2</option>
+            <option value="3">Term 3</option>
+            <option value="4">Term 4</option>
+          </select>
 
           {/* Branch Selection */}
           <select

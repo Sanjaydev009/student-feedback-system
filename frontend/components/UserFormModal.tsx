@@ -10,6 +10,7 @@ interface UserFormData {
   role: 'student' | 'faculty' | 'hod' | 'dean' | 'admin';
   rollNumber?: string;
   branch?: string;
+  year?: number;
   passwordResetRequired?: boolean;
 }
 
@@ -30,6 +31,7 @@ export default function UserFormModal({ user, isOpen, onClose, onSubmit, isLoadi
     role: 'student',
     rollNumber: '',
     branch: '',
+    year: 1
   });
 
   // Reset form when user prop changes
@@ -42,6 +44,7 @@ export default function UserFormModal({ user, isOpen, onClose, onSubmit, isLoadi
         role: user.role || 'student',
         rollNumber: user.rollNumber || '',
         branch: user.branch || '',
+        year: user.year || 1,
         passwordResetRequired: user.passwordResetRequired
       });
     } else {
@@ -50,14 +53,19 @@ export default function UserFormModal({ user, isOpen, onClose, onSubmit, isLoadi
         email: '',
         role: 'student',
         rollNumber: '',
-        branch: ''
+        branch: '',
+        year: 1
       });
     }
   }, [user]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData((prev: UserFormData) => ({ ...prev, [name]: value }));
+    if (name === 'year') {
+      setFormData((prev: UserFormData) => ({ ...prev, [name]: value ? parseInt(value) : undefined }));
+    } else {
+      setFormData((prev: UserFormData) => ({ ...prev, [name]: value }));
+    }
   };
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -89,15 +97,46 @@ export default function UserFormModal({ user, isOpen, onClose, onSubmit, isLoadi
               <label htmlFor="branch" className="block text-sm font-medium text-gray-700 mb-1">
                 Branch
               </label>
-              <input
-                type="text"
+              <select
                 id="branch"
                 name="branch"
                 value={formData.branch || ''}
                 onChange={handleChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
-              />
+              >
+                <option value="">Select Branch</option>
+                <option value="Computer Science">Computer Science</option>
+                <option value="Electronics">Electronics</option>
+                <option value="Mechanical">Mechanical</option>
+                <option value="Civil">Civil</option>
+                <option value="Electrical">Electrical</option>
+                <option value="Information Technology">Information Technology</option>
+                <option value="Chemical">Chemical</option>
+                <option value="Aerospace">Aerospace</option>
+                <option value="Biotechnology">Biotechnology</option>
+                <option value="MCA Regular">MCA Regular</option>
+                <option value="MCA DS">MCA DS</option>
+              </select>
+            </div>
+            <div className="mb-4">
+              <label htmlFor="year" className="block text-sm font-medium text-gray-700 mb-1">
+                Year
+              </label>
+              <select
+                id="year"
+                name="year"
+                value={formData.year?.toString() || ''}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              >
+                <option value="">Select Year</option>
+                <option value="1">1st Year</option>
+                <option value="2">2nd Year</option>
+                <option value="3">3rd Year</option>
+                <option value="4">4th Year</option>
+              </select>
             </div>
           </>
         );

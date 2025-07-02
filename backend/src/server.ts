@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import connectDB from './config/db';
 import cors from 'cors';
+import { emailService } from './services/emailService';
 
 import authRoutes from './routes/authRoutes';
 import subjectRoutes from './routes/subjectRoutes';
@@ -10,6 +11,7 @@ import hodRoutes from './routes/hodRoutes';
 import deanRoutes from './routes/deanRoutes';
 import settingsRoutes from './routes/settingsRoutes';
 import adminRoutes from './routes/adminRoutes';
+import testRoutes from './routes/testRoutes';
 
 const app = express();
 
@@ -20,6 +22,15 @@ app.use(cors());
 // DB Connection
 connectDB();
 
+// Initialize email service
+emailService.verifyConnection().then(isReady => {
+  if (isReady) {
+    console.log('✅ Email service initialized successfully');
+  } else {
+    console.log('⚠️  Email service not configured properly. Check your environment variables.');
+  }
+});
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/subjects', subjectRoutes);
@@ -28,6 +39,7 @@ app.use('/api/hod', hodRoutes);
 app.use('/api/dean', deanRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/test', testRoutes);
  
 // Test routes
 app.get('/', (req, res) => {

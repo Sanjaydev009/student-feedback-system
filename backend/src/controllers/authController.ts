@@ -3,6 +3,7 @@ import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import User from '../models/User';
+import { emailService } from '../services/emailService';
 
 const getDefaultPassword = (role: string): string => {
   switch (role) {
@@ -82,16 +83,6 @@ export const loginStudent = async (req: Request, res: Response): Promise<void> =
   }
 };
 
-// export const getAllUsers = async (req: Request, res: Response) => {
-//   try {
-//     const users = await User.find(); // Make sure model is imported
-//     res.json(users);
-//   } catch (err: any) {
-//     res.status(500).json({ message: err.message });
-//   }
-// };
-
-
 // Add this helper function for generating random passwords
 function generateRandomPassword(length = 8) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -105,7 +96,7 @@ function generateRandomPassword(length = 8) {
 // Update the create user method
 export const createUser = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { name, email, role } = req.body;
+    const { name, email, role, rollNumber, branch, year } = req.body;
     
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -124,16 +115,31 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
     // all other users (students, faculty, etc.) do need to reset
     const passwordResetRequired = role === 'admin' ? false : true;
     
-    // Create new user with generated password
-    const user = new User({
+    // Create user data object
+    const userData: any = {
       name,
       email,
       password: generatedPassword, // Mongoose middleware will hash this
       role,
       passwordResetRequired: passwordResetRequired
-    });
+    };
+    
+    // Add role-specific fields
+    if (role === 'student') {
+      if (rollNumber) userData.rollNumber = rollNumber;
+      if (branch) userData.branch = branch;
+      if (year) userData.year = parseInt(year.toString());
+    } else if (role === 'faculty' || role === 'hod') {
+      if (branch) userData.branch = branch; // For faculty/hod, branch represents department
+    }
+    
+    // Create new user with all fields
+    const user = new User(userData);
     
     await user.save();
+    
+    // Send welcome email with password
+    const emailSent = await emailService.sendPasswordEmail(user, generatedPassword);
     
     // Return the temporary password (only time it's visible in plain text)
     res.status(201).json({
@@ -145,7 +151,8 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
         role: user.role
       },
       generatedPassword, // Include the plain text password in the response
-      passwordResetRequired // Include this info in the response
+      passwordResetRequired, // Include this info in the response
+      emailSent // Include email status
     });
   } catch (error: any) {
     res.status(500).json({ message: error.message });
@@ -154,10 +161,27 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
 
 export const updateUser = async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { name, email, role } = req.body;
+  const { name, email, role, rollNumber, branch, year, passwordResetRequired } = req.body;
 
   try {
-    const updated = await User.findByIdAndUpdate(id, { name, email, role }, { new: true });
+    // Create update data object
+    const updateData: any = { name, email, role };
+    
+    // Add role-specific fields
+    if (role === 'student') {
+      if (rollNumber !== undefined) updateData.rollNumber = rollNumber;
+      if (branch !== undefined) updateData.branch = branch;
+      if (year !== undefined) updateData.year = parseInt(year.toString());
+    } else if (role === 'faculty' || role === 'hod') {
+      if (branch !== undefined) updateData.branch = branch; // For faculty/hod, branch represents department
+    }
+    
+    // Add passwordResetRequired if provided
+    if (passwordResetRequired !== undefined) {
+      updateData.passwordResetRequired = passwordResetRequired;
+    }
+    
+    const updated = await User.findByIdAndUpdate(id, updateData, { new: true });
     res.json(updated);
   } catch (err: any) {
     res.status(500).json({ message: err.message });
@@ -217,10 +241,10 @@ export const bulkRegisterStudents = async (req: Request, res: Response): Promise
 
     // Process each student
     for (const student of students) {
-      const { name, rollNumber, email, branch } = student;
+      const { name, rollNumber, email, branch, year } = student;
       
       // Validate required fields
-      if (!name || !email || !rollNumber || !branch) {
+      if (!name || !email || !rollNumber || !branch || !year) {
         results.failed++;
         results.failures.push({ 
           email: email || 'Unknown', 
@@ -245,14 +269,20 @@ export const bulkRegisterStudents = async (req: Request, res: Response): Promise
         // Let the mongoose middleware handle password hashing
         
         // Students should always be required to reset their password on first login
-        await User.create({
+        const newStudent = await User.create({
           name,
           rollNumber,
           email,
           branch,
+          year: parseInt(year.toString()),
           password: defaultPassword, // Mongoose middleware will hash this
           role: 'student',
           passwordResetRequired: true // Force password reset for students
+        });
+        
+        // Send welcome email with password (don't wait for it to complete)
+        emailService.sendPasswordEmail(newStudent, defaultPassword).catch(emailError => {
+          console.error(`Failed to send email to ${email}:`, emailError);
         });
         
         results.success++;
@@ -262,6 +292,24 @@ export const bulkRegisterStudents = async (req: Request, res: Response): Promise
           email, 
           reason: error.message || 'Unknown error' 
         });
+      }
+    }
+    
+    // Send bulk registration summary to admin (if emails are configured)
+    if (results.success > 0) {
+      try {
+        const adminUser = await User.findById(req.user?.id);
+        if (adminUser?.email) {
+          emailService.sendBulkRegistrationSummary(
+            adminUser.email, 
+            results, 
+            students.length
+          ).catch(emailError => {
+            console.error('Failed to send bulk registration summary:', emailError);
+          });
+        }
+      } catch (summaryError) {
+        console.error('Error sending bulk registration summary:', summaryError);
       }
     }
     
@@ -373,7 +421,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
 // POST /api/auth/register
 export const register = async (req: Request, res: Response): Promise<void> => {
-  const { name, email, password, role, branch, rollNumber } = req.body;
+  const { name, email, password, role, branch, rollNumber, year } = req.body;
 
   try {
     const existingUser = await User.findOne({ email });
@@ -382,24 +430,45 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // No need to hash password here, mongoose middleware will do it
-    const actualPassword = password || 'student@123';
+    // Check for duplicate roll number if provided
+    if (rollNumber) {
+      const existingRollNumber = await User.findOne({ rollNumber });
+      if (existingRollNumber) {
+        res.status(400).json({ message: 'Roll number already exists' });
+        return;
+      }
+    }
 
-    // For manual registration, determine if password reset is required
-    // Admins don't need to reset, students do if using default password
-    const isAdmin = (role || 'student') === 'admin';
+    // Generate password or use provided one
+    const actualPassword = password || getDefaultPassword(role || 'student');
     const usingDefaultPassword = !password;
-    const passwordResetRequired = isAdmin ? false : usingDefaultPassword;
-    
-    const newUser = await User.create({
+
+    // Create user data
+    const userData: any = {
       name,
       email,
       password: actualPassword, // Mongoose middleware will hash this
       role: role || 'student',
       branch: branch || 'MCA Regular',
-      rollNumber,
-      passwordResetRequired: passwordResetRequired
-    });
+      passwordResetRequired: usingDefaultPassword
+    };
+
+    // Add optional fields if provided
+    if (rollNumber) userData.rollNumber = rollNumber;
+    if (year) userData.year = year;
+    
+    const newUser = await User.create(userData);
+
+    // Send welcome email with credentials
+    if (newUser) {
+      try {
+        const emailSent = await emailService.sendPasswordEmail(newUser, actualPassword);
+        console.log(`Welcome email ${emailSent ? 'sent' : 'failed'} for user: ${newUser.email}`);
+      } catch (emailError) {
+        console.error('Failed to send welcome email:', emailError);
+        // Don't fail the registration if email fails
+      }
+    }
 
     const token = jwt.sign(
       {
@@ -407,13 +476,25 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         name: newUser.name,
         role: newUser.role,
         branch: newUser.branch,
-        defaultPasswordUsed: !password
+        rollNumber: newUser.rollNumber,
+        defaultPasswordUsed: usingDefaultPassword
       },
       process.env.JWT_SECRET!,
       { expiresIn: '1d' }
     );
 
-    res.json({ token });
+    res.status(201).json({ 
+      message: 'User registered successfully',
+      token,
+      user: {
+        id: newUser._id,
+        name: newUser.name,
+        email: newUser.email,
+        role: newUser.role,
+        branch: newUser.branch,
+        rollNumber: newUser.rollNumber
+      }
+    });
   } catch (err: any) {
     console.error('Registration error:', err.message);
     res.status(500).json({ message: err.message });

@@ -10,8 +10,9 @@ interface Subject {
   name: string;
   code: string;
   instructor: string;
-  branch: string;
-  semester: number;
+  branch: string[]; // Array to support multiple branches (common subjects)
+  year: number;
+  term: number;
 }
 
 export default function HODSubjects() {
@@ -119,7 +120,7 @@ export default function HODSubjects() {
                       <div className="text-sm text-gray-900">{subject.instructor}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{subject.semester}</div>
+                      <div className="text-sm text-gray-900">{subject.term}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <button

@@ -67,11 +67,61 @@ const UserSchema = new Schema({
   },
   branch: {
     type: String,
-    enum: ['MCA Regular', 'MCA DS']
+    enum: [
+      'Computer Science', 
+      'Electronics', 
+      'Mechanical', 
+      'Civil', 
+      'Electrical',
+      'Information Technology',
+      'Chemical',
+      'Aerospace',
+      'Biotechnology',
+      'MCA Regular', 
+      'MCA DS'
+    ]
+  },
+  year: {
+    type: Number,
+    enum: [1, 2, 3, 4]
   },
   passwordResetRequired: {
     type: Boolean,
     default: true
+  }
+});
+
+// Auto-generate roll number for students only if not provided
+UserSchema.pre('save', async function (next) {
+  try {
+    // Auto-generate roll number for students only if not already provided
+    if (this.role === 'student' && !this.rollNumber) {
+      // Find the highest existing roll number with the format 232P4R****
+      const UserModel = this.constructor as any;
+      const lastStudent = await UserModel.findOne(
+        { rollNumber: { $regex: /^232P4R\d{4}$/ } },
+        {},
+        { sort: { rollNumber: -1 } }
+      );
+      
+      let nextNumber = 1;
+      if (lastStudent && lastStudent.rollNumber) {
+        // Extract the last 4 digits and increment
+        const lastNumber = parseInt(lastStudent.rollNumber.slice(-4));
+        nextNumber = lastNumber + 1;
+      }
+      
+      // Generate roll number with format 232P4R****
+      this.rollNumber = `232P4R${nextNumber.toString().padStart(4, '0')}`;
+      console.log('Generated roll number for student:', this.email, 'Roll:', this.rollNumber);
+    } else if (this.role === 'student' && this.rollNumber) {
+      console.log('Using provided roll number for student:', this.email, 'Roll:', this.rollNumber);
+    }
+    
+    next();
+  } catch (error) {
+    console.error('Error in roll number generation middleware:', error);
+    next(error instanceof Error ? error : new Error(String(error)));
   }
 });
 

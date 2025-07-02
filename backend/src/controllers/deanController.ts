@@ -245,7 +245,7 @@ export const getAllSubjects = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    const { branch, semester } = req.query;
+    const { branch, term } = req.query;
 
     let filter: any = {};
     
@@ -253,11 +253,11 @@ export const getAllSubjects = async (req: Request, res: Response): Promise<void>
       filter.branch = branch;
     }
     
-    if (semester && semester !== 'all') {
-      filter.semester = Number(semester);
+    if (term && term !== 'all') {
+      filter.term = Number(term);
     }
 
-    const subjects = await Subject.find(filter).sort({ branch: 1, semester: 1, name: 1 });
+    const subjects = await Subject.find(filter).sort({ branch: 1, term: 1, name: 1 });
 
     res.json(subjects);
   } catch (error: any) {
@@ -275,7 +275,7 @@ export const getDEANReports = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    const { branch, subject, semester, startDate, endDate, groupBy } = req.query;
+    const { branch, subject, term, startDate, endDate, groupBy } = req.query;
 
     // Build aggregation pipeline
     let pipeline: any[] = [
@@ -308,8 +308,8 @@ export const getDEANReports = async (req: Request, res: Response): Promise<void>
       matchConditions['subjectInfo._id'] = subject;
     }
 
-    if (semester && semester !== 'all') {
-      matchConditions['subjectInfo.semester'] = Number(semester);
+    if (term && term !== 'all') {
+      matchConditions['subjectInfo.term'] = Number(term);
     }
 
     if (startDate || endDate) {

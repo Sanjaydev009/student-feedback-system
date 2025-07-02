@@ -1,5 +1,5 @@
 // src/routes/authRoutes.ts
-import express from 'express';
+import express, { Request, Response } from 'express';
 import { bulkRegisterStudents, login, register, resetPassword, updateProfile, getMe } from '../controllers/authController';
 import { protect, isAdmin } from '../middleware/authMiddleware';
 import {
@@ -8,8 +8,8 @@ import {
   updateUser,
   deleteUser
 } from '../controllers/authController';
-import bcrypt from 'bcryptjs';
 import User from '../models/User';
+import bcrypt from 'bcryptjs';
 
 const router = express.Router();
 

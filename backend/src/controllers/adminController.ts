@@ -85,8 +85,8 @@ export const getAnalyticsData = async (req: Request, res: Response): Promise<voi
       }
     ]);
 
-    // Semester-wise statistics
-    const semesterStats = await Subject.aggregate([
+    // Term-wise statistics
+    const termStats = await Subject.aggregate([
       {
         $lookup: {
           from: 'feedbacks',
@@ -97,7 +97,7 @@ export const getAnalyticsData = async (req: Request, res: Response): Promise<voi
       },
       {
         $group: {
-          _id: '$semester',
+          _id: '$term',
           totalSubjects: { $sum: 1 },
           totalFeedbacks: { $sum: { $size: '$feedbacks' } },
           averageRating: { 
@@ -109,13 +109,13 @@ export const getAnalyticsData = async (req: Request, res: Response): Promise<voi
       },
       {
         $project: {
-          semester: '$_id',
+          term: '$_id',
           totalSubjects: 1,
           totalFeedbacks: 1,
           averageRating: { $round: ['$averageRating', 1] }
         }
       },
-      { $sort: { semester: 1 } }
+      { $sort: { term: 1 } }
     ]);
 
     // Instructor performance
@@ -196,7 +196,7 @@ export const getAnalyticsData = async (req: Request, res: Response): Promise<voi
 
     res.json({
       departmentWiseStats: departmentStats,
-      semesterWiseStats: semesterStats,
+      termWiseStats: termStats,
       instructorPerformance: instructorPerformance,
       trendData: trendData
     });

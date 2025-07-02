@@ -10,8 +10,9 @@ interface Subject {
   name: string;
   code: string;
   instructor: string;
-  branch: string;
-  semester: number;
+  branch: string[]; // Array to support multiple branches (common subjects)
+  year: number;
+  term: number;
 }
 
 interface Report {

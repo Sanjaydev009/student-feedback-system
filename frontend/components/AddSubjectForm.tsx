@@ -13,7 +13,8 @@ export default function AddSubjectForm({ token, onSuccess }: Props) {
     code: '',
     instructor: '',
     department: '',
-    semester: '',
+    year: '',
+    term: '',
     branch: 'MCA Regular',
     questions: ['', '', '', '', '', '', '', '', '', '']
   });
@@ -58,7 +59,8 @@ export default function AddSubjectForm({ token, onSuccess }: Props) {
         code: '',
         instructor: '',
         department: '',
-        semester: '',
+        year: '',
+        term: '',
         branch: 'MCA Regular',
         questions: ['', '', '', '', '', '', '', '', '', '']
       });
@@ -109,15 +111,31 @@ export default function AddSubjectForm({ token, onSuccess }: Props) {
           className="w-full p-2 border rounded mt-1"
           required
         />
-        <input
-          type="number"
-          name="semester"
-          placeholder="Semester"
-          value={form.semester}
+        <select
+          name="year"
+          value={form.year}
           onChange={handleChange}
           className="w-full p-2 border rounded mt-1"
           required
-        />
+        >
+          <option value="">Select Year</option>
+          <option value="1">1st Year</option>
+          <option value="2">2nd Year</option>
+          <option value="3">3rd Year</option>
+        </select>
+        <select
+          name="term"
+          value={form.term}
+          onChange={handleChange}
+          className="w-full p-2 border rounded mt-1"
+          required
+        >
+          <option value="">Select Term</option>
+          <option value="1">Term 1</option>
+          <option value="2">Term 2</option>
+          <option value="3">Term 3</option>
+          <option value="4">Term 4</option>
+        </select>
 
         {/* Branch Selection */}
         <select

@@ -11,8 +11,9 @@ interface Subject {
   name: string;
   code: string;
   instructor: string;
-  branch: string;
-  semester: number; // Semester defined as a number in the backend model
+  branch: string[]; // Array to support multiple branches (common subjects)
+  year: number;
+  term: number; // Term defined as a number in the backend model
   hasSubmittedFeedback?: boolean; // Track if user has submitted feedback
 }
 
@@ -56,9 +57,11 @@ export default function SubjectsPage() {
 
         // Set student branch and fetch data
         const userBranch = decoded?.branch || 'MCA Regular';
+        console.log('🎯 Student branch from token:', userBranch);
         setStudentBranch(userBranch);
         
         // Fetch student name and subjects (token is automatically included by our api utility)
+        console.log('📞 Calling fetchStudentName and fetchSubjects');
         fetchStudentName(storedToken);
         fetchSubjects(storedToken, userBranch);
         
@@ -112,31 +115,36 @@ export default function SubjectsPage() {
     }
   };
 
-  // Load subjects, filter by branch, and check feedback status
+  // Load subjects filtered by student's year and term
   const fetchSubjects = async (token: string, branch: string) => {
+    console.log('🔍 fetchSubjects called with:', { token: token.substring(0, 20) + '...', branch });
     try {
-      // Get all subjects
-      const subjectsResponse = await api.get('/api/subjects');
+      // Get subjects filtered by student's year, term, and branch
+      console.log('🌐 Making API call to /api/subjects/student');
+      const subjectsResponse = await api.get('/api/subjects/student');
+      console.log('✅ Subjects API response:', subjectsResponse);
       
       if (!subjectsResponse?.data || !Array.isArray(subjectsResponse.data)) {
-        console.error('Invalid subjects response:', subjectsResponse);
+        console.error('❌ Invalid subjects response:', subjectsResponse);
         setSubjects([]);
         setLoading(false);
         return;
       }
       
-      // Filter subjects by branch (with null checking)
-      const filtered = subjectsResponse.data.filter((subject: Subject) => 
-        subject && subject.branch === branch
-      );
+      console.log(`📚 Found ${subjectsResponse.data.length} subjects`);
+      
+      // The API already filters by year, term, and branch, so we just need to get the data
+      const filtered = subjectsResponse.data;
       
       let submittedFeedback: any[] = [];
       try {
+        console.log('🔍 Fetching student feedback data...');
         // Get student's submitted feedback to determine which subjects already have feedback
         const feedbackResponse = await api.get('/api/feedback/student/me');
         submittedFeedback = feedbackResponse?.data || [];
+        console.log(`📝 Found ${submittedFeedback.length} submitted feedback records`);
       } catch (feedbackErr) {
-        console.error('Failed to load feedback data:', feedbackErr);
+        console.error('⚠️ Failed to load feedback data (non-critical):', feedbackErr);
         // Continue with empty feedback data
       }
       
@@ -152,19 +160,27 @@ export default function SubjectsPage() {
         };
       });
       
-      // Sort subjects by semester numerically (with safe access)
+      // Sort subjects by term numerically (with safe access)
       const sortedSubjects = subjectsWithFeedbackStatus.sort((a: Subject, b: Subject) => {
-        const semA = typeof a.semester === 'number' ? a.semester : 0;
-        const semB = typeof b.semester === 'number' ? b.semester : 0;
-        return semA - semB;
+        const termA = typeof a.term === 'number' ? a.term : 0;
+        const termB = typeof b.term === 'number' ? b.term : 0;
+        return termA - termB;
       });
       
       setSubjects(sortedSubjects);
     } catch (err: any) {
       console.error('Failed to load subjects:', err);
+      console.error('Error details:', {
+        message: err?.message,
+        response: err?.response,
+        status: err?.response?.status,
+        data: err?.response?.data
+      });
+      
       // The axios interceptor in api.ts will handle 401 errors automatically
       if (err?.response?.status !== 401) {
-        alert('Error loading subjects. Please try again.');
+        const errorMessage = err?.response?.data?.message || err?.message || 'Unknown error occurred';
+        alert(`Error loading subjects: ${errorMessage}. Please check the browser console for more details.`);
       }
       // Set empty subjects array on error
       setSubjects([]);
@@ -210,35 +226,35 @@ export default function SubjectsPage() {
         </div>
 
         {subjects.length > 0 ? (
-          // Group subjects by semester
+          // Group subjects by term
           Object.entries(
             subjects.reduce((acc: {[key: string]: Subject[]}, subject) => {
-              // Ensure semester is a properly formatted string
-              const semesterKey = subject.semester ? String(subject.semester) : 'Unassigned';
-              if (!acc[semesterKey]) {
-                acc[semesterKey] = [];
+              // Ensure term is a properly formatted string
+              const termKey = subject.term ? String(subject.term) : 'Unassigned';
+              if (!acc[termKey]) {
+                acc[termKey] = [];
               }
-              acc[semesterKey].push(subject);
+              acc[termKey].push(subject);
               return acc;
             }, {})
           ).sort((a, b) => {
-            // Sort semesters numerically
+            // Sort terms numerically
             if (a[0] === 'Unassigned') return 1;
             if (b[0] === 'Unassigned') return -1;
             return parseInt(a[0]) - parseInt(b[0]);
-          }).map(([semester, semesterSubjects]) => (
-            <div key={semester} className="mb-10">
-              {/* Semester Header */}
+          }).map(([term, termSubjects]) => (
+            <div key={term} className="mb-10">
+              {/* Term Header */}
               <div className="flex items-center mb-4">
                 <div className="bg-gradient-to-r from-blue-500 to-blue-700 text-white px-4 py-2 rounded-lg shadow-sm">
-                  <h2 className="text-lg font-semibold">Semester {semester}</h2>
+                  <h2 className="text-lg font-semibold">Term {term}</h2>
                 </div>
                 <div className="h-0.5 flex-grow bg-gray-200 ml-4"></div>
               </div>
               
               {/* Subjects Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {semesterSubjects.map((subject) => (
+                {termSubjects.map((subject: Subject) => (
                   <div 
                     key={subject._id} 
                     className="group bg-white rounded-lg shadow-md hover:shadow-lg transition-all duration-200 overflow-hidden"
@@ -265,7 +281,18 @@ export default function SubjectsPage() {
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500 mr-2" viewBox="0 0 20 20" fill="currentColor">
                             <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
                           </svg>
-                          <p className="text-gray-600">Branch: <span className="font-medium">{subject.branch}</span></p>
+                          <p className="text-gray-600">Branch: 
+                            <span className="font-medium ml-1">
+                              {Array.isArray(subject.branch) 
+                                ? subject.branch.join(', ') 
+                                : subject.branch}
+                              {Array.isArray(subject.branch) && subject.branch.length > 1 && (
+                                <span className="ml-2 bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
+                                  Common
+                                </span>
+                              )}
+                            </span>
+                          </p>
                         </div>
                       </div>
                       

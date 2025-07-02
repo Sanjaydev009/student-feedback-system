@@ -14,19 +14,65 @@ export const getSubjects = async (req: Request, res: Response): Promise<void> =>
   }
 };
 
+// Get subjects filtered by student's year, term and branch
+export const getSubjectsForStudent = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+    
+    if (!userId) {
+      res.status(401).json({ message: 'User not authenticated' });
+      return;
+    }
+
+    // Get student details
+    const student = await User.findById(userId);
+    if (!student || student.role !== 'student') {
+      res.status(403).json({ message: 'Access denied. Student role required.' });
+      return;
+    }
+
+    if (!student.year || !student.branch) {
+      res.status(400).json({ message: 'Student profile incomplete. Year and branch are required.' });
+      return;
+    }
+
+    // Check if term is provided as query parameter
+    const term = req.query.term;
+    
+    // Build query for subjects
+    const query: any = {
+      year: student.year,
+      branch: { $in: [student.branch] } // Find subjects where student's branch is in the array
+    };
+    
+    // Add term filter if provided
+    if (term) {
+      query.term = parseInt(term.toString());
+    }
+
+    // Find subjects matching student's year, optional term, and where student's branch is in the subject's branch array
+    const subjects = await Subject.find(query);
+
+    res.json(subjects);
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 export const createSubject = async (req: Request, res: Response): Promise<void> => {
   const {
     name,
     code,
     instructor,
     department,
-    semester,
+    year,
+    term,
     branch,
     questions
   } = req.body;
 
-  if (!name || !code || !instructor || !department || !semester || !branch || !Array.isArray(questions) || questions.length < 10) {
-    res.status(400).json({ message: 'All fields including 10 questions are required' });
+  if (!name || !code || !instructor || !department || !year || !term || !branch || !Array.isArray(questions) || questions.length < 10) {
+    res.status(400).json({ message: 'All fields including year, term, branch, and 10 questions are required' });
     return;
   }
 
@@ -36,7 +82,8 @@ export const createSubject = async (req: Request, res: Response): Promise<void> 
       code,
       instructor,
       department,
-      semester,
+      year: parseInt(year.toString()),
+      term: parseInt(term.toString()),
       branch,
       questions
     });
@@ -67,13 +114,14 @@ export const updateSubject = async (req: Request, res: Response): Promise<void> 
     code,
     instructor,
     department,
-    semester,
+    year,
+    term,
     branch,
     questions
   } = req.body;
 
-  if (!name || !code || !instructor || !department || !semester || !branch || !Array.isArray(questions) || questions.length < 10) {
-    res.status(400).json({ message: 'All fields including 10 questions are required' });
+  if (!name || !code || !instructor || !department || !year || !term || !branch || !Array.isArray(questions) || questions.length < 10) {
+    res.status(400).json({ message: 'All fields including year, term, branch, and 10 questions are required' });
     return;
   }
 
@@ -92,7 +140,8 @@ export const updateSubject = async (req: Request, res: Response): Promise<void> 
         code,
         instructor,
         department,
-        semester,
+        year: parseInt(year.toString()),
+        term: parseInt(term.toString()),
         branch,
         questions
       },

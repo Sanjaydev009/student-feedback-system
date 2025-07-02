@@ -8,6 +8,10 @@ interface Subject {
   name: string;
   code: string;
   instructor: string;
+  department: string;
+  year: number;
+  term: number;
+  branch: string;
   questions: string[];
 }
 
@@ -25,6 +29,10 @@ export default function EditSubjectForm({ token, onSuccess }: Props) {
     name: '',
     code: '',
     instructor: '',
+    department: '',
+    year: 1,
+    term: 1,
+    branch: 'MCA Regular',
     questions: ['', '', '', '', '', '', '', '', '', '']
   });
 
@@ -120,6 +128,54 @@ export default function EditSubjectForm({ token, onSuccess }: Props) {
           className="w-full p-2 border rounded"
           required
         />
+        <input
+          type="text"
+          name="department"
+          placeholder="Department"
+          value={form.department}
+          onChange={handleChange}
+          className="w-full p-2 border rounded"
+          required
+        />
+
+        <select
+          name="year"
+          value={form.year}
+          onChange={(e) => setForm({ ...form, year: parseInt(e.target.value) })}
+          className="w-full p-2 border rounded"
+          required
+        >
+          <option value="">Select Year</option>
+          <option value="1">1st Year</option>
+          <option value="2">2nd Year</option>
+          <option value="3">3rd Year</option>
+        </select>
+
+        <select
+          name="term"
+          value={form.term}
+          onChange={(e) => setForm({ ...form, term: parseInt(e.target.value) })}
+          className="w-full p-2 border rounded"
+          required
+        >
+          <option value="">Select Term</option>
+          <option value="1">Term 1</option>
+          <option value="2">Term 2</option>
+          <option value="3">Term 3</option>
+          <option value="4">Term 4</option>
+        </select>
+
+        <select
+          name="branch"
+          value={form.branch}
+          onChange={(e) => setForm({ ...form, branch: e.target.value })}
+          className="w-full p-2 border rounded"
+          required
+        >
+          <option value="">Select Branch</option>
+          <option value="MCA Regular">MCA Regular</option>
+          <option value="MCA DS">MCA DS</option>
+        </select>
 
         <h3 className="font-medium mt-4">Feedback Questions</h3>
         {form.questions.map((q, i) => (

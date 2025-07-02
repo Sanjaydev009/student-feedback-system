@@ -221,7 +221,7 @@ export const getHODReports = async (req: Request, res: Response): Promise<void> 
       filters: req.query
     });
 
-    const { subject, semester, startDate, endDate } = req.query;
+    const { subject, term, startDate, endDate } = req.query;
     const hodBranch = hodUser.branch;
 
     console.log(`Processing HOD reports for branch: ${hodBranch}`);
@@ -270,9 +270,9 @@ export const getHODReports = async (req: Request, res: Response): Promise<void> 
       });
     }
 
-    if (semester) {
+    if (term) {
       pipeline.push({
-        $match: { 'subjectInfo.semester': Number(semester) }
+        $match: { 'subjectInfo.term': Number(term) }
       });
     }
 

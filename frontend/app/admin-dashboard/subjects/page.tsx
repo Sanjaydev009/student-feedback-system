@@ -10,8 +10,9 @@ interface Subject {
   code: string;
   instructor: string;
   department: string;
-  semester: number;
-  branch: string;
+  year: number;
+  term: number;
+  branch: string[];
   questions: string[];
 }
 
@@ -24,8 +25,9 @@ export default function AdminSubjectsPage() {
     code: '',
     instructor: '',
     department: '',
-    semester: '',
-    branch: 'MCA Regular',
+    year: '',
+    term: '',
+    branch: [] as string[],
     questions: ['', '', '', '', '', '', '', '', '', '']
   });
   const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
@@ -130,12 +132,15 @@ export default function AdminSubjectsPage() {
   // Handle form input change
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
+    setForm({ ...form, [name]: value });
+  };
 
-    if (value === 'MCA Regular' || value === 'MCA DS') {
-      setForm({ ...form, branch: value });
-    } else {
-      setForm({ ...form, [name]: value });
-    }
+  // Handle branch selection (multiple branches)
+  const handleBranchChange = (branch: string) => {
+    const updatedBranches = form.branch.includes(branch) 
+      ? form.branch.filter(b => b !== branch)
+      : [...form.branch, branch];
+    setForm({ ...form, branch: updatedBranches });
   };
   
   // Apply auto-generated questions
@@ -176,6 +181,12 @@ export default function AdminSubjectsPage() {
   const handleAddSubject = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Validate that at least one branch is selected
+    if (!form.branch || form.branch.length === 0) {
+      alert('Please select at least one branch');
+      return;
+    }
+
     const hasEmpty = form.questions.some(q => q.trim() === '');
     if (hasEmpty) {
       alert('Please fill all 10 questions');
@@ -211,8 +222,9 @@ export default function AdminSubjectsPage() {
         code: '',
         instructor: '',
         department: '',
-        semester: '',
-        branch: 'MCA Regular',
+        year: '',
+        term: '',
+        branch: ['MCA Regular'],
         questions: ['', '', '', '', '', '', '', '', '', '']
       });
     } catch (err: any) {
@@ -228,7 +240,8 @@ export default function AdminSubjectsPage() {
       code: subject.code,
       instructor: subject.instructor,
       department: subject.department,
-      semester: String(subject.semester),
+      year: String(subject.year),
+      term: String(subject.term),
       branch: subject.branch,
       questions: [...subject.questions]
     });
@@ -237,6 +250,19 @@ export default function AdminSubjectsPage() {
   // Save edited subject
   const handleUpdate = async () => {
     if (!editingSubject || !token) return;
+
+    // Validate that at least one branch is selected
+    if (!form.branch || form.branch.length === 0) {
+      alert('Please select at least one branch');
+      return;
+    }
+
+    // Validate questions
+    const hasEmpty = form.questions.some(q => q.trim() === '');
+    if (hasEmpty) {
+      alert('Please fill all 10 questions');
+      return;
+    }
 
     try {
       const res = await fetch(`http://localhost:5001/api/subjects/${editingSubject._id}`, {
@@ -259,8 +285,9 @@ export default function AdminSubjectsPage() {
         code: '',
         instructor: '',
         department: '',
-        semester: '',
-        branch: 'MCA Regular',
+        year: '',
+        term: '',
+        branch: ['MCA Regular'],
         questions: ['', '', '', '', '', '', '', '', '', '']
       });
     } catch (err: any) {
@@ -404,24 +431,54 @@ export default function AdminSubjectsPage() {
               required
               className="w-full p-2 border rounded mt-1"
             />
-            <input
-              type="number"
-              name="semester"
-              placeholder="Semester"
-              value={form.semester}
+            <select
+              name="year"
+              value={form.year}
               onChange={handleChange}
               required
               className="w-full p-2 border rounded mt-1"
-            />
+            >
+              <option value="">Select Year</option>
+              <option value="1">1st Year</option>
+              <option value="2">2nd Year</option>
+              <option value="3">3rd Year</option>
+            </select>
             <select
-              name="branch"
-              value={form.branch}
+              name="term"
+              value={form.term}
               onChange={handleChange}
+              required
               className="w-full p-2 border rounded mt-1"
             >
-              <option value="MCA Regular">MCA Regular</option>
-              <option value="MCA DS">MCA DS</option>
+              <option value="">Select Term</option>
+              <option value="1">Term 1</option>
+              <option value="2">Term 2</option>
+              <option value="3">Term 3</option>
+              <option value="4">Term 4</option>
             </select>
+            <div className="w-full p-2 border rounded mt-1">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Branches (Select applicable branches):</label>
+              <div className="space-y-2">
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={form.branch.includes('MCA Regular')}
+                    onChange={() => handleBranchChange('MCA Regular')}
+                    className="mr-2"
+                  />
+                  MCA Regular
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={form.branch.includes('MCA DS')}
+                    onChange={() => handleBranchChange('MCA DS')}
+                    className="mr-2"
+                  />
+                  MCA DS (Data Science)
+                </label>
+              </div>
+            </div>
           </div>
 
           <div className="mt-4 mb-2 border-t pt-4">
@@ -541,8 +598,9 @@ export default function AdminSubjectsPage() {
                     code: '',
                     instructor: '',
                     department: '',
-                    semester: '',
-                    branch: 'MCA Regular',
+                    year: '',
+                    term: '',
+                    branch: ['MCA Regular'],
                     questions: ['', '', '', '', '', '', '', '', '', '']
                   });
                 }}
@@ -562,6 +620,9 @@ export default function AdminSubjectsPage() {
                 <th className="py-3 px-4 text-left">Name</th>
                 <th className="py-3 px-4 text-left">Code</th>
                 <th className="py-3 px-4 text-left">Instructor</th>
+                <th className="py-3 px-4 text-left">Year</th>
+                <th className="py-3 px-4 text-left">Term</th>
+                <th className="py-3 px-4 text-left">Branch</th>
                 <th className="py-3 px-4 text-left">Actions</th>
               </tr>
             </thead>
@@ -572,6 +633,13 @@ export default function AdminSubjectsPage() {
                     <td className="py-3 px-4">{subject.name}</td>
                     <td className="py-3 px-4">{subject.code}</td>
                     <td className="py-3 px-4">{subject.instructor}</td>
+                    <td className="py-3 px-4">{subject.year}</td>
+                    <td className="py-3 px-4">{subject.term}</td>
+                    <td className="py-3 px-4">
+                      {Array.isArray(subject.branch) 
+                        ? subject.branch.join(', ') 
+                        : subject.branch}
+                    </td>
                     <td className="py-3 px-4 space-x-2">
                       <button
                         onClick={() => handleEdit(subject)}
@@ -590,7 +658,7 @@ export default function AdminSubjectsPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={4} className="py-6 text-center text-gray-500">
+                  <td colSpan={7} className="py-6 text-center text-gray-500">
                     No subjects found.
                   </td>
                 </tr>

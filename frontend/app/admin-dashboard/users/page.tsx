@@ -12,6 +12,9 @@ interface UserFormData {
   role: 'student' | 'faculty' | 'hod' | 'dean' | 'admin';
   rollNumber?: string;
   branch?: string;
+  year?: number;
+  section?: string;
+  term?: number;
   passwordResetRequired?: boolean;
 }
 
@@ -19,6 +22,9 @@ interface User extends UserFormData {
   _id: string;
   passwordResetRequired: boolean;
   createdAt: string;
+  year?: number;
+  section?: string;
+  term?: number;
 }
 
 export default function UserManagement() {
@@ -90,7 +96,13 @@ export default function UserManagement() {
         // Create new user
         const response = await api.post('/api/auth/users', userData);
         setUsers([...users, response.data.user]);
-        showSuccessMessage(`User created successfully. Temporary password: ${response.data.generatedPassword}`);
+        
+        // Show success message with email status
+        const emailStatus = response.data.emailSent 
+          ? "✅ Login credentials sent via email" 
+          : "⚠️ Email delivery failed - please share credentials manually";
+        
+        showSuccessMessage(`User created successfully. Temporary password: ${response.data.generatedPassword}. ${emailStatus}`);
       }
       
       setShowUserFormModal(false);

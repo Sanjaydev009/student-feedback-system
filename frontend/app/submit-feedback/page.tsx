@@ -12,7 +12,7 @@ interface Subject {
   name: string;
   code: string;
   instructor: string;
-  branch: string;
+  branch: string[]; // Array to support multiple branches (common subjects)
   questions: string[];
 }
 
