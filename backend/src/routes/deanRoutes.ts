@@ -7,7 +7,8 @@ import {
   getAllSubjects,
   getDEANReports,
   getSubjectFeedbackDetails,
-  getDEANAnalytics
+  getDEANAnalytics,
+  getAllFeedback
 } from '../controllers/deanController';
 
 const router = express.Router();
@@ -37,6 +38,9 @@ router.get('/reports', protect, isDEAN, getDEANReports);
 
 // DEAN Subject Feedback Details
 router.get('/feedback/:subjectId/details', protect, isDEAN, getSubjectFeedbackDetails);
+
+// DEAN All Feedback (for analytics)
+router.get('/feedback', protect, isDEAN, getAllFeedback);
 
 // DEAN Analytics
 router.get('/analytics', protect, isDEAN, getDEANAnalytics);

@@ -1,28 +1,41 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Bar } from 'react-chartjs-2';
+import { Bar, Pie } from 'react-chartjs-2';
 import ChartJS from 'chart.js/auto';
 
-interface Feedback {
-  _id: string;
-  student: string;
-  subject: string;
-  answers: Array<{ answer: number }>;
+interface FeedbackSummary {
+  subjectId: string;
+  subjectName: string;
+  subjectCode: string;
+  instructor: string;
+  feedbackCount: number;
+  averageRating: number;
+  categories: {
+    [key: string]: {
+      average: number;
+      questions: {
+        question: string;
+        average: number;
+      }[];
+    };
+  };
 }
 
 interface Props {
-  feedbacks: Feedback[];
-  users: any[];
+  feedbackSummary: FeedbackSummary;
+  chartType?: 'bar' | 'pie';
 }
 
-export default function FeedbackReportChart({ feedbacks, users }: Props) {
-  const [report, setReport] = useState<{
+export default function FeedbackReportChart({ feedbackSummary, chartType = 'bar' }: Props) {
+  const [chartData, setChartData] = useState<{
     labels: string[];
     datasets: Array<{
       label: string;
       data: number[];
-      backgroundColor: string;
+      backgroundColor: string[] | string;
+      borderColor?: string[] | string;
+      borderWidth?: number;
     }>;
   }>({
     labels: [],
@@ -30,57 +43,113 @@ export default function FeedbackReportChart({ feedbacks, users }: Props) {
   });
 
   useEffect(() => {
-    const subjectMap: { [key: string]: Set<string> } = {};
-    const totalStudentsBySubject: { [key: string]: number } = {};
+    if (!feedbackSummary || !feedbackSummary.categories) {
+      setChartData({ labels: [], datasets: [] });
+      return;
+    }
 
-    // Count total students per subject
-    users.forEach(user => {
-      const subject = user.subject || 'Unknown'; // Replace with real subject logic
-      totalStudentsBySubject[subject] = (totalStudentsBySubject[subject] || 0) + 1;
-    });
+    const categories = Object.keys(feedbackSummary.categories);
+    const averages = categories.map(cat => feedbackSummary.categories[cat].average);
 
-    // Count students who gave feedback
-    feedbacks.forEach(fb => {
-      const subject = fb.subject || 'Unknown';
-      if (!subjectMap[subject]) subjectMap[subject] = new Set();
-      subjectMap[subject].add(fb.student);
-    });
+    const colors = [
+      'rgba(59, 130, 246, 0.8)',   // Blue
+      'rgba(16, 185, 129, 0.8)',   // Green  
+      'rgba(245, 158, 11, 0.8)',   // Yellow
+      'rgba(239, 68, 68, 0.8)',    // Red
+      'rgba(139, 92, 246, 0.8)',   // Purple
+      'rgba(236, 72, 153, 0.8)',   // Pink
+    ];
 
-    const labels = Object.keys(subjectMap);
-    const feedbackCount = labels.map(label => subjectMap[label].size);
+    const borderColors = [
+      'rgba(59, 130, 246, 1)',
+      'rgba(16, 185, 129, 1)',
+      'rgba(245, 158, 11, 1)',
+      'rgba(239, 68, 68, 1)',
+      'rgba(139, 92, 246, 1)',
+      'rgba(236, 72, 153, 1)',
+    ];
 
-    setReport({
-      labels,
-      datasets: [
-        {
-          label: 'Students Who Gave Feedback',
-          data: feedbackCount,
-          backgroundColor: 'rgba(59, 130, 246, 0.6)'
-        }
-      ]
-    });
-  }, [feedbacks, users]);
+    if (chartType === 'pie') {
+      setChartData({
+        labels: categories,
+        datasets: [
+          {
+            label: 'Average Rating',
+            data: averages,
+            backgroundColor: colors.slice(0, categories.length),
+            borderColor: borderColors.slice(0, categories.length),
+            borderWidth: 2
+          }
+        ]
+      });
+    } else {
+      setChartData({
+        labels: categories,
+        datasets: [
+          {
+            label: 'Average Rating',
+            data: averages,
+            backgroundColor: colors[0],
+            borderColor: borderColors[0],
+            borderWidth: 1
+          }
+        ]
+      });
+    }
+  }, [feedbackSummary, chartType]);
 
   const options = {
     responsive: true,
+    maintainAspectRatio: false,
     plugins: {
-      legend: { display: false },
+      legend: {
+        display: chartType === 'pie',
+        position: 'bottom' as const
+      },
       title: {
         display: true,
-        text: 'Section-Wise Feedback Submission'
-      }
-    },
-    scales: {
-      y: {
-        beginAtZero: true,
-        ticks: {
-          stepSize: 1
+        text: `${feedbackSummary?.subjectName || 'Subject'} - Category Ratings`,
+        font: {
+          size: 16
         }
       }
-    }
+    },
+    scales: chartType === 'bar' ? {
+      y: {
+        beginAtZero: true,
+        max: 5,
+        ticks: {
+          stepSize: 0.5
+        },
+        title: {
+          display: true,
+          text: 'Rating (1-5)'
+        }
+      },
+      x: {
+        title: {
+          display: true,
+          text: 'Categories'
+        }
+      }
+    } : undefined
   };
 
+  if (!feedbackSummary || !feedbackSummary.categories || Object.keys(feedbackSummary.categories).length === 0) {
+    return (
+      <div className="flex items-center justify-center h-64 text-gray-500">
+        <p>No feedback data available for visualization</p>
+      </div>
+    );
+  }
+
   return (
-    <Bar data={report} options={options} />
+    <div className="h-64">
+      {chartType === 'pie' ? (
+        <Pie data={chartData} options={options} />
+      ) : (
+        <Bar data={chartData} options={options} />
+      )}
+    </div>
   );
 }

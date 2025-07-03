@@ -144,40 +144,33 @@ export const getAllBranches = async (req: Request, res: Response): Promise<void>
     
     const branchDetails = await Promise.all(
       branches.map(async (branch) => {
-        const studentsCount = await User.countDocuments({ role: 'student', branch });
+        const studentCount = await User.countDocuments({ role: 'student', branch });
         const facultyCount = await User.countDocuments({ role: 'faculty', branch });
-        const hodCount = await User.countDocuments({ role: 'hod', branch });
-        const subjectsCount = await Subject.countDocuments({ branch });
+        const subjectCount = await Subject.countDocuments({ branch });
         
-        const feedbackCount = await Feedback.aggregate([
-          {
-            $lookup: {
-              from: 'users',
-              localField: 'student',
-              foreignField: '_id',
-              as: 'studentInfo'
-            }
-          },
-          {
-            $match: { 'studentInfo.branch': branch }
-          },
-          {
-            $count: 'total'
-          }
-        ]);
-
+        // Find HOD for this branch
+        const hodUser = await User.findOne({ role: 'hod', branch }).select('_id name email');
+        
+        // Generate a branch code based on the branch name
+        const code = branch.split(' ').map(word => word[0]).join('').toUpperCase();
+        
         return {
-          branch,
-          studentsCount,
-          facultyCount,
-          hodCount,
-          subjectsCount,
-          feedbackCount: feedbackCount[0]?.total || 0
+          _id: branch.replace(/\s+/g, '-').toLowerCase(), // Create a pseudo-id from branch name
+          name: branch,
+          code,
+          hod: hodUser ? {
+            _id: hodUser._id,
+            name: hodUser.name,
+            email: hodUser.email
+          } : null,
+          studentCount,
+          subjectCount,
+          createdAt: new Date().toISOString()
         };
       })
     );
 
-    res.json(branchDetails);
+    res.json({ branches: branchDetails });
   } catch (error: any) {
     console.error('Get all branches error:', error);
     res.status(500).json({ message: error.message });
@@ -711,6 +704,104 @@ export const getDEANAnalytics = async (req: Request, res: Response): Promise<voi
     });
   } catch (error: any) {
     console.error('Get DEAN analytics error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// GET /api/dean/feedback
+export const getAllFeedback = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const deanUser = await User.findById(req.user?.id);
+    if (!deanUser || deanUser.role !== 'dean') {
+      res.status(403).json({ message: 'Access denied. DEAN role required.' });
+      return;
+    }
+
+    // Get all feedback across the institution with needed data for analytics
+    const allFeedback = await Feedback.find()
+      .populate('student', 'name rollNumber year branch')
+      .populate('subject', 'name code branch term instructor year')
+      .lean() // Use lean() to get plain JavaScript objects
+      .sort({ createdAt: -1 }); // Use createdAt instead of submittedAt which may not exist
+    
+    console.log(`Found ${allFeedback.length} feedback entries`);
+    if (allFeedback.length > 0) {
+      console.log('Sample feedback structure:', JSON.stringify(allFeedback[0], null, 2));
+    }
+    
+    // Transform the data to match what DeanAdvancedReport expects
+    const transformedFeedback = allFeedback.map((feedbackObj: any) => {
+      try {
+        // Safely access nested properties
+        const studentData = feedbackObj.student || {};
+        const subjectData = feedbackObj.subject || {};
+        
+        // Extract ratings from answers if they exist or provide defaults
+        let ratings: Record<string, number> = {
+          teachingQuality: 3,
+          courseContent: 3,
+          preparation: 3,
+          interaction: 3,
+          overall: 3
+        };
+        
+        if (Array.isArray(feedbackObj.answers)) {
+          feedbackObj.answers.forEach((answer: any, index: number) => {
+            const questionTypes = ['teachingQuality', 'courseContent', 'preparation', 'interaction', 'overall'];
+            const questionType = questionTypes[index % questionTypes.length];
+            if (questionType) {
+              ratings[questionType] = answer?.answer || 3; // Default to middle rating if missing
+            }
+          });
+        }
+        
+        // Use averageRating for overall if it exists
+        if (feedbackObj.averageRating) {
+          ratings.overall = feedbackObj.averageRating;
+        }
+        
+        return {
+          _id: feedbackObj._id.toString(),
+          ratings: ratings,
+          comments: feedbackObj.comments || '',
+          submittedAt: feedbackObj.createdAt || new Date().toISOString(), // Use createdAt or current date
+          student: {
+            _id: studentData._id?.toString() || 'unknown',
+            name: studentData.name || 'Anonymous',
+            year: studentData.year || 1
+          },
+          subject: {
+            _id: subjectData._id?.toString() || 'unknown',
+            name: subjectData.name || 'Unknown Subject',
+            term: subjectData.term || 1,
+            faculty: { 
+              _id: 'faculty-id', // Placeholder
+              name: subjectData.instructor || 'Unknown Instructor'
+            }
+          }
+        };
+      } catch (err) {
+        console.error('Error transforming feedback item:', err);
+        // Return a valid placeholder object if transformation fails
+        return {
+          _id: feedbackObj._id?.toString() || 'error-id',
+          ratings: { overall: 3 },
+          comments: '',
+          submittedAt: new Date().toISOString(),
+          student: { _id: 'unknown', name: 'Error in data', year: 1 },
+          subject: { 
+            _id: 'unknown', 
+            name: 'Data Error', 
+            term: 1,
+            faculty: { _id: 'unknown', name: 'Unknown' }
+          }
+        };
+      }
+    });
+
+    res.json(transformedFeedback);
+  } catch (error: any) {
+    console.error('Error in getAllFeedback:', error);
     res.status(500).json({ message: error.message });
   }
 };

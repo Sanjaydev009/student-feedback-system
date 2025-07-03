@@ -45,6 +45,9 @@ export default function BranchesPage() {
 
       const data = await response.json();
       setBranches(data.branches || []);
+      if (!data.branches || data.branches.length === 0) {
+        console.log('No branches data returned from API');
+      }
     } catch (error) {
       console.error('Error fetching branches:', error);
       showToast('Failed to load branches', 'error');
@@ -54,8 +57,8 @@ export default function BranchesPage() {
   };
 
   const filteredBranches = branches.filter(branch =>
-    branch.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    branch.code.toLowerCase().includes(searchTerm.toLowerCase())
+    branch?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    branch?.code?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   if (loading) {

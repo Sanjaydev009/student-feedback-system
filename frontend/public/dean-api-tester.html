@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dean API Tester</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .card {
+            background: #f9f9f9;
+            border-radius: 5px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        button {
+            background: #4F46E5;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background: #4338CA;
+        }
+        input[type="text"], input[type="password"] {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 250px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        .result {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+            background: #f5f5f5;
+            white-space: pre-wrap;
+            font-family: monospace;
+            margin-top: 15px;
+        }
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(0,0,0,.3);
+            border-radius: 50%;
+            border-top-color: #4F46E5;
+            animation: spin 1s ease-in-out infinite;
+            margin-left: 10px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .status {
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        .success { color: #10B981; }
+        .error { color: #EF4444; }
+    </style>
+</head>
+<body>
+    <h1>Dean API Tester</h1>
+    
+    <div class="card">
+        <h2>Login</h2>
+        <div>
+            <input type="text" id="email" placeholder="Email" value="dean@test.com">
+            <input type="password" id="password" placeholder="Password" value="password123">
+            <button onclick="login()">Login</button>
+        </div>
+        <div class="status" id="loginStatus"></div>
+        <div class="result" id="loginResult"></div>
+    </div>
+    
+    <div class="card">
+        <h2>Test Endpoints</h2>
+        <div>
+            <button onclick="testEndpoint('/api/dean/dashboard-stats')">Dashboard Stats</button>
+            <button onclick="testEndpoint('/api/dean/reports')">Reports</button>
+            <button onclick="testEndpoint('/api/dean/feedback')">Feedback</button>
+            <button onclick="testEndpoint('/api/dean/branches')">Branches</button>
+            <button onclick="testEndpoint('/api/dean/analytics')">Analytics</button>
+        </div>
+        <div class="status" id="endpointStatus"></div>
+        <div class="result" id="endpointResult"></div>
+    </div>
+    
+    <div class="card">
+        <h2>API Server Status</h2>
+        <button onclick="checkServerStatus()">Check Server Status</button>
+        <div class="status" id="serverStatus"></div>
+    </div>
+
+    <script>
+        let token = localStorage.getItem('token');
+        const API_URL = 'http://localhost:5001';
+        
+        // Display token if available
+        if (token) {
+            document.getElementById('loginStatus').innerHTML = 
+                `<span class="success">Token found in localStorage</span>`;
+            document.getElementById('loginResult').textContent = `Token: ${token}`;
+        }
+        
+        async function login() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const loginStatus = document.getElementById('loginStatus');
+            const loginResult = document.getElementById('loginResult');
+            
+            loginStatus.innerHTML = '<span>Logging in...</span> <div class="loading"></div>';
+            
+            try {
+                const response = await fetch(`${API_URL}/api/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.token) {
+                    token = data.token;
+                    localStorage.setItem('token', token);
+                    loginStatus.innerHTML = '<span class="success">Login successful!</span>';
+                    loginResult.textContent = JSON.stringify(data, null, 2);
+                } else {
+                    loginStatus.innerHTML = '<span class="error">Login failed</span>';
+                    loginResult.textContent = JSON.stringify(data, null, 2);
+                }
+            } catch (error) {
+                loginStatus.innerHTML = '<span class="error">Login failed</span>';
+                loginResult.textContent = `Error: ${error.message}`;
+            }
+        }
+        
+        async function testEndpoint(endpoint) {
+            if (!token) {
+                document.getElementById('endpointStatus').innerHTML = 
+                    '<span class="error">Please login first</span>';
+                return;
+            }
+            
+            const endpointStatus = document.getElementById('endpointStatus');
+            const endpointResult = document.getElementById('endpointResult');
+            
+            endpointStatus.innerHTML = `<span>Testing ${endpoint}...</span> <div class="loading"></div>`;
+            
+            try {
+                const response = await fetch(`${API_URL}${endpoint}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                        'Cache-Control': 'no-cache'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    endpointStatus.innerHTML = `<span class="success">Request successful: ${response.status}</span>`;
+                    
+                    // For array data, show summary
+                    if (Array.isArray(data)) {
+                        endpointResult.textContent = `Array with ${data.length} items. First item:\n\n${JSON.stringify(data[0], null, 2)}`;
+                    } else {
+                        endpointResult.textContent = JSON.stringify(data, null, 2);
+                    }
+                } else {
+                    endpointStatus.innerHTML = `<span class="error">Request failed: ${response.status}</span>`;
+                    endpointResult.textContent = JSON.stringify(data, null, 2);
+                }
+            } catch (error) {
+                endpointStatus.innerHTML = '<span class="error">Request failed</span>';
+                endpointResult.textContent = `Error: ${error.message}`;
+            }
+        }
+        
+        async function checkServerStatus() {
+            const serverStatus = document.getElementById('serverStatus');
+            serverStatus.innerHTML = '<span>Checking server...</span> <div class="loading"></div>';
+            
+            try {
+                const response = await fetch(`${API_URL}/api/health`, { 
+                    method: 'GET',
+                    cache: 'no-store'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    serverStatus.innerHTML = '<span class="success">Server is online</span>';
+                    serverStatus.innerHTML += `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                } else {
+                    serverStatus.innerHTML = `<span class="error">Server returned: ${response.status}</span>`;
+                }
+            } catch (error) {
+                serverStatus.innerHTML = `<span class="error">Server is offline or unreachable: ${error.message}</span>`;
+            }
+        }
+    </script>
+</body>
+</html>

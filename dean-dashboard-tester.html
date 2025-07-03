@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dean Dashboard API Tester</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        button {
+            padding: 8px 16px;
+            margin: 5px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .result {
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+        }
+        .success {
+            color: green;
+            font-weight: bold;
+        }
+        .error {
+            color: red;
+            font-weight: bold;
+        }
+        .port-selector {
+            margin-bottom: 20px;
+        }
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Dean Dashboard API Tester</h1>
+    
+    <div class="port-selector">
+        <p>Select API port:</p>
+        <button onclick="setPort(5000)">Port 5000</button>
+        <button onclick="setPort(5001)">Port 5001</button>
+        <span id="currentPort">Current: 5001</span>
+    </div>
+    
+    <div>
+        <h3>Login</h3>
+        <div>
+            <input type="text" id="email" placeholder="Email" value="test@example.com">
+            <input type="password" id="password" placeholder="Password" value="password">
+            <button onclick="login()">Login</button>
+        </div>
+        <div id="tokenArea" style="margin-top: 10px; word-break: break-all;"></div>
+    </div>
+
+    <h3>API Tests</h3>
+    <div class="actions">
+        <button onclick="testHealthCheck()">Test Health Check</button>
+        <button onclick="testDeanFeedback()">Test /api/dean/feedback</button>
+        <button onclick="testDeanReports()">Test /api/dean/reports</button>
+    </div>
+
+    <div class="result" id="result">Results will appear here</div>
+
+    <script>
+        let currentPort = 5001;
+        let currentToken = '';
+
+        function setPort(port) {
+            currentPort = port;
+            document.getElementById('currentPort').textContent = `Current: ${port}`;
+        }
+
+        async function login() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                const response = await fetch(`http://localhost:${currentPort}/api/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const data = await response.json();
+                
+                if (data.token) {
+                    currentToken = data.token;
+                    document.getElementById('tokenArea').innerHTML = 
+                        `<span class="success">Login successful!</span><br>Token: ${data.token.substring(0, 20)}...`;
+                    
+                    // Display user info
+                    const userInfo = JSON.parse(atob(data.token.split('.')[1]));
+                    document.getElementById('result').innerHTML = 
+                        `<span class="success">Logged in as:</span><br>` +
+                        `Name: ${userInfo.name}<br>` +
+                        `Role: ${userInfo.role}<br>` +
+                        `User ID: ${userInfo.id}<br>` +
+                        `Token expires: ${new Date(userInfo.exp * 1000).toLocaleString()}`;
+                } else {
+                    document.getElementById('tokenArea').innerHTML = 
+                        `<span class="error">Login failed: ${data.message || 'Unknown error'}</span>`;
+                    document.getElementById('result').textContent = JSON.stringify(data, null, 2);
+                }
+            } catch (error) {
+                document.getElementById('tokenArea').innerHTML = 
+                    `<span class="error">Login request failed: ${error.message}</span>`;
+                document.getElementById('result').textContent = error.toString();
+            }
+        }
+
+        async function testHealthCheck() {
+            try {
+                const response = await fetch(`http://localhost:${currentPort}/api/auth/health`);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('result').innerHTML = 
+                        `<span class="success">Health check successful!</span><br>` +
+                        JSON.stringify(data, null, 2);
+                } else {
+                    document.getElementById('result').innerHTML = 
+                        `<span class="error">Health check failed with status ${response.status}</span><br>` +
+                        await response.text();
+                }
+            } catch (error) {
+                document.getElementById('result').innerHTML = 
+                    `<span class="error">Health check request failed: ${error.message}</span>`;
+                
+                // Try alternative health check endpoint
+                try {
+                    const altResponse = await fetch(`http://localhost:${currentPort}/`);
+                    document.getElementById('result').innerHTML += 
+                        `<br><br>Tried alternative root endpoint:<br>` +
+                        `Status: ${altResponse.status}<br>` +
+                        (altResponse.ok ? '<span class="success">Root endpoint is healthy!</span>' : '<span class="error">Root endpoint failed</span>');
+                } catch (altError) {
+                    document.getElementById('result').innerHTML += 
+                        `<br><br>Alternative root endpoint also failed: ${altError.message}`;
+                }
+            }
+        }
+
+        async function testDeanFeedback() {
+            if (!currentToken) {
+                document.getElementById('result').innerHTML = 
+                    `<span class="error">Please login first to get a token</span>`;
+                return;
+            }
+            
+            try {
+                const response = await fetch(`http://localhost:${currentPort}/api/dean/feedback`, {
+                    headers: {
+                        'Authorization': `Bearer ${currentToken}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    document.getElementById('result').innerHTML = 
+                        `<span class="success">Feedback request successful!</span><br>` +
+                        `Received ${Array.isArray(data) ? data.length : 'unknown'} feedback items<br><br>` +
+                        `First item (if available):<br>` +
+                        JSON.stringify(Array.isArray(data) && data.length > 0 ? data[0] : data, null, 2);
+                } else {
+                    document.getElementById('result').innerHTML = 
+                        `<span class="error">Feedback request failed with status ${response.status}</span><br>` +
+                        await response.text();
+                }
+            } catch (error) {
+                document.getElementById('result').innerHTML = 
+                    `<span class="error">Feedback request failed: ${error.message}</span>`;
+            }
+        }
+
+        async function testDeanReports() {
+            if (!currentToken) {
+                document.getElementById('result').innerHTML = 
+                    `<span class="error">Please login first to get a token</span>`;
+                return;
+            }
+            
+            try {
+                const response = await fetch(`http://localhost:${currentPort}/api/dean/reports`, {
+                    headers: {
+                        'Authorization': `Bearer ${currentToken}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    document.getElementById('result').innerHTML = 
+                        `<span class="success">Reports request successful!</span><br>` +
+                        `Received ${Array.isArray(data) ? data.length : 'unknown'} reports<br><br>` +
+                        `First item (if available):<br>` +
+                        JSON.stringify(Array.isArray(data) && data.length > 0 ? data[0] : data, null, 2);
+                } else {
+                    document.getElementById('result').innerHTML = 
+                        `<span class="error">Reports request failed with status ${response.status}</span><br>` +
+                        await response.text();
+                }
+            } catch (error) {
+                document.getElementById('result').innerHTML = 
+                    `<span class="error">Reports request failed: ${error.message}</span>`;
+            }
+        }
+    </script>
+</body>
+</html>
