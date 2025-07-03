@@ -363,3 +363,82 @@ export const getSubjectFeedbackDetails = async (req: Request, res: Response): Pr
     res.status(500).json({ message: error.message });
   }
 };
+
+// GET /api/hod/feedback-status
+export const getFeedbackStatus = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const hodUser = await User.findById(req.user?.id);
+    if (!hodUser || hodUser.role !== 'hod') {
+      res.status(403).json({ message: 'Access denied. HOD role required.' });
+      return;
+    }
+
+    const hodBranch = hodUser.branch;
+    
+    // Get all subjects in the HOD's branch
+    const subjects = await Subject.find({ branch: hodBranch });
+    
+    // Get all students in the HOD's branch
+    const students = await User.find({ 
+      role: 'student',
+      branch: hodBranch
+    }).select('_id name email rollNumber year');
+    
+    // Get all feedbacks for these students
+    const feedbacks = await Feedback.find({
+      student: { $in: students.map(s => s._id) }
+    }).select('student subject createdAt updatedAt');
+    
+    // Map of student+subject to feedback status
+    const feedbackMap = new Map();
+    feedbacks.forEach(feedback => {
+      const key = `${feedback.student.toString()}-${feedback.subject.toString()}`;
+      feedbackMap.set(key, {
+        submitted: true,
+        submittedAt: feedback.createdAt
+      });
+    });
+    
+    // Generate complete status report
+    const feedbackStatus = [];
+    
+    for (const subject of subjects) {
+      // Find students who should give feedback for this subject
+      // Usually students in same year as the subject term
+      const eligibleStudents = students.filter(
+        student => Math.ceil(subject.term / 2) === student.year
+      );
+      
+      for (const student of eligibleStudents) {
+        const key = `${student._id.toString()}-${subject._id.toString()}`;
+        const status = feedbackMap.get(key) || { submitted: false, submittedAt: null };
+        
+        feedbackStatus.push({
+          student: {
+            _id: student._id,
+            name: student.name,
+            email: student.email,
+            rollNumber: student.rollNumber,
+            year: student.year,
+            branch: student.branch // Add branch information
+          },
+          subject: {
+            _id: subject._id,
+            name: subject.name,
+            code: subject.code,
+            instructor: subject.instructor,
+            term: subject.term,
+            branch: subject.branch
+          },
+          submitted: status.submitted,
+          submittedAt: status.submittedAt
+        });
+      }
+    }
+    
+    res.json(feedbackStatus);
+  } catch (error: any) {
+    console.error('Get feedback status error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
