@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import User from '../models/User';
 import { emailService } from '../services/emailService';
+import mongoose from 'mongoose';
 
 const getDefaultPassword = (role: string): string => {
   switch (role) {
@@ -379,6 +380,8 @@ export const getAllUsers = async (req: Request, res: Response): Promise<void> =>
 // POST /api/auth/login
 export const login = async (req: Request, res: Response): Promise<void> => {
   const { email, password } = req.body;
+  
+  console.log('🔍 Login attempt:', { email, passwordLength: password?.length });
 
   try {
     // Debug - check if the request contains valid data
@@ -389,14 +392,29 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     }
 
     // Find user by email
+    console.log('🔍 About to search for user with email:', email);
+    console.log('🔍 User model collection name:', User.collection.name);
+    console.log('🔍 MongoDB connection state:', mongoose.connection.readyState);
+    
     const user = await User.findOne({ email }).select('+password');
+    console.log('🔍 User found:', { 
+      found: !!user, 
+      email: user?.email, 
+      role: user?.role,
+      hasPassword: !!user?.password,
+      passwordLength: user?.password?.length 
+    });
+    
     if (!user) {
       res.status(400).json({ message: 'Invalid credentials' });
       return;
     }
 
     // Check password
+    console.log('🔍 Testing password comparison...');
     const isMatch = await bcrypt.compare(password, user.password);
+    console.log('🔍 Password match result:', isMatch);
+    
     if (!isMatch) {
       res.status(400).json({ message: 'Invalid credentials' });
       return;

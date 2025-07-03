@@ -5,6 +5,7 @@ import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearSca
 import { Pie, Bar } from 'react-chartjs-2';
 import api from '@/utils/api';
 import { useToast } from '@/components/ToastProvider';
+import FeedbackReportChart from '@/components/FeedbackReportChart';
 
 // Register ChartJS components
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title);
@@ -44,7 +45,8 @@ export default function ReportsPage() {
   const [feedbackSummary, setFeedbackSummary] = useState<FeedbackSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [branchFilter, setBranchFilter] = useState<string>('all');
-  const [semesterFilter, setSemesterFilter] = useState<string>('all');
+  const [yearFilter, setYearFilter] = useState<string>('all');
+  const [termFilter, setTermFilter] = useState<string>('all');
   const [facultyRatings, setFacultyRatings] = useState<{ [key: string]: number }>({});
   const [overallSummary, setOverallSummary] = useState<{
     totalFeedback: number,
@@ -56,16 +58,45 @@ export default function ReportsPage() {
     subjectsWithFeedback: 0
   });
 
+  // Available filter options
+  const years = [1, 2, 3, 4];
+  const terms = [1, 2, 3, 4];
+  const branches = [
+    'Computer Science', 
+    'Electronics', 
+    'Mechanical', 
+    'Civil', 
+    'Electrical',
+    'Information Technology',
+    'Chemical',
+    'Aerospace',
+    'Biotechnology',
+    'MCA Regular', 
+    'MCA DS'
+  ];
+
   useEffect(() => {
     fetchSubjects();
     fetchOverallStats();
-  }, []);
+  }, [yearFilter, termFilter, branchFilter]); // Refresh when filters change
 
   const fetchSubjects = async () => {
     try {
-      const response = await api.get('/api/subjects');
+      const params = new URLSearchParams();
+      if (yearFilter !== 'all') params.append('year', yearFilter);
+      if (termFilter !== 'all') params.append('term', termFilter);
+      if (branchFilter !== 'all') params.append('branch', branchFilter);
+      
+      const response = await api.get(`/api/test/subjects?${params.toString()}`);
       setSubjects(response.data);
-      showInfo('Subjects loaded successfully');
+      
+      // Reset selected subject if it's not in the filtered results
+      if (selectedSubject && !response.data.some((s: Subject) => s._id === selectedSubject)) {
+        setSelectedSubject('');
+        setFeedbackSummary(null);
+      }
+      
+      showInfo(`Subjects loaded successfully (${response.data.length} found)`);
     } catch (err: any) {
       console.error('Failed to fetch subjects:', err);
       showError('Failed to load subjects. Please try again.');
@@ -74,8 +105,12 @@ export default function ReportsPage() {
   
   const fetchOverallStats = async () => {
     try {
-      // Get all feedback summary
-      const response = await api.get('/api/feedback/stats');
+      const params = new URLSearchParams();
+      if (yearFilter !== 'all') params.append('year', yearFilter);
+      if (termFilter !== 'all') params.append('term', termFilter);
+      if (branchFilter !== 'all') params.append('branch', branchFilter);
+      
+      const response = await api.get(`/api/test/feedback/stats?${params.toString()}`);
       
       // Calculate faculty ratings
       if (response.data && response.data.facultyRatings) {
@@ -98,7 +133,7 @@ export default function ReportsPage() {
   const fetchFeedbackSummary = async (subjectId: string) => {
     setLoading(true);
     try {
-      const response = await api.get(`/api/feedback/summary/${subjectId}`);
+      const response = await api.get(`/api/test/feedback/summary/${subjectId}`);
       setFeedbackSummary(response.data);
       
       if (response.data && response.data.feedbackCount > 0) {
@@ -125,12 +160,8 @@ export default function ReportsPage() {
     }
   };
 
-  // Filter subjects based on branch and term
-  const filteredSubjects = subjects.filter(subject => {
-    const matchesBranch = branchFilter === 'all' || (Array.isArray(subject.branch) ? subject.branch.includes(branchFilter) : subject.branch === branchFilter);
-    const matchesTerm = semesterFilter === 'all' || subject.term === parseInt(semesterFilter);
-    return matchesBranch && matchesTerm;
-  });
+  // Filter subjects based on branch, year, and term - now handled by backend
+  const filteredSubjects = subjects; // Backend already filters based on year, term, branch
 
   const handleExportCSV = () => {
     if (!feedbackSummary) {
@@ -335,7 +366,43 @@ export default function ReportsPage() {
 
       {/* Filters */}
       <div className="bg-white shadow rounded-lg mb-6 p-4 sm:p-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div>
+            <label htmlFor="year" className="block text-sm font-medium text-gray-700 mb-1">
+              Filter by Year
+            </label>
+            <select
+              id="year"
+              name="year"
+              className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-3 pr-10 py-2 sm:text-sm border-gray-300 rounded-md"
+              value={yearFilter}
+              onChange={(e) => setYearFilter(e.target.value)}
+            >
+              <option value="all">All Years</option>
+              {years.map(year => (
+                <option key={year} value={year}>Year {year}</option>
+              ))}
+            </select>
+          </div>
+          
+          <div>
+            <label htmlFor="term" className="block text-sm font-medium text-gray-700 mb-1">
+              Filter by Term
+            </label>
+            <select
+              id="term"
+              name="term"
+              className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-3 pr-10 py-2 sm:text-sm border-gray-300 rounded-md"
+              value={termFilter}
+              onChange={(e) => setTermFilter(e.target.value)}
+            >
+              <option value="all">All Terms</option>
+              {terms.map(term => (
+                <option key={term} value={term}>Term {term}</option>
+              ))}
+            </select>
+          </div>
+          
           <div>
             <label htmlFor="branch" className="block text-sm font-medium text-gray-700 mb-1">
               Filter by Branch
@@ -348,27 +415,9 @@ export default function ReportsPage() {
               onChange={(e) => setBranchFilter(e.target.value)}
             >
               <option value="all">All Branches</option>
-              <option value="MCA Regular">MCA Regular</option>
-              <option value="MCA DS">MCA DS</option>
-            </select>
-          </div>
-          
-          <div>
-            <label htmlFor="term" className="block text-sm font-medium text-gray-700 mb-1">
-              Filter by Term
-            </label>
-            <select
-              id="term"
-              name="term"
-              className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-3 pr-10 py-2 sm:text-sm border-gray-300 rounded-md"
-              value={semesterFilter}
-              onChange={(e) => setSemesterFilter(e.target.value)}
-            >
-              <option value="all">All Terms</option>
-              <option value="1">Term 1</option>
-              <option value="2">Term 2</option>
-              <option value="3">Term 3</option>
-              <option value="4">Term 4</option>
+              {branches.map(branch => (
+                <option key={branch} value={branch}>{branch}</option>
+              ))}
             </select>
           </div>
           
@@ -463,20 +512,16 @@ export default function ReportsPage() {
 
           {/* Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Category Chart */}
+            {/* Category Chart - Bar */}
             <div className="bg-white shadow rounded-lg p-6">
-              <h3 className="text-lg font-medium text-gray-800 mb-4">Category Ratings</h3>
-              <div className="h-80">
-                {pieChartData && <Pie data={pieChartData} />}
-              </div>
+              <h3 className="text-lg font-medium text-gray-800 mb-4">Category Ratings - Bar Chart</h3>
+              <FeedbackReportChart feedbackSummary={feedbackSummary} chartType="bar" />
             </div>
             
-            {/* Question Chart */}
+            {/* Category Chart - Pie */}
             <div className="bg-white shadow rounded-lg p-6">
-              <h3 className="text-lg font-medium text-gray-800 mb-4">Question Ratings</h3>
-              <div className="h-80">
-                {getDetailedBarChartData() && <Bar data={getDetailedBarChartData()!} options={barChartOptions} />}
-              </div>
+              <h3 className="text-lg font-medium text-gray-800 mb-4">Category Ratings - Pie Chart</h3>
+              <FeedbackReportChart feedbackSummary={feedbackSummary} chartType="pie" />
             </div>
           </div>
 
