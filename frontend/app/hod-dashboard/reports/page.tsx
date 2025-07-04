@@ -265,7 +265,7 @@ export default function HODReports() {
         setTermOptions(terms.sort((a, b) => a - b));
         
         // Calculate branch options
-        const branches = [...new Set(response.data.map((item: FeedbackStatus) => item.student.branch))];
+        const branches = [...new Set(response.data.map((item: FeedbackStatus) => item.student.branch))] as string[];
         setBranchOptions(branches.sort());
       }
     } catch (error: any) {
@@ -422,7 +422,7 @@ export default function HODReports() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-lg shadow-md p-6">
+      {/* <div className="bg-white rounded-lg shadow-md p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Filters</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
@@ -490,7 +490,7 @@ export default function HODReports() {
             Clear Filters
           </button>
         </div>
-      </div>
+      </div> */}
 
       {/* Navigation Tabs */}
       <div className="bg-white rounded-lg shadow-md overflow-hidden">
@@ -594,8 +594,8 @@ export default function HODReports() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="all">All Terms</option>
-                  {termOptions.map((term) => (
-                    <option key={term} value={term.toString()}>Term {term}</option>
+                  {termOptions.map((term, index) => (
+                    <option key={`term-${index}-${term}`} value={term.toString()}>Term {term}</option>
                   ))}
                 </select>
               </div>
@@ -608,8 +608,8 @@ export default function HODReports() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="all">All Branches</option>
-                  {branchOptions.map((branch) => (
-                    <option key={branch} value={branch}>{branch}</option>
+                  {branchOptions.map((branch, index) => (
+                    <option key={`branch-${index}-${branch}`} value={branch}>{branch}</option>
                   ))}
                 </select>
               </div>
@@ -930,7 +930,7 @@ export default function HODReports() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {reports.map((report) => {
+                  {reports.map((report, index) => {
                     // Safely handle potentially missing data
                     const subjectId = report._id?.subject || '';
                     const subjectName = report._id?.subjectName || 'Unknown Subject';
@@ -940,7 +940,7 @@ export default function HODReports() {
                     const rating = report.averageRating || 0;
                     
                     return (
-                      <tr key={subjectId + '-' + Date.now()} className="hover:bg-gray-50">
+                      <tr key={`report-${subjectId}-${index}`} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div>
                             <div className="text-sm font-medium text-gray-900">
