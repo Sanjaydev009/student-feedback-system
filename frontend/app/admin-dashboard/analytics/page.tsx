@@ -150,12 +150,12 @@ export default function AnalyticsPage() {
       {/* Semester Analysis */}
       {selectedView === 'semester' && analytics?.semesterWiseStats && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-6">Semester-wise Performance</h2>
+          <h2 className="text-xl font-semibold text-gray-900 mb-6">Term-wise Performance</h2>
           <div className="grid gap-4">
             {analytics.semesterWiseStats.map((sem, index) => (
               <div key={index} className="border border-gray-200 rounded-lg p-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-medium text-gray-900">Semester {sem.semester}</h3>
+                  <h3 className="text-lg font-medium text-gray-900">Term {sem.semester}</h3>
                   <div className="grid grid-cols-3 gap-6 text-sm">
                     <div className="text-center">
                       <div className="text-lg font-bold text-blue-600">{sem.totalSubjects}</div>

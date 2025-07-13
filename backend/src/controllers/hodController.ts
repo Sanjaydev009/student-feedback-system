@@ -14,6 +14,11 @@ export const getHODDashboardStats = async (req: Request, res: Response): Promise
 
     const hodBranch = hodUser.branch;
 
+    // Disable caching for real-time data
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+
     // Get students count in HOD's branch
     const studentsCount = await User.countDocuments({ 
       role: 'student', 
@@ -49,7 +54,7 @@ export const getHODDashboardStats = async (req: Request, res: Response): Promise
       }
     ]);
 
-    // Get recent feedback submissions (last 5)
+    // Get recent feedback submissions (last 10, sorted by creation time)
     const recentFeedback = await Feedback.find()
       .populate({
         path: 'student',
@@ -58,12 +63,12 @@ export const getHODDashboardStats = async (req: Request, res: Response): Promise
       })
       .populate('subject', 'name code instructor')
       .sort({ createdAt: -1 })
-      .limit(5);
+      .limit(10);
 
     // Filter out null students (from populate match)
     const filteredRecentFeedback = recentFeedback.filter(f => f.student);
 
-    // Get average ratings by subject for HOD's branch
+    // Get average ratings by subject for HOD's branch (sorted by latest updates)
     const subjectRatings = await Feedback.aggregate([
       {
         $lookup: {
@@ -93,11 +98,12 @@ export const getHODDashboardStats = async (req: Request, res: Response): Promise
           totalFeedbacks: { $sum: 1 },
           subjectName: { $first: { $arrayElemAt: ['$subjectInfo.name', 0] } },
           subjectCode: { $first: { $arrayElemAt: ['$subjectInfo.code', 0] } },
-          instructor: { $first: { $arrayElemAt: ['$subjectInfo.instructor', 0] } }
+          instructor: { $first: { $arrayElemAt: ['$subjectInfo.instructor', 0] } },
+          lastUpdated: { $max: '$createdAt' }
         }
       },
       {
-        $sort: { averageRating: -1 }
+        $sort: { lastUpdated: -1, averageRating: -1 }
       }
     ]);
 
@@ -110,7 +116,9 @@ export const getHODDashboardStats = async (req: Request, res: Response): Promise
       },
       recentFeedback: filteredRecentFeedback,
       subjectRatings,
-      branch: hodBranch
+      branch: hodBranch,
+      timestamp: new Date().toISOString(),
+      serverTime: Date.now()
     });
   } catch (error: any) {
     console.error('HOD Dashboard error:', error);
