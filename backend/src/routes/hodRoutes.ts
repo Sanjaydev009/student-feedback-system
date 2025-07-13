@@ -6,7 +6,8 @@ import {
   getHODFaculty,
   getHODSubjects,
   getHODReports,
-  getSubjectFeedbackDetails
+  getSubjectFeedbackDetails,
+  getFeedbackStatus
 } from '../controllers/hodController';
 
 const router = express.Router();
@@ -36,5 +37,8 @@ router.get('/reports', protect, isHOD, getHODReports);
 
 // HOD Subject Feedback Details
 router.get('/feedback/:subjectId', protect, isHOD, getSubjectFeedbackDetails);
+
+// HOD Feedback Status (who submitted, who didn't)
+router.get('/feedback-status', protect, isHOD, getFeedbackStatus);
 
 export default router;

@@ -238,30 +238,35 @@ export const bulkRegisterStudents = async (req: Request, res: Response): Promise
     const results = {
       success: 0,
       failed: 0,
-      failures: [] as { email: string; reason: string }[]
+      failures: [] as { email: string; reason: string }[],
+      createdUsers: [] as any[]
     };
-
-    // Generate default password for students
-    const defaultPassword = getDefaultPassword('student');
 
     // Process each student
     for (const student of students) {
-      const { name, rollNumber, email, branch, year } = student;
+      const { name, rollNumber, email, department, branch, year } = student;
       
-      // Validate required fields
-      if (!name || !email || !rollNumber || !branch || !year) {
+      // Validate required fields - these match the same validation as individual user creation
+      const missingFields = [];
+      if (!name) missingFields.push('name');
+      if (!email) missingFields.push('email');
+      if (!rollNumber) missingFields.push('rollNumber');
+      if (!branch) missingFields.push('branch');
+      if (!year) missingFields.push('year');
+      
+      if (missingFields.length > 0) {
         results.failed++;
         results.failures.push({ 
           email: email || 'Unknown', 
-          reason: 'Missing required fields' 
+          reason: `Missing required fields: ${missingFields.join(', ')}` 
         });
         continue;
       }
       
       try {
-        // Check if student already exists
-        const existingStudent = await User.findOne({ email });
-        if (existingStudent) {
+        // Check if student already exists by email
+        const existingEmail = await User.findOne({ email });
+        if (existingEmail) {
           results.failed++;
           results.failures.push({ 
             email, 
@@ -270,27 +275,54 @@ export const bulkRegisterStudents = async (req: Request, res: Response): Promise
           continue;
         }
         
-        // Create new student with default password
-        // Let the mongoose middleware handle password hashing
+        // Check if roll number is already taken
+        const existingRoll = await User.findOne({ rollNumber });
+        if (existingRoll) {
+          results.failed++;
+          results.failures.push({ 
+            email, 
+            reason: 'Roll number already exists' 
+          });
+          continue;
+        }
         
-        // Students should always be required to reset their password on first login
-        const newStudent = await User.create({
+        // Get default password for students
+        const defaultPassword = getDefaultPassword('student'); // Using 'student@123'
+        
+        // Create user data object - similar to createUser function
+        const userData: any = {
           name,
-          rollNumber,
           email,
+          rollNumber,
           branch,
-          year: parseInt(year.toString()),
           password: defaultPassword, // Mongoose middleware will hash this
           role: 'student',
           passwordResetRequired: true // Force password reset for students
-        });
+        };
+        
+        // Add additional fields if provided
+        if (department) userData.department = department;
+        if (year) userData.year = parseInt(year.toString());
+        
+        // Create new student
+        const newStudent = new User(userData);
+        await newStudent.save();
         
         // Send welcome email with password (don't wait for it to complete)
         emailService.sendPasswordEmail(newStudent, defaultPassword).catch(emailError => {
           console.error(`Failed to send email to ${email}:`, emailError);
         });
         
+        // Add to successful registrations
         results.success++;
+        results.createdUsers.push({
+          _id: newStudent._id,
+          name: newStudent.name,
+          email: newStudent.email,
+          rollNumber: newStudent.rollNumber,
+          branch: newStudent.branch,
+          year: newStudent.year
+        });
       } catch (error: any) {
         results.failed++;
         results.failures.push({ 
@@ -320,7 +352,17 @@ export const bulkRegisterStudents = async (req: Request, res: Response): Promise
     
     res.status(201).json({
       message: `Processed ${students.length} students. ${results.success} added successfully, ${results.failed} failed.`,
-      results
+      password: {
+        pattern: 'student@123', 
+        note: 'All students were created with the default password "student@123" and will be required to reset it on first login.'
+      },
+      results: {
+        success: results.success,
+        failed: results.failed,
+        failures: results.failures,
+        createdUsers: results.createdUsers.slice(0, 10) // Limit to first 10 to avoid huge payload
+      },
+      totalCreated: results.createdUsers.length
     });
     
   } catch (error: any) {

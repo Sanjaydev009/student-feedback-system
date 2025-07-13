@@ -9,4 +9,7 @@ export interface IFeedback extends Document {
     question: string;
     answer: number; // e.g., 1 to 5
   }[];
+  averageRating?: number;
+  createdAt: Date;
+  updatedAt: Date;
 }

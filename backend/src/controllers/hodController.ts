@@ -14,6 +14,11 @@ export const getHODDashboardStats = async (req: Request, res: Response): Promise
 
     const hodBranch = hodUser.branch;
 
+    // Disable caching for real-time data
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+
     // Get students count in HOD's branch
     const studentsCount = await User.countDocuments({ 
       role: 'student', 
@@ -49,7 +54,7 @@ export const getHODDashboardStats = async (req: Request, res: Response): Promise
       }
     ]);
 
-    // Get recent feedback submissions (last 5)
+    // Get recent feedback submissions (last 10, sorted by creation time)
     const recentFeedback = await Feedback.find()
       .populate({
         path: 'student',
@@ -58,12 +63,12 @@ export const getHODDashboardStats = async (req: Request, res: Response): Promise
       })
       .populate('subject', 'name code instructor')
       .sort({ createdAt: -1 })
-      .limit(5);
+      .limit(10);
 
     // Filter out null students (from populate match)
     const filteredRecentFeedback = recentFeedback.filter(f => f.student);
 
-    // Get average ratings by subject for HOD's branch
+    // Get average ratings by subject for HOD's branch (sorted by latest updates)
     const subjectRatings = await Feedback.aggregate([
       {
         $lookup: {
@@ -93,11 +98,12 @@ export const getHODDashboardStats = async (req: Request, res: Response): Promise
           totalFeedbacks: { $sum: 1 },
           subjectName: { $first: { $arrayElemAt: ['$subjectInfo.name', 0] } },
           subjectCode: { $first: { $arrayElemAt: ['$subjectInfo.code', 0] } },
-          instructor: { $first: { $arrayElemAt: ['$subjectInfo.instructor', 0] } }
+          instructor: { $first: { $arrayElemAt: ['$subjectInfo.instructor', 0] } },
+          lastUpdated: { $max: '$createdAt' }
         }
       },
       {
-        $sort: { averageRating: -1 }
+        $sort: { lastUpdated: -1, averageRating: -1 }
       }
     ]);
 
@@ -110,7 +116,9 @@ export const getHODDashboardStats = async (req: Request, res: Response): Promise
       },
       recentFeedback: filteredRecentFeedback,
       subjectRatings,
-      branch: hodBranch
+      branch: hodBranch,
+      timestamp: new Date().toISOString(),
+      serverTime: Date.now()
     });
   } catch (error: any) {
     console.error('HOD Dashboard error:', error);
@@ -360,6 +368,85 @@ export const getSubjectFeedbackDetails = async (req: Request, res: Response): Pr
     res.json(filteredFeedback);
   } catch (error: any) {
     console.error('Get subject feedback details error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// GET /api/hod/feedback-status
+export const getFeedbackStatus = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const hodUser = await User.findById(req.user?.id);
+    if (!hodUser || hodUser.role !== 'hod') {
+      res.status(403).json({ message: 'Access denied. HOD role required.' });
+      return;
+    }
+
+    const hodBranch = hodUser.branch;
+    
+    // Get all subjects in the HOD's branch
+    const subjects = await Subject.find({ branch: hodBranch });
+    
+    // Get all students in the HOD's branch
+    const students = await User.find({ 
+      role: 'student',
+      branch: hodBranch
+    }).select('_id name email rollNumber year');
+    
+    // Get all feedbacks for these students
+    const feedbacks = await Feedback.find({
+      student: { $in: students.map(s => s._id) }
+    }).select('student subject createdAt updatedAt');
+    
+    // Map of student+subject to feedback status
+    const feedbackMap = new Map();
+    feedbacks.forEach(feedback => {
+      const key = `${feedback.student.toString()}-${feedback.subject.toString()}`;
+      feedbackMap.set(key, {
+        submitted: true,
+        submittedAt: feedback.createdAt
+      });
+    });
+    
+    // Generate complete status report
+    const feedbackStatus = [];
+    
+    for (const subject of subjects) {
+      // Find students who should give feedback for this subject
+      // Usually students in same year as the subject term
+      const eligibleStudents = students.filter(
+        student => Math.ceil(subject.term / 2) === student.year
+      );
+      
+      for (const student of eligibleStudents) {
+        const key = `${student._id.toString()}-${subject._id.toString()}`;
+        const status = feedbackMap.get(key) || { submitted: false, submittedAt: null };
+        
+        feedbackStatus.push({
+          student: {
+            _id: student._id,
+            name: student.name,
+            email: student.email,
+            rollNumber: student.rollNumber,
+            year: student.year,
+            branch: student.branch // Add branch information
+          },
+          subject: {
+            _id: subject._id,
+            name: subject.name,
+            code: subject.code,
+            instructor: subject.instructor,
+            term: subject.term,
+            branch: subject.branch
+          },
+          submitted: status.submitted,
+          submittedAt: status.submittedAt
+        });
+      }
+    }
+    
+    res.json(feedbackStatus);
+  } catch (error: any) {
+    console.error('Get feedback status error:', error);
     res.status(500).json({ message: error.message });
   }
 };
