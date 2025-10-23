@@ -1,13 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import AdminNavbar from '@/components/AdminNavbar';
 
-interface Props {
-  onSuccess?: () => void;
-}
-
-export default function AddSubjectForm({ onSuccess }: Props) {
+export default function AddSubjectPage() {
+  const router = useRouter();
   const [form, setForm] = useState({
     name: '',
     code: '',
@@ -15,7 +13,7 @@ export default function AddSubjectForm({ onSuccess }: Props) {
     department: '',
     year: 1,
     term: 1,
-    branch: 'MCA Regular',
+    branch: '',
     questions: ['', '', '', '', '', '', '', '', '', '']
   });
 
@@ -72,11 +70,11 @@ export default function AddSubjectForm({ onSuccess }: Props) {
         department: '',
         year: 1,
         term: 1,
-        branch: 'MCA Regular',
+        branch: '',
         questions: ['', '', '', '', '', '', '', '', '', '']
       });
 
-      if (onSuccess) onSuccess();
+      router.push('/admin-dashboard/subjects');
     } catch (err: any) {
       alert(err.message || 'Something went wrong. Please try again.');
     }
@@ -117,15 +115,23 @@ export default function AddSubjectForm({ onSuccess }: Props) {
             className="w-full p-2 border rounded mt-1"
             required
           />
-          <input
-            type="text"
+          <select
             name="department"
-            placeholder="Department"
             value={form.department}
             onChange={handleChange}
             className="w-full p-2 border rounded mt-1"
             required
-          />
+          >
+            <option value="">Select Department</option>
+            <optgroup label="School of Engineering & Technology">
+              <option value="Computer Science & Engineering">Computer Science & Engineering</option>
+              <option value="Data Science">Data Science</option>
+              <option value="Artificial Intelligence & Machine Learning">Artificial Intelligence & Machine Learning</option>
+            </optgroup>
+            <optgroup label="School of Computer Applications">
+              <option value="Master of Computer Applications">Master of Computer Applications</option>
+            </optgroup>
+          </select>
           <select
             name="year"
             value={form.year}
@@ -162,8 +168,15 @@ export default function AddSubjectForm({ onSuccess }: Props) {
             required
           >
             <option value="">Select Branch</option>
-            <option value="MCA Regular">MCA Regular</option>
-            <option value="MCA DS">MCA DS</option>
+            <optgroup label="UG BTECH">
+              <option value="CSE">CSE - Computer Science Engineering</option>
+              <option value="DS">DS - Data Science</option>
+              <option value="AIML">AIML - Artificial Intelligence & Machine Learning</option>
+            </optgroup>
+            <optgroup label="MCA">
+              <option value="MCA Regular">MCA Regular</option>
+              <option value="MCA DS">MCA DS</option>
+            </optgroup>
           </select>
 
           <h3 className="font-medium mt-4">Feedback Questions (10 Required)</h3>

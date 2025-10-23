@@ -17,11 +17,24 @@ interface Subject {
   hasSubmittedFeedback?: boolean; // Track if user has submitted feedback
 }
 
+interface FeedbackPeriod {
+  _id: string;
+  feedbackType: 'midterm' | 'endterm';
+  term: number;
+  academicYear: string;
+  isActive: boolean;
+  status: 'draft' | 'active' | 'completed' | 'cancelled';
+  startDate: string;
+  endDate: string;
+}
+
 export default function SubjectsPage() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [studentBranch, setStudentBranch] = useState<string | null>(null);
   const [studentName, setStudentName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeFeedbackPeriods, setActiveFeedbackPeriods] = useState<FeedbackPeriod[]>([]);
+  const [activeFeedbackPeriod, setActiveFeedbackPeriod] = useState<FeedbackPeriod | null>(null);
 
   // Check login status and decode token
   useEffect(() => {
@@ -61,8 +74,9 @@ export default function SubjectsPage() {
         setStudentBranch(userBranch);
         
         // Fetch student name and subjects (token is automatically included by our api utility)
-        console.log('📞 Calling fetchStudentName and fetchSubjects');
+        console.log('📞 Calling fetchStudentName, fetchActiveFeedbackPeriod and fetchSubjects');
         fetchStudentName(storedToken);
+        fetchActiveFeedbackPeriod();
         fetchSubjects(storedToken, userBranch);
         
       } catch (decodeError) {
@@ -78,6 +92,31 @@ export default function SubjectsPage() {
       window.location.href = '/login';
     }
   }, []);
+
+  // Fetch active feedback periods
+  const fetchActiveFeedbackPeriod = async () => {
+    try {
+      console.log('🔄 Fetching active feedback periods...');
+      const response = await api.get('/api/feedback-periods/active');
+      console.log('📊 Active feedback periods response:', response.data);
+      
+      const activePeriods = response.data;
+      if (activePeriods && activePeriods.length > 0) {
+        console.log('✅ Found active feedback periods:', activePeriods);
+        setActiveFeedbackPeriods(activePeriods);
+        // Set the first period as default for backward compatibility
+        setActiveFeedbackPeriod(activePeriods[0]);
+      } else {
+        console.log('⚠️ No active feedback periods found');
+        setActiveFeedbackPeriods([]);
+        setActiveFeedbackPeriod(null);
+      }
+    } catch (error) {
+      console.error('❌ Failed to fetch active feedback period:', error);
+      setActiveFeedbackPeriods([]);
+      setActiveFeedbackPeriod(null);
+    }
+  };
 
   // Get student name
   const fetchStudentName = async (token: string) => {
@@ -196,6 +235,29 @@ export default function SubjectsPage() {
       <StudentNavbar />
 
       <div className="container mx-auto p-4 md:p-6">
+        {/* New Dashboard Notice */}
+        {/* <div className="bg-gradient-to-r from-green-500 to-blue-600 text-white rounded-lg shadow-lg p-6 md:p-8 mb-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="bg-white bg-opacity-20 rounded-full p-3">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-xl font-bold">🎉 New Enhanced Dashboard Available!</h2>
+                <p className="text-green-100 mt-1">Experience our new dashboard with advanced filtering by year and term</p>
+              </div>
+            </div>
+            <Link 
+              href="/student-dashboard"
+              className="bg-white text-green-600 px-6 py-3 rounded-lg font-semibold hover:bg-gray-50 transition-colors duration-200 shadow-lg"
+            >
+              Try New Dashboard
+            </Link>
+          </div>
+        </div> */}
+
         {/* Welcome Banner */}
         <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg shadow-lg p-6 md:p-8 mb-8">
           <h1 className="text-2xl md:text-3xl font-bold mb-2">Welcome back, {studentName || 'Student'}!</h1>
@@ -209,6 +271,56 @@ export default function SubjectsPage() {
           </div>
         </div>
 
+        {/* Feedback Period Status */}
+        {activeFeedbackPeriods.length > 0 ? (
+          <div className="mb-6 space-y-4">
+            {activeFeedbackPeriods.map((period, index) => (
+              <div key={period._id} className={`${
+                period.feedbackType === 'midterm' 
+                  ? 'bg-gradient-to-r from-blue-500 to-blue-600' 
+                  : 'bg-gradient-to-r from-purple-500 to-purple-600'
+                } text-white rounded-lg shadow-lg p-6`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="bg-white bg-opacity-20 rounded-full p-2">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold">
+                        {period.feedbackType.charAt(0).toUpperCase() + period.feedbackType.slice(1)} Feedback Period Active
+                      </h3>
+                      <p className={`${
+                        period.feedbackType === 'midterm' ? 'text-blue-100' : 'text-purple-100'
+                      } text-sm`}>
+                        {new Date(period.startDate).toLocaleDateString()} - {new Date(period.endDate).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="bg-white bg-opacity-20 rounded-lg px-3 py-1">
+                    <span className="text-sm font-medium">Term {period.term}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="bg-gradient-to-r from-gray-500 to-gray-600 text-white rounded-lg shadow-lg p-6 mb-6">
+            <div className="flex items-center space-x-3">
+              <div className="bg-white bg-opacity-20 rounded-full p-2">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 0h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold">No Active Feedback Period</h3>
+                <p className="text-gray-200 text-sm">Feedback submission is currently closed. Please wait for the next feedback period.</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Info Card */}
         <div className="bg-white shadow-md rounded-lg p-6 mb-8 border-l-4 border-blue-500 flex items-start">
           <div className="mr-4 mt-1 text-blue-500">
@@ -219,8 +331,12 @@ export default function SubjectsPage() {
           <div>
             <h2 className="text-lg font-medium text-gray-800">Feedback Instructions</h2>
             <p className="text-gray-600 mt-1">
-              Click on a subject card below to provide your valuable feedback for the course and instructor.
-              Your responses will help us improve the quality of education.
+              {activeFeedbackPeriods.length > 0
+                ? `Feedback collection is now active! You can submit ${
+                    activeFeedbackPeriods.map(p => p.feedbackType).join(' and ')
+                  } feedback. Click on a subject card below to provide your valuable feedback with custom questions created by your admin.`
+                : 'Feedback submission is currently closed. Please wait for the admin to activate a feedback period.'
+              }
             </p>
           </div>
         </div>
@@ -304,18 +420,28 @@ export default function SubjectsPage() {
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
                               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                             </svg>
-                            Submitted
+                            Feedback Submitted
+                          </span>
+                        ) : activeFeedbackPeriods.length > 0 ? (
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm-7-8a1 1 0 011-1h3.586l-1.793-1.793a1 1 0 011.414-1.414l3.5 3.5a1 1 0 010 1.414l-3.5 3.5a1 1 0 01-1.414-1.414L6.586 11H4a1 1 0 01-1-1z" clipRule="evenodd" />
+                            </svg>
+                            {activeFeedbackPeriods.length === 1 
+                              ? `${activeFeedbackPeriods[0].feedbackType.charAt(0).toUpperCase() + activeFeedbackPeriods[0].feedbackType.slice(1)} Open`
+                              : 'Multiple Periods Open'
+                            }
                           </span>
                         ) : (
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                              <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
                             </svg>
-                            Pending
+                            Closed
                           </span>
                         )}
                         
-                        {/* Action Button */}
+                        {/* Action Button(s) */}
                         {subject.hasSubmittedFeedback ? (
                           <Link href={`/my-feedback?subjectId=${subject._id}`} className="text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors">
                             View Feedback
@@ -323,13 +449,32 @@ export default function SubjectsPage() {
                               <path fillRule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
                             </svg>
                           </Link>
+                        ) : activeFeedbackPeriods.length > 0 ? (
+                          <div className="flex flex-col space-y-2">
+                            {activeFeedbackPeriods.map((period) => (
+                              <Link 
+                                key={period._id}
+                                href={`/advanced-feedback?subjectId=${subject._id}&type=${period.feedbackType}`} 
+                                className={`inline-flex items-center px-3 py-1.5 text-white text-xs font-medium rounded-md transition-all duration-200 shadow-sm ${
+                                  period.feedbackType === 'midterm'
+                                    ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700'
+                                    : 'bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700'
+                                }`}
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                                {period.feedbackType.charAt(0).toUpperCase() + period.feedbackType.slice(1)} Feedback
+                              </Link>
+                            ))}
+                          </div>
                         ) : (
-                          <Link href={`/submit-feedback?subjectId=${subject._id}`} className="text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors">
-                            Give Feedback
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1 inline" viewBox="0 0 20 20" fill="currentColor">
-                              <path fillRule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                          <div className="inline-flex items-center px-4 py-2 bg-gray-200 text-gray-500 text-sm font-medium rounded-lg cursor-not-allowed">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 0h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                             </svg>
-                          </Link>
+                            Feedback Closed
+                          </div>
                         )}
                       </div>
                     </div>

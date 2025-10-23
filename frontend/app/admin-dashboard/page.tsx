@@ -28,7 +28,13 @@ interface RecentFeedback {
     instructor: string;
   };
   rating: number;
-  comments: string;
+  comments: string | {
+    teachingMethodComments?: string;
+    courseContentComments?: string;
+    additionalComments?: string;
+    suggestions?: string;
+    overallExperience?: string;
+  };
   createdAt?: string; // Make optional
 }
 
@@ -639,6 +645,19 @@ export default function Page() {
                       </div>
                     </Link>
                     
+                    <Link href="/admin-dashboard/feedback-periods" 
+                      className="w-full flex items-center p-4 rounded-lg hover:bg-blue-50 transition-all duration-300 border border-gray-100 group">
+                      <div className="bg-indigo-100 rounded-lg p-3 mr-4 group-hover:bg-indigo-200 transition-all duration-300">
+                        <svg className="h-6 w-6 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="text-base font-medium text-gray-900 group-hover:text-blue-700 transition-all duration-300">Feedback Periods</p>
+                        <p className="text-sm text-gray-500">Manage mid-term and end-term feedback periods</p>
+                      </div>
+                    </Link>
+                    
                     <Link href="/admin-dashboard/settings" 
                       className="w-full flex items-center p-4 rounded-lg hover:bg-blue-50 transition-all duration-300 border border-gray-100 group">
                       <div className="bg-gray-100 rounded-lg p-3 mr-4 group-hover:bg-gray-200 transition-all duration-300">
@@ -857,7 +876,42 @@ export default function Page() {
                           </div>
                           {feedback.comments ? (
                             <div className="mt-4 bg-blue-50 rounded-lg p-4 border-l-4 border-blue-500">
-                              <p className="text-sm text-gray-700">"{feedback.comments}"</p>
+                              {typeof feedback.comments === 'string' ? (
+                                <p className="text-sm text-gray-700">"{feedback.comments}"</p>
+                              ) : feedback.comments && typeof feedback.comments === 'object' ? (
+                                <div className="space-y-2">
+                                  {feedback.comments.teachingMethodComments && (
+                                    <div>
+                                      <span className="font-medium text-xs text-gray-600">Teaching Method: </span>
+                                      <span className="text-sm text-gray-700">"{feedback.comments.teachingMethodComments}"</span>
+                                    </div>
+                                  )}
+                                  {feedback.comments.courseContentComments && (
+                                    <div>
+                                      <span className="font-medium text-xs text-gray-600">Course Content: </span>
+                                      <span className="text-sm text-gray-700">"{feedback.comments.courseContentComments}"</span>
+                                    </div>
+                                  )}
+                                  {feedback.comments.additionalComments && (
+                                    <div>
+                                      <span className="font-medium text-xs text-gray-600">Additional Comments: </span>
+                                      <span className="text-sm text-gray-700">"{feedback.comments.additionalComments}"</span>
+                                    </div>
+                                  )}
+                                  {feedback.comments.suggestions && (
+                                    <div>
+                                      <span className="font-medium text-xs text-gray-600">Suggestions: </span>
+                                      <span className="text-sm text-gray-700">"{feedback.comments.suggestions}"</span>
+                                    </div>
+                                  )}
+                                  {feedback.comments.overallExperience && (
+                                    <div>
+                                      <span className="font-medium text-xs text-gray-600">Overall Experience: </span>
+                                      <span className="text-sm text-gray-700">"{feedback.comments.overallExperience}"</span>
+                                    </div>
+                                  )}
+                                </div>
+                              ) : null}
                             </div>
                           ) : null}
                         </li>

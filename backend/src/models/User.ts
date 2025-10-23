@@ -72,6 +72,9 @@ const UserSchema = new Schema({
   branch: {
     type: String,
     enum: [
+      'CSE',
+      'AIML', 
+      'DS',
       'Computer Science', 
       'Electronics', 
       'Mechanical', 

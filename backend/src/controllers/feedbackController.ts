@@ -44,42 +44,58 @@ import Feedback from '../models/Feedback';
 
 
 export const submitFeedback = async (req: Request, res: Response): Promise<void> => {
-  const { student, subject, answers } = req.body;
+  const { student, subject, answers, feedbackType, term, academicYear, comments } = req.body;
 
-  if (!student || !subject || !Array.isArray(answers) || answers.length < 10) {
-    res.status(400).json({ message: 'All fields including 10 questions are required' });
+  if (!student || !subject || !Array.isArray(answers) || answers.length < 5) {
+    res.status(400).json({ message: 'All fields including minimum 5 questions are required' });
+    return;
+  }
+
+  if (!feedbackType || !['midterm', 'endterm'].includes(feedbackType)) {
+    res.status(400).json({ message: 'Valid feedbackType (midterm or endterm) is required' });
     return;
   }
   
   try {
-    // Check if a feedback already exists for this student and subject
-    const existingFeedback = await Feedback.findOne({ student, subject });
+    // Check if a feedback already exists for this student, subject, and feedback type
+    const existingFeedback = await Feedback.findOne({ 
+      student, 
+      subject, 
+      feedbackType,
+      term: term || 1
+    });
     
     if (existingFeedback) {
       res.status(409).json({ 
-        message: 'You have already submitted feedback for this subject',
+        message: `You have already submitted ${feedbackType} feedback for this subject`,
         existingFeedback
       });
       return;
     }
     
-    // Calculate average rating
-    const totalRating = answers.reduce((sum, ans) => sum + ans.answer, 0);
-    const averageRating = answers.length > 0 ? totalRating / answers.length : 0;
+    // Calculate average rating from rating-type questions only
+    const ratingAnswers = answers.filter((ans: any) => ans.type === 'rating' && ans.answer > 0);
+    const totalRating = ratingAnswers.reduce((sum: number, ans: any) => sum + ans.answer, 0);
+    const averageRating = ratingAnswers.length > 0 ? totalRating / ratingAnswers.length : 0;
     
-    // Create new feedback with average rating
+    // Create new feedback with enhanced structure
     const newFeedback = await Feedback.create({ 
       student, 
       subject, 
+      feedbackType,
+      term: term || 1,
+      academicYear: academicYear || '2024-25',
       answers,
+      comments: comments || {},
       averageRating: parseFloat(averageRating.toFixed(1))
     });
     
+    console.log(`✅ ${feedbackType} feedback submitted successfully for subject: ${subject}`);
     res.status(201).json(newFeedback);
   } catch (err: any) {
     // Handle duplicate key error from MongoDB (fallback if check above fails)
     if (err.code === 11000) {
-      res.status(409).json({ message: 'You have already submitted feedback for this subject' });
+      res.status(409).json({ message: `You have already submitted ${feedbackType} feedback for this subject` });
       return;
     }
     

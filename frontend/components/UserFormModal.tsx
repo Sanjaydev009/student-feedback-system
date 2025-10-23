@@ -12,6 +12,8 @@ interface UserFormData {
   department?: string;
   branch?: string;
   year?: number;
+  section?: string;
+  term?: number;
   passwordResetRequired?: boolean;
 }
 
@@ -33,7 +35,9 @@ export default function UserFormModal({ user, isOpen, onClose, onSubmit, isLoadi
     rollNumber: '',
     department: '',
     branch: '',
-    year: 1
+    year: 1,
+    section: '',
+    term: 1
   });
 
   // Department-Branch-Year hierarchy configuration
@@ -92,6 +96,8 @@ export default function UserFormModal({ user, isOpen, onClose, onSubmit, isLoadi
         department: user.department || '',
         branch: user.branch || '',
         year: user.year || 1,
+        section: user.section || '',
+        term: user.term || 1,
         passwordResetRequired: user.passwordResetRequired
       });
     } else {
@@ -102,7 +108,9 @@ export default function UserFormModal({ user, isOpen, onClose, onSubmit, isLoadi
         rollNumber: '',
         department: '',
         branch: '',
-        year: 1
+        year: 1,
+        section: '',
+        term: 1
       });
     }
   }, [user]);
@@ -110,7 +118,7 @@ export default function UserFormModal({ user, isOpen, onClose, onSubmit, isLoadi
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     
-    if (name === 'year') {
+    if (name === 'year' || name === 'term') {
       setFormData((prev: UserFormData) => ({ ...prev, [name]: value ? parseInt(value) : undefined }));
     } else if (name === 'department') {
       // Reset branch and year when department changes
@@ -118,14 +126,18 @@ export default function UserFormModal({ user, isOpen, onClose, onSubmit, isLoadi
         ...prev, 
         department: value,
         branch: '',
-        year: undefined
+        year: undefined,
+        section: '',
+        term: undefined
       }));
     } else if (name === 'branch') {
       // Reset year when branch changes
       setFormData((prev: UserFormData) => ({ 
         ...prev, 
         branch: value,
-        year: undefined
+        year: undefined,
+        section: '',
+        term: undefined
       }));
     } else {
       setFormData((prev: UserFormData) => ({ ...prev, [name]: value }));
@@ -217,6 +229,47 @@ export default function UserFormModal({ user, isOpen, onClose, onSubmit, isLoadi
                   ))}
                 </select>
               </div>
+            )}
+
+            {formData.year && (
+              <>
+                <div className="mb-4">
+                  <label htmlFor="section" className="block text-sm font-medium text-gray-700 mb-1">
+                    Section
+                  </label>
+                  <select
+                    id="section"
+                    name="section"
+                    value={formData.section || ''}
+                    onChange={handleChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select Section</option>
+                    <option value="A">Section A</option>
+                    <option value="B">Section B</option>
+                    <option value="C">Section C</option>
+                    <option value="D">Section D</option>
+                  </select>
+                </div>
+
+                <div className="mb-4">
+                  <label htmlFor="term" className="block text-sm font-medium text-gray-700 mb-1">
+                    Semester/Term
+                  </label>
+                  <select
+                    id="term"
+                    name="term"
+                    value={formData.term?.toString() || ''}
+                    onChange={handleChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select Term</option>
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map(term => (
+                      <option key={term} value={term}>Semester {term}</option>
+                    ))}
+                  </select>
+                </div>
+              </>
             )}
           </>
         );

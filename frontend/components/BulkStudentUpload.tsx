@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { parse } from 'papaparse';
 import api from '@/utils/api';
 
 interface StudentData {
@@ -24,7 +23,73 @@ export default function BulkStudentUpload({ onUploadComplete }: { onUploadComple
     failures: { email: string; reason: string }[];
   } | null>(null);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Template data with updated branches including CSE, AIML, DS
+  const generateTemplateData = () => {
+    const sampleData = [
+      {
+        name: 'John Doe',
+        email: 'john.doe@student.edu',
+        rollNumber: 'CSE21001',
+        branch: 'CSE',
+        year: 2
+      },
+      {
+        name: 'Jane Smith',
+        email: 'jane.smith@student.edu',
+        rollNumber: 'AIML21002',
+        branch: 'AIML',
+        year: 2
+      },
+      {
+        name: 'Mike Johnson',
+        email: 'mike.johnson@student.edu',
+        rollNumber: 'DS21003',
+        branch: 'DS',
+        year: 3
+      },
+      {
+        name: 'Sarah Wilson',
+        email: 'sarah.wilson@student.edu',
+        rollNumber: 'CS21004',
+        branch: 'Computer Science',
+        year: 1
+      },
+      {
+        name: 'David Brown',
+        email: 'david.brown@student.edu',
+        rollNumber: 'IT21005',
+        branch: 'Information Technology',
+        year: 4
+      }
+    ];
+    return sampleData;
+  };
+
+  const downloadTemplate = () => {
+    const sampleData = generateTemplateData();
+    
+    // Create CSV content
+    const headers = ['name', 'email', 'rollNumber', 'branch', 'year'];
+    const csvContent = [
+      headers.join(','),
+      ...sampleData.map(row => 
+        headers.map(header => `"${row[header as keyof typeof row]}"`).join(',')
+      )
+    ].join('\n');
+    
+    // Create and download file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'student_upload_template.csv');
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (!selectedFile) return;
     
@@ -34,43 +99,50 @@ export default function BulkStudentUpload({ onUploadComplete }: { onUploadComple
     
     // Parse CSV for preview
     if (selectedFile.type === 'text/csv' || selectedFile.name.endsWith('.csv')) {
-      parse(selectedFile, {
-        header: true,
-        complete: (results) => {
-          try {
-            const allData = results.data as any[];
-            
-            // Filter out empty rows for validation and preview
-            const data = allData.filter(row => {
-              // Check if the row has any meaningful data
-              const hasAnyData = row.name || row.email || row.rollNumber || row.branch || row.year;
-              return hasAnyData;
-            });
-            
-            // Validate required columns
-            const requiredColumns = ['name', 'email', 'rollNumber', 'branch', 'year'];
-            const headers = Object.keys(data[0] || {});
-            const missingColumns = requiredColumns.filter(col => !headers.includes(col));
-            
-            if (missingColumns.length > 0) {
-              setError(`CSV file is missing required columns: ${missingColumns.join(', ')}`);
-              return;
+      try {
+        // Dynamic import to avoid SSR issues
+        const { parse } = await import('papaparse');
+        
+        parse(selectedFile, {
+          header: true,
+          complete: (results: any) => {
+            try {
+              const allData = results.data as any[];
+              
+              // Filter out empty rows for validation and preview
+              const data = allData.filter(row => {
+                // Check if the row has any meaningful data
+                const hasAnyData = row.name || row.email || row.rollNumber || row.branch || row.year;
+                return hasAnyData;
+              });
+              
+              // Validate required columns
+              const requiredColumns = ['name', 'email', 'rollNumber', 'branch', 'year'];
+              const headers = Object.keys(data[0] || {});
+              const missingColumns = requiredColumns.filter(col => !headers.includes(col));
+              
+              if (missingColumns.length > 0) {
+                setError(`CSV file is missing required columns: ${missingColumns.join(', ')}`);
+                return;
+              }
+              
+              if (data.length === 0) {
+                setError('CSV file appears to be empty or contains no valid data rows');
+                return;
+              }
+              
+              setPreview(data.slice(0, 5) as StudentData[]);
+            } catch (err) {
+              setError('Invalid CSV format. Please check your file.');
             }
-            
-            if (data.length === 0) {
-              setError('CSV file appears to be empty or contains no valid data rows');
-              return;
-            }
-            
-            setPreview(data.slice(0, 5) as StudentData[]);
-          } catch (err) {
-            setError('Invalid CSV format. Please check your file.');
+          },
+          error: (error: any) => {
+            setError(`Failed to parse CSV: ${error.message}`);
           }
-        },
-        error: (error) => {
-          setError(`Failed to parse CSV: ${error.message}`);
-        }
-      });
+        });
+      } catch (error) {
+        setError('Failed to load CSV parser. Please try again.');
+      }
     } else {
       setError('Please upload a valid CSV file');
     }
@@ -86,12 +158,15 @@ export default function BulkStudentUpload({ onUploadComplete }: { onUploadComple
     setError('');
     
     try {
+      // Dynamic import to avoid SSR issues
+      const { parse } = await import('papaparse');
+      
       // Parse CSV data
       const parseResult = await new Promise<any>((resolve, reject) => {
         parse(file, {
           header: true,
-          complete: (results) => resolve(results.data),
-          error: (error) => reject(new Error(`Failed to parse CSV: ${error.message}`))
+          complete: (results: any) => resolve(results.data),
+          error: (error: any) => reject(new Error(`Failed to parse CSV: ${error.message}`))
         });
       });
       
@@ -190,9 +265,48 @@ export default function BulkStudentUpload({ onUploadComplete }: { onUploadComple
       <h2 className="text-xl font-semibold mb-4">Bulk Student Upload</h2>
       
       <div className="mb-6">
-        <p className="text-gray-700 mb-2">Upload a CSV file with the following columns:</p>
-        <div className="bg-gray-50 p-3 rounded-md border border-gray-200">
-          <code>name, email, rollNumber, branch, year</code>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
+          <div>
+            <p className="text-gray-700 mb-2">Upload a CSV file with the following columns:</p>
+            <div className="bg-gray-50 p-3 rounded-md border border-gray-200">
+              <code>name, email, rollNumber, branch, year</code>
+            </div>
+          </div>
+          <button
+            onClick={downloadTemplate}
+            className="mt-4 sm:mt-0 flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+          >
+            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+            </svg>
+            Download Template
+          </button>
+        </div>
+        
+        <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+          <h3 className="font-medium text-blue-900 mb-2">Supported Branches:</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-sm text-blue-800">
+            <span className="bg-red-100 px-2 py-1 rounded text-red-800">CSE</span>
+            <span className="bg-red-100 px-2 py-1 rounded text-red-800">AIML</span>
+            <span className="bg-red-100 px-2 py-1 rounded text-red-800">DS</span>
+            <span className="bg-blue-100 px-2 py-1 rounded">Computer Science</span>
+            <span className="bg-blue-100 px-2 py-1 rounded">Electronics</span>
+            <span className="bg-blue-100 px-2 py-1 rounded">Mechanical</span>
+            <span className="bg-blue-100 px-2 py-1 rounded">Civil</span>
+            <span className="bg-blue-100 px-2 py-1 rounded">Information Technology</span>
+            <span className="bg-blue-100 px-2 py-1 rounded">Electrical</span>
+            <span className="bg-blue-100 px-2 py-1 rounded">Chemical</span>
+            <span className="bg-blue-100 px-2 py-1 rounded">Aerospace</span>
+            <span className="bg-blue-100 px-2 py-1 rounded">Biotechnology</span>
+            <span className="bg-green-100 px-2 py-1 rounded text-green-800">MCA Regular</span>
+            <span className="bg-green-100 px-2 py-1 rounded text-green-800">MCA DS</span>
+            <span className="bg-purple-100 px-2 py-1 rounded text-purple-800">MBA Finance</span>
+            <span className="bg-purple-100 px-2 py-1 rounded text-purple-800">MBA Marketing</span>
+            <span className="bg-purple-100 px-2 py-1 rounded text-purple-800">MBA HR</span>
+          </div>
+          <p className="text-sm text-blue-700 mt-2">
+            <strong>Tip:</strong> Download the template above to get started with sample data and proper formatting. <span className="text-red-700 font-medium">New branches: CSE, AIML, DS</span>
+          </p>
         </div>
       </div>
       

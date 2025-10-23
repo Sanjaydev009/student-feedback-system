@@ -41,12 +41,12 @@ export default function BulkUploadPage() {
         <div className="space-y-3 text-gray-700">
           <p>Follow these steps to upload students in bulk:</p>
           <ol className="list-decimal pl-5 space-y-2">
-            <li>Prepare a CSV file with the following columns: <code className="bg-gray-100 px-1 py-0.5 rounded">name</code>, <code className="bg-gray-100 px-1 py-0.5 rounded">email</code>, <code className="bg-gray-100 px-1 py-0.5 rounded">rollNumber</code>, <code className="bg-gray-100 px-1 py-0.5 rounded">branch</code>, <code className="bg-gray-100 px-1 py-0.5 rounded">year</code>.</li>
-            <li>Ensure all required fields are completed for each student.</li>
-            <li>Upload the CSV file using the form above.</li>
-            <li>Review any errors that may occur during the upload process.</li>
-            <li>Successfully uploaded students will receive their default password automatically.</li>
-            <li>Students will be required to change their password on first login.</li>
+            <li><strong>Download the template:</strong> Click the "Download Template" button above to get a CSV file with the correct format and sample data.</li>
+            <li><strong>Fill in student data:</strong> Replace the sample data with actual student information. Required columns are: <code className="bg-gray-100 px-1 py-0.5 rounded">name</code>, <code className="bg-gray-100 px-1 py-0.5 rounded">email</code>, <code className="bg-gray-100 px-1 py-0.5 rounded">rollNumber</code>, <code className="bg-gray-100 px-1 py-0.5 rounded">branch</code>, <code className="bg-gray-100 px-1 py-0.5 rounded">year</code>.</li>
+            <li><strong>Validate data:</strong> Ensure all required fields are completed and email addresses are valid.</li>
+            <li><strong>Upload the file:</strong> Use the upload form above to process your CSV file.</li>
+            <li><strong>Review results:</strong> Check for any errors and successfully uploaded students.</li>
+            <li><strong>Student access:</strong> Students will receive their login credentials via email automatically.</li>
           </ol>
           <div className="mt-4 p-4 bg-blue-50 rounded-md">
             <p className="flex items-center text-blue-700 mb-2">
@@ -62,6 +62,34 @@ export default function BulkUploadPage() {
               </svg>
               Login credentials will be automatically sent to each student's email address.
             </p>
+          </div>
+          <div className="mt-4 p-4 bg-green-50 rounded-md">
+            <h4 className="font-medium text-green-800 mb-2">Supported Branches:</h4>
+            <div className="text-sm text-green-700 grid grid-cols-1 sm:grid-cols-2 gap-1">
+              <div>
+                <h5 className="font-medium mb-1">Engineering & Technology:</h5>
+                <span>• CSE (Computer Science & Engineering)</span><br/>
+                <span>• AIML (Artificial Intelligence & Machine Learning)</span><br/>
+                <span>• DS (Data Science)</span><br/>
+                <span>• Computer Science</span><br/>
+                <span>• Electronics</span><br/>
+                <span>• Mechanical</span><br/>
+                <span>• Civil</span><br/>
+                <span>• Information Technology</span><br/>
+                <span>• Electrical</span><br/>
+                <span>• Chemical</span><br/>
+                <span>• Aerospace</span><br/>
+                <span>• Biotechnology</span>
+              </div>
+              <div>
+                <h5 className="font-medium mb-1">Other Programs:</h5>
+                <span>• MCA Regular</span><br/>
+                <span>• MCA DS</span><br/>
+                <span>• MBA Finance</span><br/>
+                <span>• MBA Marketing</span><br/>
+                <span>• MBA HR</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
