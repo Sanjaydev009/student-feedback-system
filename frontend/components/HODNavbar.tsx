@@ -91,7 +91,7 @@ export default function HODNavbar({ onMenuClick }: HODNavbarProps) {
                 animate={{ opacity: 1, y: 0 }}
                 className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50"
               >
-                <Link href="/hod-dashboard/profile" className="block px-4 py-2 text-gray-800 hover:bg-indigo-50">Profile</Link>
+                {/* <Link href="/hod-dashboard/profile" className="block px-4 py-2 text-gray-800 hover:bg-indigo-50">Profile</Link> */}
                 <Link href="/update-password" className="block px-4 py-2 text-gray-800 hover:bg-indigo-50">Change Password</Link>
                 <div className="border-t border-gray-100 my-1"></div>
                 <button 

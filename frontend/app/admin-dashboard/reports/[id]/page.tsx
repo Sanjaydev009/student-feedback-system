@@ -27,26 +27,40 @@ interface FeedbackSummary {
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
-export default function SubjectReportPage({ params }: { params: { id: string } }) {
+interface PageProps {
+  params: Promise<{ id: string }>;
+}
+
+export default function SubjectReportPage({ params }: PageProps) {
   const router = useRouter();
   const [summary, setSummary] = useState<FeedbackSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [isClient, setIsClient] = useState(false);
+  const [subjectId, setSubjectId] = useState<string>('');
 
   // Set isClient to true on mount
   useEffect(() => {
     setIsClient(true);
   }, []);
 
+  // Resolve params
+  useEffect(() => {
+    const resolveParams = async () => {
+      const resolvedParams = await params;
+      setSubjectId(resolvedParams.id);
+    };
+    resolveParams();
+  }, [params]);
+
   // Fetch subject feedback summary
   useEffect(() => {
-    if (!isClient) return;
+    if (!isClient || !subjectId) return;
     
     const fetchSummary = async () => {
       setLoading(true);
       try {
-        const response = await api.get(`/api/feedback/summary/${params.id}`);
+        const response = await api.get(`/api/feedback/summary/${subjectId}`);
         setSummary(response.data);
         setError('');
       } catch (err: any) {
@@ -57,10 +71,10 @@ export default function SubjectReportPage({ params }: { params: { id: string } }
       }
     };
 
-    if (params.id) {
+    if (subjectId) {
       fetchSummary();
     }
-  }, [isClient, params.id]);
+  }, [isClient, subjectId]);
 
   const renderStarRating = (rating: number) => {
     return (

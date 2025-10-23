@@ -32,6 +32,7 @@ router.get('/reports', protect, isAdmin, getReports);
 router.get('/summary/:subjectId', protect, isAdmin, getFeedbackSummary);
 
 // Student feedback routes
+router.get('/my-submissions', protect, getMyFeedback); // Get current user's feedback submissions
 router.get('/student/me', protect, getMyFeedback); // Get current user's feedback
 router.get('/student/:id', protect, getStudentFeedback); // Get specific student's feedback (admin/hod can access others)
 

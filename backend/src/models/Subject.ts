@@ -4,7 +4,16 @@ const SubjectSchema = new Schema({
   name: String,
   code: String,
   instructor: String,
-  department: String,
+  department: {
+    type: String,
+    enum: [
+      'Computer Science & Engineering',
+      'Data Science',
+      'Artificial Intelligence & Machine Learning',
+      'Master of Computer Applications'
+    ],
+    required: true
+  },
   year: {
     type: Number,
     enum: [1, 2, 3, 4],
@@ -28,7 +37,10 @@ const SubjectSchema = new Schema({
       'Aerospace',
       'Biotechnology',
       'MCA Regular', 
-      'MCA DS'
+      'MCA DS',
+      'CSE',
+      'DS', 
+      'AIML'
     ],
     default: ['Computer Science']
   },

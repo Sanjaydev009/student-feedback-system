@@ -18,12 +18,14 @@ interface Subject {
 
 export default function SubmitFeedbackPage() {
   const router = useRouter();
+  const { showSuccess, showError, showWarning } = useToast();
   const [subject, setSubject] = useState<Subject | null>(null);
   const [answers, setAnswers] = useState<number[]>(Array(10).fill(0));
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [studentId, setStudentId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   // Step 1: Check authentication and get user info
   useEffect(() => {
@@ -37,7 +39,7 @@ export default function SubmitFeedbackPage() {
       const decoded = decodeToken(token!);
       
       if (decoded.role !== 'student') {
-        alert('Only students can give feedback');
+        showError('Only students can give feedback');
         
         // Redirect to appropriate dashboard based on role
         if (decoded.role === 'admin') {
@@ -121,20 +123,22 @@ export default function SubmitFeedbackPage() {
 
   const handleSubmit = async () => {
     if (answers.some(a => a === 0)) {
-      alert('Please answer all questions');
+      showWarning('Please answer all questions');
       return;
     }
 
     if (!subject) {
-      alert('Subject information missing');
+      showError('Subject information missing');
       return;
     }
     
     if (submitted) {
-      alert('You have already submitted feedback for this subject');
+      showWarning('You have already submitted feedback for this subject');
       router.push('/subjects');
       return;
     }
+
+    setSubmitting(true);
 
     try {
       const response = await api.post('/api/feedback', {
@@ -147,13 +151,13 @@ export default function SubmitFeedbackPage() {
       });
 
       // Show success message
-      alert('✅ Feedback submitted successfully!');
+      showSuccess('Feedback submitted successfully!');
       
       // Set submitted state to true to update UI
       setSubmitted(true);
       
-      // Redirect to my-feedback page
-      setTimeout(() => router.push('/my-feedback'), 1000);
+      // Redirect to student dashboard
+      setTimeout(() => router.push('/subjects'), 1500);
       
     } catch (err: any) {
       console.error('Failed to submit feedback:', err);
@@ -161,14 +165,16 @@ export default function SubmitFeedbackPage() {
       // Handle specific error cases
       if (err.response?.status === 409) {
         // Conflict - already submitted
-        alert('You have already submitted feedback for this subject');
+        showWarning('You have already submitted feedback for this subject');
         setSubmitted(true);
-        setTimeout(() => router.push('/subjects'), 1000);
+        setTimeout(() => router.push('/subjects'), 1500);
       } else if (err.response?.data?.message) {
-        alert(`Error: ${err.response.data.message}`);
+        showError(`Error: ${err.response.data.message}`);
       } else {
-        alert('Failed to submit feedback. Please try again.');
+        showError('Failed to submit feedback. Please try again.');
       }
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -185,12 +191,28 @@ export default function SubmitFeedbackPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="bg-white p-8 rounded-lg shadow-md text-center max-w-md">
-          <div className="text-red-500 text-5xl mb-4">⚠️</div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Error</h2>
-          <p className="text-gray-600 mb-4">{error}</p>
-          <p className="text-gray-500 italic">Redirecting to subjects page...</p>
+      <div className="min-h-screen bg-gray-50">
+        <StudentNavbar />
+        <div className="flex items-center justify-center pt-20">
+          <div className="bg-white p-8 rounded-lg shadow-md text-center max-w-md">
+            <div className="text-red-500 text-5xl mb-4">⚠️</div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">Error</h2>
+            <p className="text-gray-600 mb-6">{error}</p>
+            <div className="flex gap-4 justify-center">
+              <button 
+                onClick={() => router.push('/subjects')}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+              >
+                Back to Dashboard
+              </button>
+              <button 
+                onClick={() => router.push('/subjects')}
+                className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
+              >
+                View Subjects
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -198,15 +220,26 @@ export default function SubmitFeedbackPage() {
 
   if (!subject) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="bg-white p-8 rounded-lg shadow-md text-center">
-          <h2 className="text-xl font-medium text-gray-800 mb-2">Subject not found</h2>
-          <button 
-            onClick={() => router.push('/subjects')}
-            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-            Back to Subjects
-          </button>
+      <div className="min-h-screen bg-gray-50">
+        <StudentNavbar />
+        <div className="flex items-center justify-center pt-20">
+          <div className="bg-white p-8 rounded-lg shadow-md text-center">
+            <h2 className="text-xl font-medium text-gray-800 mb-4">Subject not found</h2>
+            <div className="flex gap-4 justify-center">
+              <button 
+                onClick={() => router.push('/subjects')}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+              >
+                Back to Dashboard
+              </button>
+              <button 
+                onClick={() => router.push('/subjects')}
+                className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
+              >
+                Browse Subjects
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -217,6 +250,30 @@ export default function SubmitFeedbackPage() {
       <StudentNavbar />
 
       <div className="container mx-auto py-8 px-4 md:px-6">
+        {/* Navigation buttons */}
+        <div className="max-w-3xl mx-auto mb-6">
+          <div className="flex gap-4">
+            <button
+              onClick={() => router.push('/subjects')}
+              className="flex items-center px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-md transition-colors duration-200"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              Back to Dashboard
+            </button>
+            <button
+              onClick={() => router.push('/my-feedback')}
+              className="flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors duration-200"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+              My Feedback
+            </button>
+          </div>
+        </div>
+        
         {/* Subject Card */}
         <div className="max-w-3xl mx-auto">
           <div className="bg-white rounded-lg shadow-card overflow-hidden">
@@ -245,12 +302,20 @@ export default function SubmitFeedbackPage() {
                 </div>
                 <h2 className="text-2xl font-semibold text-gray-800 mb-2">Feedback Already Submitted</h2>
                 <p className="text-gray-600 mb-6">You have already provided feedback for this subject.</p>
-                <button 
-                  onClick={() => router.push('/my-feedback')}
-                  className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-medium"
-                >
-                  View My Feedback
-                </button>
+                <div className="flex gap-4 justify-center">
+                  <button 
+                    onClick={() => router.push('/subjects')}
+                    className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                  >
+                    Back to Dashboard
+                  </button>
+                  <button 
+                    onClick={() => router.push('/my-feedback')}
+                    className="px-6 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
+                  >
+                    View My Feedback
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="p-8">
@@ -288,9 +353,21 @@ export default function SubmitFeedbackPage() {
                     </div>
                   )}                          <button
                     onClick={handleSubmit}
-                    className="w-full py-3 px-4 mt-8 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium shadow-sm transition-colors duration-200 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                    disabled={submitting}
+                    className={`w-full py-3 px-4 mt-8 text-white rounded-md font-medium shadow-sm transition-colors duration-200 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                      submitting 
+                        ? 'bg-gray-400 cursor-not-allowed' 
+                        : 'bg-blue-600 hover:bg-blue-700'
+                    }`}
                   >
-                    Submit Feedback
+                    {submitting ? (
+                      <div className="flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                        Submitting...
+                      </div>
+                    ) : (
+                      'Submit Feedback'
+                    )}
                   </button>
                 </div>
               </div>

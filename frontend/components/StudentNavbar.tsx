@@ -69,7 +69,8 @@ export default function StudentNavbar() {
           
           {/* Desktop Menu */}
           <div className="hidden md:flex items-center space-x-8">
-            <Link href="/subjects" className="nav-link font-medium">Subjects</Link>
+            <Link href="/subjects" className="nav-link font-medium">Dashboard</Link>
+            <Link href="/subjects" className="nav-link font-medium">All Subjects</Link>
             <Link href="/my-feedback" className="nav-link font-medium">My Feedback</Link>
             <div className="flex items-center ml-6">
               <span className="mr-4 text-sm opacity-90">{studentName}</span>
@@ -113,7 +114,14 @@ export default function StudentNavbar() {
                 className="py-2 px-1 hover:bg-blue-700 rounded transition-colors duration-200"
                 onClick={() => setIsMenuOpen(false)}
               >
-                Subjects
+                Dashboard
+              </Link>
+              <Link 
+                href="/subjects" 
+                className="py-2 px-1 hover:bg-blue-700 rounded transition-colors duration-200"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                All Subjects
               </Link>
               <Link 
                 href="/my-feedback" 

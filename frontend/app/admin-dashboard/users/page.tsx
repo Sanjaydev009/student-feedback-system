@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import api from '@/utils/api';
 import UserFormModal from '@/components/UserFormModal';
 import { motion } from 'framer-motion';
@@ -11,6 +12,7 @@ interface UserFormData {
   email: string;
   role: 'student' | 'faculty' | 'hod' | 'dean' | 'admin';
   rollNumber?: string;
+  department?: string;
   branch?: string;
   year?: number;
   section?: string;
@@ -22,12 +24,14 @@ interface User extends UserFormData {
   _id: string;
   passwordResetRequired: boolean;
   createdAt: string;
+  department?: string;
   year?: number;
   section?: string;
   term?: number;
 }
 
 export default function UserManagement() {
+  const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [formLoading, setFormLoading] = useState(false);
@@ -121,6 +125,8 @@ export default function UserManagement() {
   };
 
   const filteredUsers = users.filter(user => {
+    if (!user || !user.name || !user.email) return false;
+    
     const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (user.rollNumber && user.rollNumber.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -169,7 +175,7 @@ export default function UserManagement() {
               Add User
             </motion.button>
             <motion.button 
-              onClick={() => window.location.href = '/admin-dashboard/users/bulk-upload'}
+              onClick={() => router.push('/admin-dashboard/users/bulk-upload')}
               className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
@@ -268,18 +274,22 @@ export default function UserManagement() {
                 <tr key={user._id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
-                      <div className="text-sm font-medium text-gray-900">{user.name}</div>
-                      <div className="text-sm text-gray-500">{user.email}</div>
+                      <div className="text-sm font-medium text-gray-900">{user.name || 'N/A'}</div>
+                      <div className="text-sm text-gray-500">{user.email || 'N/A'}</div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getRoleBadgeColor(user.role)}`}>
-                      {user.role.toUpperCase()}
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getRoleBadgeColor(user.role || 'student')}`}>
+                      {(user.role || 'student').toUpperCase()}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {user.rollNumber && <div>Roll: {user.rollNumber}</div>}
+                    {user.department && <div>Dept: {user.department}</div>}
                     {user.branch && <div>Branch: {user.branch}</div>}
+                    {user.year && <div>Year: {user.year}</div>}
+                    {user.section && <div>Section: {user.section}</div>}
+                    {user.term && <div>Sem: {user.term}</div>}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {user.passwordResetRequired ? (
@@ -293,7 +303,7 @@ export default function UserManagement() {
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(user.createdAt).toLocaleDateString()}
+                    {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex items-center justify-end space-x-2">

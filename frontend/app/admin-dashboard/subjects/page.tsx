@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import AdminNavbar from '@/components/AdminNavbar';
 
 interface Subject {
@@ -74,10 +73,38 @@ export default function AdminSubjectsPage() {
     ]
   };
 
+  // Apply auto-generated questions
+  const applyAutoQuestions = () => {
+    if (autoQuestionsEnabled) {
+      let questionsToUse;
+      
+      if (selectedTemplate === 'mixed') {
+        // Create a mixed set of questions from all templates
+        const allTemplates = Object.values(questionTemplates).flat();
+        const shuffled = [...allTemplates].sort(() => 0.5 - Math.random());
+        questionsToUse = shuffled.slice(0, 10);
+      } else {
+        questionsToUse = questionTemplates[selectedTemplate as keyof typeof questionTemplates];
+      }
+      
+      // Customize questions with subject name if available
+      let customizedQuestions = [...questionsToUse];
+      if (form.name) {
+        customizedQuestions = customizedQuestions.map(q => {
+          return q.replace(/this subject|the course|this course/gi, form.name);
+        });
+      }
+      
+      setForm({
+        ...form,
+        questions: customizedQuestions
+      });
+    }
+  };
+
   // Check login status and decode role
   useEffect(() => {
     const storedToken = localStorage.getItem('token');
-
     if (!storedToken) {
       window.location.href = '/login';
       return;
@@ -90,7 +117,7 @@ export default function AdminSubjectsPage() {
         return;
       }
       setToken(storedToken);
-      fetchInitialData(storedToken);
+      fetchSubjects(storedToken);
     } catch (err: any) {
       alert('Invalid token. Please log in again.');
       localStorage.removeItem('token');
@@ -99,31 +126,15 @@ export default function AdminSubjectsPage() {
   }, []);
 
   // Load subjects
-  const fetchInitialData = async (token: string) => {
-    await fetchSubjects(token);
-  };
-
   const fetchSubjects = async (token: string) => {
     try {
       const res = await fetch('http://localhost:5001/api/subjects', {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
+        headers: { Authorization: `Bearer ${token}` }
       });
-
-      const contentType = res.headers.get('content-type');
-
-      if (!contentType?.includes('application/json')) {
-        throw new Error('Received HTML instead of JSON - likely not authenticated');
-      }
-
       const data = await res.json();
       setSubjects(data);
-    } catch (err: any) {
-      console.error('Fetch Subjects Error:', err.message);
-      alert(err.message || 'Failed to load subjects');
-      localStorage.removeItem('token');
-      window.location.href = '/login';
+    } catch (err) {
+      console.error('Failed to load subjects');
     } finally {
       setLoading(false);
     }
@@ -135,53 +146,17 @@ export default function AdminSubjectsPage() {
     setForm({ ...form, [name]: value });
   };
 
-  // Handle branch selection (multiple branches)
+  // Handle branch selection
   const handleBranchChange = (branch: string) => {
     const updatedBranches = form.branch.includes(branch) 
       ? form.branch.filter(b => b !== branch)
       : [...form.branch, branch];
     setForm({ ...form, branch: updatedBranches });
   };
-  
-  // Apply auto-generated questions
-  const applyAutoQuestions = () => {
-    if (autoQuestionsEnabled) {
-      let questionsToUse;
-      
-      if (selectedTemplate === 'mixed') {
-        // Create a mixed set of questions from all templates
-        const allTemplates = Object.values(questionTemplates).flat();
-        
-        // Shuffle array
-        const shuffled = [...allTemplates].sort(() => 0.5 - Math.random());
-        
-        // Get first 10 questions
-        questionsToUse = shuffled.slice(0, 10);
-      } else {
-        questionsToUse = questionTemplates[selectedTemplate as keyof typeof questionTemplates];
-      }
-      
-      // Customize questions with subject name if available
-      let customizedQuestions = [...questionsToUse];
-      if (form.name) {
-        customizedQuestions = customizedQuestions.map(q => {
-          // Replace generic terms with the actual subject name where appropriate
-          return q.replace(/this subject|the course|this course/gi, form.name);
-        });
-      }
-      
-      setForm({
-        ...form,
-        questions: customizedQuestions
-      });
-    }
-  };
 
-  // Submit new subject
+  // Add new subject
   const handleAddSubject = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    // Validate that at least one branch is selected
     if (!form.branch || form.branch.length === 0) {
       alert('Please select at least one branch');
       return;
@@ -190,12 +165,6 @@ export default function AdminSubjectsPage() {
     const hasEmpty = form.questions.some(q => q.trim() === '');
     if (hasEmpty) {
       alert('Please fill all 10 questions');
-      return;
-    }
-
-    if (!token) {
-      alert('Session expired. Please log in again.');
-      window.location.href = '/login';
       return;
     }
 
@@ -209,12 +178,6 @@ export default function AdminSubjectsPage() {
         body: JSON.stringify(form)
       });
 
-      const contentType = res.headers.get('content-type');
-
-      if (!contentType?.includes('application/json')) {
-        throw new Error('Received HTML instead of JSON during registration');
-      }
-
       const newSubject = await res.json();
       setSubjects([...subjects, newSubject]);
       setForm({
@@ -224,11 +187,11 @@ export default function AdminSubjectsPage() {
         department: '',
         year: '',
         term: '',
-        branch: ['MCA Regular'],
+        branch: [],
         questions: ['', '', '', '', '', '', '', '', '', '']
       });
     } catch (err: any) {
-      alert(err.message || 'Failed to add subject');
+      alert('Failed to add subject');
     }
   };
 
@@ -247,17 +210,16 @@ export default function AdminSubjectsPage() {
     });
   };
 
-  // Save edited subject
-  const handleUpdate = async () => {
+  // Update subject
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!editingSubject || !token) return;
 
-    // Validate that at least one branch is selected
     if (!form.branch || form.branch.length === 0) {
       alert('Please select at least one branch');
       return;
     }
 
-    // Validate questions
     const hasEmpty = form.questions.some(q => q.trim() === '');
     if (hasEmpty) {
       alert('Please fill all 10 questions');
@@ -275,10 +237,7 @@ export default function AdminSubjectsPage() {
       });
 
       const updatedSubject = await res.json();
-      const updatedList = subjects.map(s =>
-        s._id === updatedSubject._id ? updatedSubject : s
-      );
-      setSubjects(updatedList);
+      setSubjects(subjects.map(s => s._id === updatedSubject._id ? updatedSubject : s));
       setEditingSubject(null);
       setForm({
         name: '',
@@ -287,384 +246,408 @@ export default function AdminSubjectsPage() {
         department: '',
         year: '',
         term: '',
-        branch: ['MCA Regular'],
+        branch: [],
         questions: ['', '', '', '', '', '', '', '', '', '']
       });
     } catch (err: any) {
-      alert(err.message || 'Failed to update subject');
+      alert('Failed to update subject');
     }
   };
 
   // Delete subject
   const handleDelete = async (subjectId: string) => {
-    if (!confirm('Are you sure you want to delete this subject? This action cannot be undone.')) return;
+    if (!confirm('Are you sure you want to delete this subject?')) return;
     
-    if (!token) {
-      alert('Session expired. Please log in again.');
-      window.location.href = '/login';
-      return;
-    }
-
     try {
-      console.log('Attempting to delete subject with ID:', subjectId);
-      
-      // First try normal delete
-      let res = await fetch(`http://localhost:5001/api/subjects/${subjectId}`, {
+      await fetch(`http://localhost:5001/api/subjects/${subjectId}`, {
         method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+        headers: { Authorization: `Bearer ${token}` }
       });
       
-      let responseData;
-      
-      // Get JSON response if available
-      try {
-        const clonedRes = res.clone();
-        responseData = await clonedRes.json();
-      } catch (e) {
-        console.log('Response is not JSON:', e);
-      }
-      
-      // If it fails due to feedback entries, ask user if they want to force delete
-      if (res.status === 400 && responseData?.message && responseData.message.includes('feedback entries')) {
-        console.log('Feedback entries exist for this subject');
-        
-        const forceDelete = confirm(
-          'This subject has feedback entries associated with it. Do you want to delete it anyway? ' +
-          'This will also delete all associated feedback data.'
-        );
-        
-        if (forceDelete) {
-          console.log('Force deleting subject and its feedback...');
-          res = await fetch(`http://localhost:5001/api/subjects/${subjectId}?force=true`, {
-            method: 'DELETE',
-            headers: {
-              Authorization: `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            }
-          });
-          
-          // Get new response data
-          try {
-            responseData = await res.json();
-          } catch (e) {
-            console.log('Force delete response is not JSON');
-          }
-        } else {
-          throw new Error('Operation canceled by user');
-        }
-      }
-
-      console.log('Delete response status:', res.status);
-      console.log('Response data:', responseData);
-
-      // Check if the operation was successful
-      if (!res.ok) {
-        // Handle error with the parsed data if available
-        const errorMessage = responseData?.message || 'Failed to delete subject';
-        throw new Error(errorMessage);
-      }
-
-      console.log('Delete successful!');
-      
-      // Only update the UI if the server request was successful
-      const updatedList = subjects.filter(s => s._id !== subjectId);
-      setSubjects(updatedList);
+      setSubjects(subjects.filter(s => s._id !== subjectId));
       alert('Subject deleted successfully!');
-      
     } catch (err: any) {
-      console.error('Delete Subject Error:', err.message);
-      alert(err.message || 'Failed to delete subject. Please try again.');
+      alert('Failed to delete subject');
     }
   };
 
-  if (loading) return <p>Loading subjects...</p>;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 text-lg">Loading subjects...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-gray-50">
       <AdminNavbar />
+      <div className="container mx-auto px-6 py-8">
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold text-gray-900 mb-2">Subject Management</h1>
+          <p className="text-gray-600 text-lg">Manage subjects, departments, and feedback questions for your institution</p>
+        </div>
 
-      <div className="container mx-auto p-6">
-        <h1 className="text-3xl font-bold mb-8">Subject Management</h1>
-
-        {/* Add New Subject Form */}
-        <form onSubmit={handleAddSubject} className="bg-white shadow rounded p-6 mb-8">
-          <h2 className="text-xl font-semibold mb-4">
+        {/* Form and Table components will be added in next steps */}
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8 mb-8">
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">
             {editingSubject ? 'Edit Subject' : 'Add New Subject'}
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input
-              type="text"
-              name="name"
-              placeholder="Subject Name"
-              value={form.name}
-              onChange={handleChange}
-              required
-              className="w-full p-2 border rounded mt-1"
-            />
-            <input
-              type="text"
-              name="code"
-              placeholder="Subject Code (e.g., CS101)"
-              value={form.code}
-              onChange={handleChange}
-              required
-              className="w-full p-2 border rounded mt-1"
-            />
-            <input
-              type="text"
-              name="instructor"
-              placeholder="Instructor Name"
-              value={form.instructor}
-              onChange={handleChange}
-              required
-              className="w-full p-2 border rounded mt-1"
-            />
-            <input
-              type="text"
-              name="department"
-              placeholder="Department"
-              value={form.department}
-              onChange={handleChange}
-              required
-              className="w-full p-2 border rounded mt-1"
-            />
-            <select
-              name="year"
-              value={form.year}
-              onChange={handleChange}
-              required
-              className="w-full p-2 border rounded mt-1"
-            >
-              <option value="">Select Year</option>
-              <option value="1">1st Year</option>
-              <option value="2">2nd Year</option>
-              <option value="3">3rd Year</option>
-            </select>
-            <select
-              name="term"
-              value={form.term}
-              onChange={handleChange}
-              required
-              className="w-full p-2 border rounded mt-1"
-            >
-              <option value="">Select Term</option>
-              <option value="1">Term 1</option>
-              <option value="2">Term 2</option>
-              <option value="3">Term 3</option>
-              <option value="4">Term 4</option>
-            </select>
-            <div className="w-full p-2 border rounded mt-1">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Branches (Select applicable branches):</label>
-              <div className="space-y-2">
-                <label className="flex items-center">
+          
+          <form onSubmit={editingSubject ? handleUpdate : handleAddSubject} className="space-y-6">
+            {/* Basic Information */}
+            <div className="bg-gray-50 rounded-lg p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Basic Information</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">Subject Name</label>
                   <input
-                    type="checkbox"
-                    checked={form.branch.includes('MCA Regular')}
-                    onChange={() => handleBranchChange('MCA Regular')}
-                    className="mr-2"
+                    type="text"
+                    name="name"
+                    placeholder="Enter subject name"
+                    value={form.name}
+                    onChange={handleChange}
+                    required
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
-                  MCA Regular
-                </label>
-                <label className="flex items-center">
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">Subject Code</label>
                   <input
-                    type="checkbox"
-                    checked={form.branch.includes('MCA DS')}
-                    onChange={() => handleBranchChange('MCA DS')}
-                    className="mr-2"
+                    type="text"
+                    name="code"
+                    placeholder="e.g., CS101, MATH201"
+                    value={form.code}
+                    onChange={handleChange}
+                    required
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
-                  MCA DS (Data Science)
-                </label>
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">Instructor Name</label>
+                  <input
+                    type="text"
+                    name="instructor"
+                    placeholder="Enter instructor name"
+                    value={form.instructor}
+                    onChange={handleChange}
+                    required
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">Department</label>
+                  <select
+                    name="department"
+                    value={form.department}
+                    onChange={handleChange}
+                    required
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="">Select Department</option>
+                    <optgroup label="School of Engineering & Technology">
+                      <option value="Computer Science & Engineering">Computer Science & Engineering</option>
+                      <option value="Data Science">Data Science</option>
+                      <option value="Artificial Intelligence & Machine Learning">Artificial Intelligence & Machine Learning</option>
+                    </optgroup>
+                    <optgroup label="School of Computer Applications">
+                      <option value="Master of Computer Applications">Master of Computer Applications</option>
+                    </optgroup>
+                  </select>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="mt-4 mb-2 border-t pt-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-medium">Feedback Questions (10 Required)</h3>
-              <div className="flex items-center space-x-4">
-                <label className="flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={autoQuestionsEnabled}
-                    onChange={(e) => {
-                      setAutoQuestionsEnabled(e.target.checked);
-                      if (e.target.checked) {
-                        // Auto apply template when enabling
-                        setTimeout(() => applyAutoQuestions(), 100);
-                      }
-                    }}
-                    className="mr-2 h-4 w-4"
-                  />
-                  Auto-generate questions
-                </label>
+            {/* Academic Details */}
+            <div className="bg-gray-50 rounded-lg p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Academic Details</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">Academic Year</label>
+                  <select
+                    name="year"
+                    value={form.year}
+                    onChange={handleChange}
+                    required
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="">Select Year</option>
+                    <option value="1">1st Year</option>
+                    <option value="2">2nd Year</option>
+                    <option value="3">3rd Year</option>
+                    <option value="4">4th Year</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">Term</label>
+                  <select
+                    name="term"
+                    value={form.term}
+                    onChange={handleChange}
+                    required
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="">Select Term</option>
+                    <option value="1">Term 1</option>
+                    <option value="2">Term 2</option>
+                    <option value="3">Term 3</option>
+                    <option value="4">Term 4</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Branch Selection */}
+            <div className="bg-gray-50 rounded-lg p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Branch Selection</h3>
+              <div className="space-y-6">
+                <div className="bg-white rounded-lg p-4 border">
+                  <h4 className="font-semibold text-gray-800 mb-3">UG BTECH Programs</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {['CSE', 'DS', 'AIML'].map((branch) => (
+                      <label key={branch} className="flex items-center p-3 rounded-lg hover:bg-blue-50 cursor-pointer border">
+                        <input
+                          type="checkbox"
+                          checked={form.branch.includes(branch)}
+                          onChange={() => handleBranchChange(branch)}
+                          className="w-4 h-4 text-blue-600 mr-3"
+                        />
+                        <div>
+                          <div className="font-medium">{branch}</div>
+                          <div className="text-sm text-gray-500">
+                            {branch === 'CSE' && 'Computer Science Engineering'}
+                            {branch === 'DS' && 'Data Science'}  
+                            {branch === 'AIML' && 'AI & Machine Learning'}
+                          </div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
                 
-                {autoQuestionsEnabled && (
-                  <>
-                    <select
-                      value={selectedTemplate}
-                      onChange={(e) => {
-                        setSelectedTemplate(e.target.value);
-                        setTimeout(() => applyAutoQuestions(), 100);
-                      }}
-                      className="p-2 border rounded"
-                    >
-                      <option value="teaching">Teaching-focused</option>
-                      <option value="technical">Technical-focused</option>
-                      <option value="academic">Academic-focused</option>
-                      <option value="mixed">Mixed (Random)</option>
-                    </select>
-                    <div className="flex space-x-2">
-                      <button
-                        type="button"
-                        onClick={applyAutoQuestions}
-                        className="bg-green-600 hover:bg-green-700 text-white py-1 px-3 rounded text-sm"
-                      >
-                        Apply Template
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          // Generate a random set of 10 questions from all templates
-                          const allTemplates = Object.values(questionTemplates).flat();
-                          const shuffled = [...allTemplates].sort(() => 0.5 - Math.random());
-                          const randomQuestions = shuffled.slice(0, 10);
-                          
-                          // Customize with subject name
-                          let customizedQuestions = [...randomQuestions];
-                          if (form.name) {
-                            customizedQuestions = customizedQuestions.map(q => {
-                              return q.replace(/this subject|the course|this course/gi, form.name);
-                            });
-                          }
-                          
-                          setForm({
-                            ...form,
-                            questions: customizedQuestions
-                          });
-                        }}
-                        className="bg-purple-600 hover:bg-purple-700 text-white py-1 px-3 rounded text-sm"
-                      >
-                        Randomize
-                      </button>
-                    </div>
-                  </>
-                )}
+                <div className="bg-white rounded-lg p-4 border">
+                  <h4 className="font-semibold text-gray-800 mb-3">MCA Programs</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {['MCA Regular', 'MCA DS'].map((branch) => (
+                      <label key={branch} className="flex items-center p-3 rounded-lg hover:bg-green-50 cursor-pointer border">
+                        <input
+                          type="checkbox"
+                          checked={form.branch.includes(branch)}
+                          onChange={() => handleBranchChange(branch)}
+                          className="w-4 h-4 text-green-600 mr-3"
+                        />
+                        <div>
+                          <div className="font-medium">{branch}</div>
+                          <div className="text-sm text-gray-500">
+                            {branch === 'MCA Regular' && 'Master of Computer Applications'}
+                            {branch === 'MCA DS' && 'MCA Data Science'}
+                          </div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
 
-          {form.questions.map((q, i) => (
-            <input
-              key={i}
-              type="text"
-              placeholder={`Question ${i + 1}`}
-              value={q}
-              onChange={(e) => {
-                const updated = [...form.questions];
-                updated[i] = e.target.value;
-                setForm({ ...form, questions: updated });
-              }}
-              className="w-full p-2 border rounded mt-1"
-            />
-          ))}
+            {/* Questions */}
+            <div className="bg-gray-50 rounded-lg p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                    <svg className="w-5 h-5 mr-2 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Feedback Questions
+                  </h3>
+                  <p className="text-sm text-gray-600 mt-1">Create 10 questions for student feedback (required)</p>
+                </div>
+                <div className="flex items-center space-x-4">
+                  <label className="flex items-center cursor-pointer bg-white px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={autoQuestionsEnabled}
+                      onChange={(e) => {
+                        setAutoQuestionsEnabled(e.target.checked);
+                        if (e.target.checked) {
+                          setTimeout(() => applyAutoQuestions(), 100);
+                        }
+                      }}
+                      className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 border-gray-300 mr-2"
+                    />
+                    <span className="text-sm font-medium text-gray-700">Auto-generate</span>
+                  </label>
+                  
+                  {autoQuestionsEnabled && (
+                    <>
+                      <select
+                        value={selectedTemplate}
+                        onChange={(e) => {
+                          setSelectedTemplate(e.target.value);
+                          setTimeout(() => applyAutoQuestions(), 100);
+                        }}
+                        className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      >
+                        <option value="teaching">Teaching-focused</option>
+                        <option value="technical">Technical-focused</option>
+                        <option value="academic">Academic-focused</option>
+                        <option value="mixed">Mixed (Random)</option>
+                      </select>
+                      <div className="flex space-x-2">
+                        <button
+                          type="button"
+                          onClick={applyAutoQuestions}
+                          className="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg text-sm font-medium transition-colors shadow-sm"
+                        >
+                          Apply Template
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const allTemplates = Object.values(questionTemplates).flat();
+                            const shuffled = [...allTemplates].sort(() => 0.5 - Math.random());
+                            const randomQuestions = shuffled.slice(0, 10);
+                            
+                            let customizedQuestions = [...randomQuestions];
+                            if (form.name) {
+                              customizedQuestions = customizedQuestions.map(q => {
+                                return q.replace(/this subject|the course|this course/gi, form.name);
+                              });
+                            }
+                            
+                            setForm({
+                              ...form,
+                              questions: customizedQuestions
+                            });
+                          }}
+                          className="bg-purple-600 hover:bg-purple-700 text-white py-2 px-4 rounded-lg text-sm font-medium transition-colors shadow-sm"
+                        >
+                          Randomize
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
 
-          <div className="mt-4 flex space-x-4">
-            {editingSubject ? (
-              <button
-                type="button"
-                onClick={handleUpdate}
-                className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded"
-              >
-                Update
-              </button>
-            ) : (
+              <div className="space-y-4">
+                {form.questions.map((q, i) => (
+                  <div key={i} className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">Question {i + 1}</label>
+                    <textarea
+                      placeholder={`Enter feedback question ${i + 1}`}
+                      value={q}
+                      onChange={(e) => {
+                        const updated = [...form.questions];
+                        updated[i] = e.target.value;
+                        setForm({ ...form, questions: updated });
+                      }}
+                      rows={2}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-4">
+              {editingSubject && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingSubject(null);
+                    setForm({
+                      name: '', code: '', instructor: '', department: '', year: '', term: '', branch: [], questions: ['', '', '', '', '', '', '', '', '', '']
+                    });
+                  }}
+                  className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+              )}
               <button
                 type="submit"
-                className="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded"
+                className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium"
               >
-                Add Subject
+                {editingSubject ? 'Update Subject' : 'Add Subject'}
               </button>
-            )}
-            {editingSubject && (
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingSubject(null);
-                  setForm({
-                    name: '',
-                    code: '',
-                    instructor: '',
-                    department: '',
-                    year: '',
-                    term: '',
-                    branch: ['MCA Regular'],
-                    questions: ['', '', '', '', '', '', '', '', '', '']
-                  });
-                }}
-                className="bg-gray-600 hover:bg-gray-700 text-white py-2 px-4 rounded"
-              >
-                Cancel
-              </button>
-            )}
-          </div>
-        </form>
+            </div>
+          </form>
+        </div>
 
         {/* Subjects Table */}
-        <div className="bg-white rounded shadow overflow-hidden">
-          <table className="min-w-full table-auto">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="py-3 px-4 text-left">Name</th>
-                <th className="py-3 px-4 text-left">Code</th>
-                <th className="py-3 px-4 text-left">Instructor</th>
-                <th className="py-3 px-4 text-left">Year</th>
-                <th className="py-3 px-4 text-left">Term</th>
-                <th className="py-3 px-4 text-left">Branch</th>
-                <th className="py-3 px-4 text-left">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {subjects.length > 0 ? (
-                subjects.map((subject) => (
-                  <tr key={subject._id} className="border-t hover:bg-gray-50">
-                    <td className="py-3 px-4">{subject.name}</td>
-                    <td className="py-3 px-4">{subject.code}</td>
-                    <td className="py-3 px-4">{subject.instructor}</td>
-                    <td className="py-3 px-4">{subject.year}</td>
-                    <td className="py-3 px-4">{subject.term}</td>
-                    <td className="py-3 px-4">
-                      {Array.isArray(subject.branch) 
-                        ? subject.branch.join(', ') 
-                        : subject.branch}
-                    </td>
-                    <td className="py-3 px-4 space-x-2">
-                      <button
-                        onClick={() => handleEdit(subject)}
-                        className="text-blue-600 hover:underline"
-                      >
-                        Edit
-                      </button>{' '}
-                      <button
-                        onClick={() => handleDelete(subject._id)}
-                        className="text-red-600 hover:underline"
-                      >
-                        Delete
-                      </button>
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+            <h2 className="text-xl font-bold text-gray-900">Existing Subjects</h2>
+          </div>
+          
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Subject</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Instructor</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Academic</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Branches</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {subjects.length > 0 ? (
+                  subjects.map((subject) => (
+                    <tr key={subject._id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4">
+                        <div>
+                          <div className="font-semibold text-gray-900">{subject.name}</div>
+                          <div className="text-sm text-gray-500">Code: {subject.code}</div>
+                          <div className="text-xs text-gray-400">{subject.department}</div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="font-medium text-gray-900">{subject.instructor}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex space-x-2">
+                          <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">Year {subject.year}</span>
+                          <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded">Term {subject.term}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-wrap gap-1">
+                          {(Array.isArray(subject.branch) ? subject.branch : [subject.branch]).map((branch, i) => (
+                            <span key={i} className="px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded">{branch}</span>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 space-x-2">
+                        <button
+                          onClick={() => handleEdit(subject)}
+                          className="px-3 py-1 border border-blue-300 text-blue-700 rounded hover:bg-blue-50 text-sm"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDelete(subject._id)}
+                          className="px-3 py-1 border border-red-300 text-red-700 rounded hover:bg-red-50 text-sm"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                      No subjects found. Add your first subject above.
                     </td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={7} className="py-6 text-center text-gray-500">
-                    No subjects found.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>

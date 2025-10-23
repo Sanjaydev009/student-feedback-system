@@ -31,30 +31,39 @@ export const getSubjectsForStudent = async (req: Request, res: Response): Promis
       return;
     }
 
-    if (!student.year || !student.branch) {
-      res.status(400).json({ message: 'Student profile incomplete. Year and branch are required.' });
+    if (!student.branch) {
+      res.status(400).json({ message: 'Student profile incomplete. Branch is required.' });
       return;
     }
 
     // Check if term is provided as query parameter
     const term = req.query.term;
     
-    // Build query for subjects
+    // Build query for subjects - use student's year if available, otherwise show all years
     const query: any = {
-      year: student.year,
       branch: { $in: [student.branch] } // Find subjects where student's branch is in the array
     };
+    
+    // Add year filter only if student has year information
+    if (student.year) {
+      query.year = student.year;
+    }
     
     // Add term filter if provided
     if (term) {
       query.term = parseInt(term.toString());
     }
 
-    // Find subjects matching student's year, optional term, and where student's branch is in the subject's branch array
+    console.log('Student query:', query, 'Student branch:', student.branch, 'Student year:', student.year);
+
+    // Find subjects matching student's branch and optionally year/term
     const subjects = await Subject.find(query);
+
+    console.log('Found subjects for student:', subjects.length);
 
     res.json(subjects);
   } catch (err: any) {
+    console.error('Error in getSubjectsForStudent:', err);
     res.status(500).json({ message: err.message });
   }
 };
@@ -68,26 +77,60 @@ export const createSubject = async (req: Request, res: Response): Promise<void> 
     year,
     term,
     branch,
-    questions
+    questions,
+    midtermQuestions,
+    endtermQuestions
   } = req.body;
 
-  if (!name || !code || !instructor || !department || !year || !term || !branch || !Array.isArray(questions) || questions.length < 10) {
-    res.status(400).json({ message: 'All fields including year, term, branch, and 10 questions are required' });
+  // Validate basic fields
+  if (!name || !code || !instructor || !department || !year || !term || !branch) {
+    res.status(400).json({ message: 'All basic fields including name, code, instructor, department, year, term, and branch are required' });
+    return;
+  }
+
+  // Validate question arrays
+  if (midtermQuestions && (!Array.isArray(midtermQuestions) || midtermQuestions.length !== 7)) {
+    res.status(400).json({ message: 'Midterm questions must be an array of exactly 7 questions' });
+    return;
+  }
+
+  if (endtermQuestions && (!Array.isArray(endtermQuestions) || endtermQuestions.length !== 10)) {
+    res.status(400).json({ message: 'Endterm questions must be an array of exactly 10 questions' });
+    return;
+  }
+
+  // For backward compatibility, check if legacy questions field is used
+  if (questions && (!Array.isArray(questions) || questions.length < 10)) {
+    res.status(400).json({ message: 'Legacy questions field must be an array of at least 10 questions' });
     return;
   }
 
   try {
-    const newSubject = await Subject.create({
+    const subjectData: any = {
       name,
       code,
       instructor,
       department,
       year: parseInt(year.toString()),
       term: parseInt(term.toString()),
-      branch,
-      questions
-    });
+      branch
+    };
 
+    // Add questions based on what's provided
+    if (midtermQuestions) {
+      subjectData.midtermQuestions = midtermQuestions;
+    }
+    
+    if (endtermQuestions) {
+      subjectData.endtermQuestions = endtermQuestions;
+    }
+
+    // For backward compatibility
+    if (questions) {
+      subjectData.questions = questions;
+    }
+
+    const newSubject = await Subject.create(subjectData);
     res.status(201).json(newSubject);
   } catch (err: any) {
     console.error('Error adding subject:', err.message);
@@ -117,11 +160,31 @@ export const updateSubject = async (req: Request, res: Response): Promise<void> 
     year,
     term,
     branch,
-    questions
+    questions,
+    midtermQuestions,
+    endtermQuestions
   } = req.body;
 
-  if (!name || !code || !instructor || !department || !year || !term || !branch || !Array.isArray(questions) || questions.length < 10) {
-    res.status(400).json({ message: 'All fields including year, term, branch, and 10 questions are required' });
+  // Validate basic fields
+  if (!name || !code || !instructor || !department || !year || !term || !branch) {
+    res.status(400).json({ message: 'All basic fields including name, code, instructor, department, year, term, and branch are required' });
+    return;
+  }
+
+  // Validate question arrays if provided
+  if (midtermQuestions && (!Array.isArray(midtermQuestions) || midtermQuestions.length !== 7)) {
+    res.status(400).json({ message: 'Midterm questions must be an array of exactly 7 questions' });
+    return;
+  }
+
+  if (endtermQuestions && (!Array.isArray(endtermQuestions) || endtermQuestions.length !== 10)) {
+    res.status(400).json({ message: 'Endterm questions must be an array of exactly 10 questions' });
+    return;
+  }
+
+  // For backward compatibility
+  if (questions && (!Array.isArray(questions) || questions.length < 10)) {
+    res.status(400).json({ message: 'Legacy questions field must be an array of at least 10 questions' });
     return;
   }
 
@@ -133,18 +196,33 @@ export const updateSubject = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
+    const updateData: any = {
+      name,
+      code,
+      instructor,
+      department,
+      year: parseInt(year.toString()),
+      term: parseInt(term.toString()),
+      branch
+    };
+
+    // Add questions based on what's provided
+    if (midtermQuestions) {
+      updateData.midtermQuestions = midtermQuestions;
+    }
+    
+    if (endtermQuestions) {
+      updateData.endtermQuestions = endtermQuestions;
+    }
+
+    // For backward compatibility
+    if (questions) {
+      updateData.questions = questions;
+    }
+
     const updatedSubject = await Subject.findByIdAndUpdate(
       req.params.id,
-      {
-        name,
-        code,
-        instructor,
-        department,
-        year: parseInt(year.toString()),
-        term: parseInt(term.toString()),
-        branch,
-        questions
-      },
+      updateData,
       { new: true }
     );
 

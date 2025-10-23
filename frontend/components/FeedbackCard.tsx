@@ -7,7 +7,7 @@ interface Props {
       name: string;
       code: string;
       instructor: string;
-    };
+    } | null;
     answers: Array<{
       question: string;
       answer: number;
@@ -38,8 +38,12 @@ export default function FeedbackCard({ feedback }: Props) {
       <div className="p-5 border-b border-gray-100">
         <div className="flex justify-between items-start">
           <div>
-            <h2 className="text-lg font-semibold text-gray-800">{feedback.subject.name}</h2>
-            <p className="text-sm text-gray-600 mt-1">Code: {feedback.subject.code}</p>
+            <h2 className="text-lg font-semibold text-gray-800">
+              {feedback.subject ? feedback.subject.name : 'Subject Not Available'}
+            </h2>
+            <p className="text-sm text-gray-600 mt-1">
+              Code: {feedback.subject ? feedback.subject.code : 'N/A'}
+            </p>
           </div>
           <div className="bg-blue-100 text-blue-800 text-xs px-2.5 py-1 rounded-full font-medium">
             {averageRating}/5
@@ -49,7 +53,11 @@ export default function FeedbackCard({ feedback }: Props) {
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500 mr-2" viewBox="0 0 20 20" fill="currentColor">
             <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
           </svg>
-          <p className="text-gray-600 text-sm">Instructor: <span className="font-medium">{feedback.subject.instructor}</span></p>
+          <p className="text-gray-600 text-sm">
+            Instructor: <span className="font-medium">
+              {feedback.subject ? feedback.subject.instructor : 'N/A'}
+            </span>
+          </p>
         </div>
       </div>
       
