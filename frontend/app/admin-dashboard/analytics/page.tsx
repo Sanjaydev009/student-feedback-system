@@ -94,7 +94,7 @@ export default function AnalyticsPage() {
         <div className="flex space-x-2">
           {[
             { key: 'department', label: 'Department Analysis' },
-            { key: 'semester', label: 'Semester Analysis' },
+            // { key: 'semester', label: 'Semester Analysis' },
             { key: 'instructor', label: 'Instructor Performance' },
             { key: 'trends', label: 'Trends & Patterns' }
           ].map((view) => (

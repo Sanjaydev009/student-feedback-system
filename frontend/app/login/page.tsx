@@ -215,7 +215,7 @@ export default function LoginPage() {
           )}
         </div>
 
-        {/* Development Test Credentials */}
+        {/* Development Test Credentials
         {process.env.NODE_ENV === 'development' && (
           <div className="bg-blue-50 border border-blue-200 rounded-md p-4 mb-6">
             <h3 className="text-sm font-medium text-blue-800 mb-2">Test Credentials</h3>
@@ -226,7 +226,7 @@ export default function LoginPage() {
               <div><strong>DEAN:</strong> dean@university.com / dean123</div>
             </div>
           </div>
-        )}
+        )} */}
         
         <div className="space-y-5">
           <div>
