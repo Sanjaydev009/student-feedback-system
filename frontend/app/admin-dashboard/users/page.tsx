@@ -46,6 +46,16 @@ export default function UserManagement() {
   const [successMessage, setSuccessMessage] = useState('');
 
   useEffect(() => {
+    // Debug: show configured API base URL and stored token
+    try {
+      // eslint-disable-next-line no-console
+      console.log('API baseURL:', api.defaults.baseURL);
+      // eslint-disable-next-line no-console
+      console.log('Stored token:', typeof window !== 'undefined' ? localStorage.getItem('token') : 'no-window');
+    } catch (e) {
+      // ignore
+    }
+
     fetchUsers();
   }, []);
 
@@ -92,6 +102,15 @@ export default function UserManagement() {
     setError('');
     
     try {
+      // Debug: log token/header before request
+      try {
+        // eslint-disable-next-line no-console
+        console.log('Creating/updating user. Authorization header:', api.defaults.headers.common['Authorization']);
+        // eslint-disable-next-line no-console
+        console.log('localStorage token at submit:', typeof window !== 'undefined' ? localStorage.getItem('token') : 'no-window');
+      } catch (e) {
+        // ignore
+      }
       if (userData._id) {
         // Update existing user
         const response = await api.put(`/api/auth/users/${userData._id}`, userData);

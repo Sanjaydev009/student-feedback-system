@@ -29,24 +29,41 @@ class EmailService {
   }
 
   private initializeTransporter() {
-    // Email configuration - you can customize this based on your email provider
+    // Email configuration - optimized for production hosting (Render, Heroku, etc.)
     const emailConfig: EmailConfig = {
-      service: process.env.EMAIL_SERVICE || 'gmail', // Gmail, Outlook, etc.
       auth: {
-        user: process.env.EMAIL_USER || '', // Your email
-        pass: process.env.EMAIL_PASSWORD || '', // Your email password or app password
+        user: process.env.EMAIL_USER || '',
+        pass: process.env.EMAIL_PASSWORD || '',
       },
     };
 
-    // Alternative configuration for custom SMTP servers
-    if (process.env.SMTP_HOST) {
+    // Use explicit SMTP configuration for better reliability on hosting platforms
+    if (process.env.EMAIL_SERVICE === 'gmail' || (!process.env.SMTP_HOST && process.env.EMAIL_USER?.includes('@gmail.com'))) {
+      // Gmail with explicit SMTP settings for better compatibility
+      emailConfig.host = 'smtp.gmail.com';
+      emailConfig.port = 587;
+      emailConfig.secure = false; // Use STARTTLS
+    } else if (process.env.SMTP_HOST) {
+      // Custom SMTP configuration
       emailConfig.host = process.env.SMTP_HOST;
       emailConfig.port = parseInt(process.env.SMTP_PORT || '587');
       emailConfig.secure = process.env.SMTP_SECURE === 'true';
-      delete emailConfig.service;
+    } else {
+      // Fallback to service-based configuration
+      emailConfig.service = process.env.EMAIL_SERVICE || 'gmail';
     }
 
-    this.transporter = nodemailer.createTransport(emailConfig);
+    // Add connection timeout and other reliability settings
+    this.transporter = nodemailer.createTransport({
+      ...emailConfig,
+      connectionTimeout: 60000, // 60 seconds
+      greetingTimeout: 30000, // 30 seconds
+      socketTimeout: 60000, // 60 seconds
+      pool: true, // Use connection pooling
+      maxConnections: 5,
+      maxMessages: 100,
+      rateLimit: 14, // 14 emails per second max
+    });
   }
 
   // Check configuration and provide guidance
@@ -296,6 +313,13 @@ class EmailService {
   // Send welcome email with password
   async sendPasswordEmail(user: any, password: string): Promise<boolean> {
     try {
+      // Add a quick connection check before sending
+      const isConnected = await this.verifyConnection();
+      if (!isConnected) {
+        console.warn(`⚠️ Email service not ready - skipping email to ${user.email}`);
+        return false;
+      }
+
       const template = this.generatePasswordEmail(user, password);
       
       const mailOptions = {
@@ -307,10 +331,10 @@ class EmailService {
       };
 
       const info = await this.transporter.sendMail(mailOptions);
-      console.log(`Password email sent to ${user.email}:`, info.messageId);
+      console.log(`✅ Password email sent to ${user.email}:`, info.messageId);
       return true;
     } catch (error) {
-      console.error(`Failed to send password email to ${user.email}:`, error);
+      console.error(`❌ Failed to send password email to ${user.email}:`, error);
       return false;
     }
   }
@@ -322,6 +346,13 @@ class EmailService {
     totalProcessed: number
   ): Promise<boolean> {
     try {
+      // Check connection before sending
+      const isConnected = await this.verifyConnection();
+      if (!isConnected) {
+        console.warn(`⚠️ Email service not ready - skipping bulk summary to ${adminEmail}`);
+        return false;
+      }
+
       const subject = `Bulk Registration Summary - ${results.success} Users Created`;
       
       const html = `
@@ -357,10 +388,10 @@ class EmailService {
       };
 
       await this.transporter.sendMail(mailOptions);
-      console.log('Bulk registration summary sent to admin');
+      console.log('✅ Bulk registration summary sent to admin');
       return true;
     } catch (error) {
-      console.error('Failed to send bulk registration summary:', error);
+      console.error('❌ Failed to send bulk registration summary:', error);
       return false;
     }
   }
