@@ -1,5 +1,6 @@
 'use client';
 
+// Help & Documentation page for Student Feedback System
 import AdminNavbar from '@/components/AdminNavbar';
 import AdminSidebar from '@/components/AdminSidebar';
 

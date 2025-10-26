@@ -1,5 +1,6 @@
 'use client';
 
+// Email configuration page for admin
 import { useState, useEffect } from 'react';
 import AdminNavbar from '@/components/AdminNavbar';
 import EmailTestPanel from '@/components/EmailTestPanel';
