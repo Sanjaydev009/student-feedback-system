@@ -90,8 +90,7 @@ const FeedbackPeriodSchema = new Schema({
   timestamps: true 
 });
 
-// Index for efficient queries
-FeedbackPeriodSchema.index({ feedbackType: 1, term: 1, academicYear: 1, isActive: 1 });
+// Index for efficient queries - removed duplicate index for feedbackType/term/academicYear/isActive
 FeedbackPeriodSchema.index({ startDate: 1, endDate: 1 });
 FeedbackPeriodSchema.index({ status: 1, isActive: 1 });
 
