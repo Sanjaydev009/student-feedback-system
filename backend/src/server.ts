@@ -98,7 +98,7 @@ app.get('/health', (req, res) => {
 });
 
 // Admin initialization endpoint - production safe
-app.post('/api/auth/init-admin', async (req, res) => {
+app.post('/api/auth/init-admin', async (req: any, res: any) => {
   try {
     const User = require('./models/User').default;
     
@@ -129,7 +129,7 @@ app.post('/api/auth/init-admin', async (req, res) => {
       password: 'admin123',
       note: 'Please change the default password after first login'
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Error creating admin user:', error);
     res.status(500).json({ 
       message: 'Failed to create admin user',
@@ -154,7 +154,7 @@ app.get('/api/health', (req, res) => {
 });
  
 // Test endpoint to verify database connection and initialize admin
-app.get('/setup-admin', async (req, res) => {
+app.get('/setup-admin', async (req: any, res: any) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, X-Requested-With, Origin, Cache-Control, Pragma, Expires');
@@ -190,7 +190,7 @@ app.get('/setup-admin', async (req, res) => {
       password: 'admin123',
       note: 'Admin user ready for login'
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Error with admin setup:', error);
     res.status(500).json({ 
       message: 'Failed to setup admin user',
