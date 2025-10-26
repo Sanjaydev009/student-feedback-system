@@ -26,7 +26,7 @@ export default function LoginPage() {
     // Check if the server is reachable using our utility
     const checkServerStatus = async () => {
       try {
-        const isHealthy = await checkServerHealth(3000);
+        const isHealthy = await checkServerHealth();
         
         if (isHealthy) {
           setServerStatus('online');
@@ -177,7 +177,7 @@ export default function LoginPage() {
                   onClick={async () => {
                     setServerStatus('checking');
                     try {
-                      const isHealthy = await checkServerHealth(3000);
+                      const isHealthy = await checkServerHealth();
                       
                       if (isHealthy) {
                         setServerStatus('online');

@@ -1,5 +1,30 @@
 # Root level gitignore for Student Feedback System
 
+# 🔒 SENSITIVE FILES - NEVER COMMIT
+.env
+.env.*
+!.env.example
+!.env.template
+backend/.env
+backend/.env.*
+frontend/.env
+frontend/.env.*
+!backend/.env.example
+!frontend/.env.example
+
+# 🚀 DEPLOYMENT FILES - EXCLUDE
+*.env.production
+*.env.staging
+*.env.development
+*.env.local
+.env.backup
+.env.temp
+deploy-*.sh
+mongodb-setup-guide.sh
+railway-deploy.md
+fix-railway-deployment.sh
+setup-deployment.sh
+
 # Operating System Files
 .DS_Store
 .DS_Store?
@@ -28,7 +53,7 @@ yarn-error.log*
 # Package manager files
 package-lock.json
 
-# Temporary test files and scripts
+# 🧪 TEMPORARY TEST FILES
 test-*.html
 test-*.js
 *-test.html
@@ -44,15 +69,17 @@ test-delete-subject.js
 test-endpoints.js
 test-subject-deletion.js
 
-# Temporary CSV files
+# CSV files (may contain sensitive data)
 test-students.csv
 sample-students.csv
+*.csv
 
 # Temporary configuration files
-.env.temp
-.env.backup
 *.tmp
 *.temp
+*.bak
+*.swp
+*.swo
 
 # Log files
 *.log
@@ -62,7 +89,7 @@ logs/
 dist/
 build/
 
-# Documentation that's auto-generated or temporary
+# 📄 DOCUMENTATION (temporary)
 TESTING_SUMMARY.md
 
 # Backend specific temporary files
@@ -72,7 +99,11 @@ backend/createUsers.js
 backend/test-*.js
 backend/test-*.ts
 
-# Any other temporary files
-*.bak
-*.swp
-*.swo
+# 🔐 SECURITY & API KEYS
+**/secrets/
+**/credentials/
+*.pem
+*.key
+*.crt
+api-keys.json
+service-account.json

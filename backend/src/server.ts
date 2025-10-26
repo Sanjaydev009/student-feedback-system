@@ -82,19 +82,33 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/test', testRoutes);
 app.use('/api/feedback-periods', feedbackPeriodRoutes);
 
-// Health check endpoint - important for frontend to verify server is responsive
-app.get('/api/health', (req, res) => {
-  // Add explicit CORS headers for health endpoint
+// Health check endpoint
+app.get('/health', (req, res) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, X-Requested-With, Origin, X-Auth-Token, Cache-Control, Pragma, Expires');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, X-Requested-With, Origin, Cache-Control, Pragma, Expires');
   
   res.status(200).json({ 
     status: 'ok', 
     message: 'Server is healthy', 
     timestamp: new Date().toISOString(),
-    cors: 'enabled with explicit headers',
-    serverPort: process.env.PORT || 5000
+    environment: process.env.NODE_ENV || 'development',
+    port: process.env.PORT || 3001
+  });
+});
+
+// API Health check endpoint  
+app.get('/api/health', (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, X-Requested-With, Origin, Cache-Control, Pragma, Expires');
+  
+  res.status(200).json({ 
+    status: 'ok', 
+    message: 'API is healthy', 
+    timestamp: new Date().toISOString(),
+    cors: 'enabled',
+    environment: process.env.NODE_ENV || 'development'
   });
 });
  

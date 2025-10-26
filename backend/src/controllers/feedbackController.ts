@@ -41,6 +41,8 @@
 
 import { Request, Response } from 'express';
 import Feedback from '../models/Feedback';
+import User from '../models/User';
+import Subject from '../models/Subject';
 
 
 export const submitFeedback = async (req: Request, res: Response): Promise<void> => {
@@ -148,10 +150,6 @@ export const getStudentFeedback = async (req: Request, res: Response): Promise<v
 
 export const getDashboardStats = async (req: Request, res: Response): Promise<void> => {
   try {
-    // Import User model
-    const User = require('../models/User').default;
-    const Subject = require('../models/Subject').default;
-    
     // Get feedback statistics
     const feedbacks = await Feedback.find();
     
@@ -280,10 +278,6 @@ export const getFeedbackSummary = async (req: Request, res: Response): Promise<v
 
 export const getRecentActivities = async (req: Request, res: Response): Promise<void> => {
   try {
-    // Get recent activities from database
-    const User = require('../models/User').default;
-    const Subject = require('../models/Subject').default;
-    
     // Get recent feedback submissions
     const recentFeedback = await Feedback.find()
       .populate('student', 'name')
@@ -324,6 +318,7 @@ export const getRecentActivities = async (req: Request, res: Response): Promise<
         type: 'feedback',
         message: `New feedback submitted for ${feedback.subject?.name || 'Unknown Subject'}`,
         time: timeString,
+        timestamp: new Date(feedback.createdAt),
         icon: '📝',
         iconBg: 'from-blue-500 to-blue-600'
       });
@@ -347,6 +342,7 @@ export const getRecentActivities = async (req: Request, res: Response): Promise<
         type: 'student',
         message: `New student ${user.name} registered`,
         time: timeString,
+        timestamp: new Date(user.createdAt),
         icon: '👥',
         iconBg: 'from-green-500 to-green-600'
       });
@@ -370,6 +366,7 @@ export const getRecentActivities = async (req: Request, res: Response): Promise<
         type: 'subject',
         message: `Subject ${subject.name} was added`,
         time: timeString,
+        timestamp: new Date(subject.createdAt),
         icon: '📚',
         iconBg: 'from-purple-500 to-purple-600'
       });
@@ -377,9 +374,7 @@ export const getRecentActivities = async (req: Request, res: Response): Promise<
     
     // Sort activities by creation time (most recent first)
     activities.sort((a: any, b: any) => {
-      const timeA = new Date(a.time).getTime();
-      const timeB = new Date(b.time).getTime();
-      return timeB - timeA; // Descending order
+      return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
     });
     
     res.json(activities.slice(0, 5));

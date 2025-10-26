@@ -11,8 +11,8 @@
     "skipLibCheck": true,
     "typeRoots": ["./node_modules/@types", "./types"],
     "allowSyntheticDefaultImports": true,
-    "forceConsistentCasingInFileNames": true,
-    "ignoreDeprecations": "6.0"
+    "forceConsistentCasingInFileNames": true
   },
-  "include": ["src/**/*", "types"]
+  "include": ["src/**/*", "types"],
+  "exclude": ["node_modules", "dist"]
 }
