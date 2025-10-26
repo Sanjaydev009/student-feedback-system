@@ -1,6 +1,6 @@
 // src/routes/authRoutes.ts
 import express, { Request, Response } from 'express';
-import { bulkRegisterStudents, login, register, resetPassword, updateProfile, getMe } from '../controllers/authController';
+import { bulkRegisterStudents, login, register, resetPassword, updateProfile, getMe, initializeAdmin } from '../controllers/authController';
 import { protect, isAdmin } from '../middleware/authMiddleware';
 import {
   getAllUsers,
@@ -104,6 +104,9 @@ router.delete('/users/:id', protect, isAdmin, deleteUser);
 router.post('/login', login);
 router.post('/register', protect, isAdmin, register);
 router.get('/users', protect, isAdmin, getAllUsers);
+
+// Initialization endpoint - no auth required for creating first admin
+router.post('/init-admin', initializeAdmin);
 
 // Health check endpoint is now in server.ts
 

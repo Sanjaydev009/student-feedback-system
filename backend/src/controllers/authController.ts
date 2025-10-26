@@ -596,3 +596,43 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
     res.status(500).json({ message: 'Failed to update profile' });
   }
 };
+
+// Initialize admin user if none exists
+export const initializeAdmin = async (req: Request, res: Response): Promise<void> => {
+  try {
+    // Check if any admin user already exists
+    const existingAdmin = await User.findOne({ role: 'admin' });
+    
+    if (existingAdmin) {
+      res.status(400).json({ 
+        message: 'Admin user already exists',
+        email: existingAdmin.email
+      });
+      return;
+    }
+
+    // Create default admin user
+    const adminUser = await User.create({
+      name: 'System Administrator',
+      email: 'admin@test.com',
+      password: 'admin123',
+      role: 'admin',
+      passwordResetRequired: false
+    });
+
+    console.log('✅ Admin user created successfully:', adminUser.email);
+
+    res.status(201).json({
+      message: 'Admin user created successfully',
+      email: adminUser.email,
+      password: 'admin123',
+      note: 'Please change the default password after first login'
+    });
+  } catch (error: any) {
+    console.error('❌ Error creating admin user:', error);
+    res.status(500).json({ 
+      message: 'Failed to create admin user',
+      error: error.message 
+    });
+  }
+};
