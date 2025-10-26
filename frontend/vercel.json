@@ -1,25 +1,4 @@
 {
-  "version": 2,
-  "name": "student-feedback-frontend",
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/next"
-    }
-  ],
-  "env": {
-    "NEXT_PUBLIC_API_URL": "@api_url"
-  },
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "/$1"
-    }
-  ],
-  "regions": ["sin1"],
-  "functions": {
-    "app/**/*.{js,ts,tsx}": {
-      "maxDuration": 30
-    }
-  }
+  "framework": "nextjs",
+  "regions": ["sin1"]
 }

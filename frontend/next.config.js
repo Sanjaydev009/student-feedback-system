@@ -1,9 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'standalone',
+  // Remove standalone output for Vercel deployment
   experimental: {
     serverActions: {
-      allowedOrigins: ['localhost:3000', '*.vercel.app', '*.railway.app']
+      allowedOrigins: ['localhost:3000', '*.vercel.app', '*.railway.app', '*.onrender.com']
     }
   },
   env: {
