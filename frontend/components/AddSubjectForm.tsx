@@ -16,12 +16,38 @@ export default function AddSubjectForm({ token, onSuccess }: Props) {
     year: '',
     term: '',
     branch: 'MCA Regular',
+    section: '',
     questions: ['', '', '', '', '', '', '', '', '', '']
   });
 
+  // Branch-Section configuration
+  const branchSectionConfig = {
+    'Computer Science': ['A'],
+    'AIML': ['A', 'B', 'C'],
+    'Electronics': ['A', 'B'],
+    'Mechanical': ['A', 'B'],
+    'Civil': ['A'],
+    'Information Technology': ['A', 'B'],
+    'MCA Regular': ['A', 'B'],
+    'MCA DS': ['A'],
+    'MBA Finance': ['A'],
+    'MBA Marketing': ['A'],
+    'MBA HR': ['A']
+  };
+
+  const getAvailableSections = (branch: string) => {
+    return branchSectionConfig[branch as keyof typeof branchSectionConfig] || [];
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setForm({ ...form, [name]: value });
+    
+    if (name === 'branch') {
+      // Reset section when branch changes
+      setForm({ ...form, [name]: value, section: '' });
+    } else {
+      setForm({ ...form, [name]: value });
+    }
   };
 
   const handleQuestionChange = (index: number, value: string) => {
@@ -62,6 +88,7 @@ export default function AddSubjectForm({ token, onSuccess }: Props) {
         year: '',
         term: '',
         branch: 'MCA Regular',
+        section: '',
         questions: ['', '', '', '', '', '', '', '', '', '']
       });
       onSuccess();
@@ -145,9 +172,37 @@ export default function AddSubjectForm({ token, onSuccess }: Props) {
           className="w-full p-2 border rounded mt-1"
           required
         >
+          <option value="">Select Branch</option>
+          <option value="Computer Science">Computer Science</option>
+          <option value="AIML">AIML (Artificial Intelligence & Machine Learning)</option>
+          <option value="Electronics">Electronics</option>
+          <option value="Mechanical">Mechanical</option>
+          <option value="Civil">Civil</option>
+          <option value="Information Technology">Information Technology</option>
           <option value="MCA Regular">MCA Regular</option>
           <option value="MCA DS">MCA DS</option>
+          <option value="MBA Finance">MBA Finance</option>
+          <option value="MBA Marketing">MBA Marketing</option>
+          <option value="MBA HR">MBA HR</option>
         </select>
+
+        {/* Section Selection */}
+        {form.branch && (
+          <select
+            name="section"
+            value={form.section}
+            onChange={handleChange}
+            className="w-full p-2 border rounded mt-1"
+            required
+          >
+            <option value="">Select Section</option>
+            {getAvailableSections(form.branch).map(section => (
+              <option key={section} value={section}>
+                Section {section} ({form.branch}-{section})
+              </option>
+            ))}
+          </select>
+        )}
 
         <h3 className="font-medium mt-4">Feedback Questions (10 Required)</h3>
         {form.questions.map((q, i) => (

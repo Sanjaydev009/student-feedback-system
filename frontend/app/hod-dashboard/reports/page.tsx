@@ -128,7 +128,7 @@ export default function HODReports() {
     // Finally, load feedback status
     fetchFeedbackStatus();
     fetchFeedbackStatus();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   
   // Add retry mechanism
   useEffect(() => {
@@ -140,7 +140,7 @@ export default function HODReports() {
       
       return () => clearTimeout(timer);
     }
-  }, [retryCount]);
+  }, [retryCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Separate effect for filter changes to avoid initial double load
   useEffect(() => {
@@ -153,7 +153,7 @@ export default function HODReports() {
     }, 300);
     
     return () => clearTimeout(delayDebounceFn);
-  }, [selectedSubject, selectedSemester, startDate, endDate]);
+  }, [selectedSubject, selectedSemester, startDate, endDate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchSubjects = async () => {
     try {

@@ -25,7 +25,7 @@ export default function BranchesPage() {
 
   useEffect(() => {
     fetchBranches();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchBranches = async () => {
     try {

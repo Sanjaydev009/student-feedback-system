@@ -23,7 +23,7 @@ export default function HODFaculty() {
 
   useEffect(() => {
     fetchFaculty();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchFaculty = async () => {
     try {

@@ -39,7 +39,7 @@ export default function ReportsPage() {
       };
       fetchAllFeedbackData().catch(handleErrorAndReload);
     }
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchAllFeedbackData = async (): Promise<void> => {
     try {

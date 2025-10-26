@@ -38,6 +38,7 @@ export default function UserManagement() {
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
+  const [sectionFilter, setSectionFilter] = useState('all');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [showUserFormModal, setShowUserFormModal] = useState(false);
@@ -131,8 +132,12 @@ export default function UserManagement() {
                          user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (user.rollNumber && user.rollNumber.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesRole = roleFilter === 'all' || user.role === roleFilter;
-    return matchesSearch && matchesRole;
+    const matchesSection = sectionFilter === 'all' || user.section === sectionFilter;
+    return matchesSearch && matchesRole && matchesSection;
   });
+
+  // Get unique sections from users for filter dropdown
+  const availableSections = [...new Set(users.filter(user => user.section).map(user => user.section))].sort();
 
   const getRoleBadgeColor = (role: string) => {
     switch (role) {
@@ -208,6 +213,16 @@ export default function UserManagement() {
             <option value="dean">Dean</option>
             <option value="admin">Admin</option>
           </select>
+          <select
+            value={sectionFilter}
+            onChange={(e) => setSectionFilter(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="all">All Sections</option>
+            {availableSections.map(section => (
+              <option key={section} value={section}>Section {section}</option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -231,16 +246,37 @@ export default function UserManagement() {
       )}
 
       {/* Statistics */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        {['all', 'student', 'faculty', 'hod', 'dean', 'admin'].map((role) => {
-          const count = role === 'all' ? users.length : users.filter(u => u.role === role).length;
-          return (
-            <div key={role} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-              <div className="text-2xl font-bold text-gray-900">{count}</div>
-              <div className="text-sm text-gray-600 capitalize">{role === 'all' ? 'Total Users' : `${role}s`}</div>
+      <div className="space-y-4">
+        {/* Role Statistics */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          {['all', 'student', 'faculty', 'hod', 'dean', 'admin'].map((role) => {
+            const count = role === 'all' ? users.length : users.filter(u => u.role === role).length;
+            return (
+              <div key={role} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                <div className="text-2xl font-bold text-gray-900">{count}</div>
+                <div className="text-sm text-gray-600 capitalize">{role === 'all' ? 'Total Users' : `${role}s`}</div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Section Statistics */}
+        {availableSections.length > 0 && (
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-3">Students by Section</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              {availableSections.map((section) => {
+                const count = users.filter(u => u.section === section && u.role === 'student').length;
+                return (
+                  <div key={section} className="bg-blue-50 rounded-lg border border-blue-200 p-3">
+                    <div className="text-xl font-bold text-blue-900">{count}</div>
+                    <div className="text-sm text-blue-700">Section {section}</div>
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
+          </div>
+        )}
       </div>
 
       {/* Users Table */}
@@ -256,7 +292,8 @@ export default function UserManagement() {
                   Role
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Details
+                  Academic Details
+                  <div className="text-xs font-normal text-gray-400 mt-1">Branch, Section, Year</div>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
@@ -284,12 +321,22 @@ export default function UserManagement() {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {user.rollNumber && <div>Roll: {user.rollNumber}</div>}
-                    {user.department && <div>Dept: {user.department}</div>}
-                    {user.branch && <div>Branch: {user.branch}</div>}
-                    {user.year && <div>Year: {user.year}</div>}
-                    {user.section && <div>Section: {user.section}</div>}
-                    {user.term && <div>Sem: {user.term}</div>}
+                    <div className="space-y-1">
+                      {user.rollNumber && <div>📝 <span className="font-medium">Roll:</span> {user.rollNumber}</div>}
+                      {user.department && <div>🏢 <span className="font-medium">Dept:</span> {user.department}</div>}
+                      {user.branch && (
+                        <div className="flex items-center gap-2">
+                          <span>🎓 <span className="font-medium">Branch:</span> {user.branch}</span>
+                          {user.section && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
+                              Section {user.section}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      {user.year && <div>📅 <span className="font-medium">Year:</span> {user.year}</div>}
+                      {user.term && <div>📚 <span className="font-medium">Term:</span> {user.term}</div>}
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {user.passwordResetRequired ? (
@@ -341,7 +388,7 @@ export default function UserManagement() {
             </svg>
             <h3 className="mt-2 text-sm font-medium text-gray-900">No users found</h3>
             <p className="mt-1 text-sm text-gray-500">
-              {searchTerm || roleFilter !== 'all' ? 'Try adjusting your search or filter criteria.' : 'Get started by adding your first user.'}
+              {searchTerm || roleFilter !== 'all' || sectionFilter !== 'all' ? 'Try adjusting your search or filter criteria.' : 'Get started by adding your first user.'}
             </p>
           </div>
         )}

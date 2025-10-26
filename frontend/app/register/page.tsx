@@ -12,12 +12,37 @@ export default function RegisterPage() {
     email: '',
     password: '',
     role: 'student',
-    branch: 'MCA Regular'
+    branch: 'MCA Regular',
+    section: '',
+    year: 1
   });
+
+  // Department-Branch-Section configuration
+  const branchSectionConfig = {
+    'Computer Science': { sections: ['A'], years: [1, 2, 3, 4] },
+    'AIML': { sections: ['A', 'B', 'C'], years: [1, 2, 3, 4] },
+    'Electronics': { sections: ['A', 'B'], years: [1, 2, 3, 4] },
+    'Mechanical': { sections: ['A', 'B'], years: [1, 2, 3, 4] },
+    'Civil': { sections: ['A'], years: [1, 2, 3, 4] },
+    'MCA Regular': { sections: ['A', 'B'], years: [1, 2] },
+    'MCA DS': { sections: ['A'], years: [1, 2] }
+  };
+
+  const getAvailableSections = (branch: string) => {
+    return branchSectionConfig[branch as keyof typeof branchSectionConfig]?.sections || [];
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setForm({ ...form, [name]: value });
+    
+    if (name === 'branch') {
+      // Reset section when branch changes
+      setForm({ ...form, [name]: value, section: '' });
+    } else if (name === 'year') {
+      setForm({ ...form, [name]: parseInt(value) });
+    } else {
+      setForm({ ...form, [name]: value });
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -101,9 +126,49 @@ export default function RegisterPage() {
             value={form.branch}
             onChange={handleChange}
             className="w-full p-2 border rounded"
+            required
           >
+            <option value="">Select Branch</option>
+            <option value="Computer Science">Computer Science Engineering (CSE)</option>
+            <option value="AIML">Artificial Intelligence & Machine Learning (AIML)</option>
+            <option value="Electronics">Electronics Engineering</option>
+            <option value="Mechanical">Mechanical Engineering</option>
+            <option value="Civil">Civil Engineering</option>
             <option value="MCA Regular">MCA Regular</option>
-            <option value="MCA DS">MCA DS</option>
+            <option value="MCA DS">MCA Data Science</option>
+          </select>
+
+          {/* Section Selection */}
+          {form.branch && (
+            <select
+              name="section"
+              value={form.section}
+              onChange={handleChange}
+              className="w-full p-2 border rounded"
+              required
+            >
+              <option value="">Select Section</option>
+              {getAvailableSections(form.branch).map(section => (
+                <option key={section} value={section}>
+                  Section {section} ({form.branch}-{section})
+                </option>
+              ))}
+            </select>
+          )}
+
+          {/* Year Selection */}
+          <select
+            name="year"
+            value={form.year}
+            onChange={handleChange}
+            className="w-full p-2 border rounded"
+            required
+          >
+            <option value="">Select Year</option>
+            <option value="1">1st Year</option>
+            <option value="2">2nd Year</option>
+            <option value="3">3rd Year</option>
+            <option value="4">4th Year</option>
           </select>
 
           <button

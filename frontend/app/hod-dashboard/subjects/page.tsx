@@ -24,7 +24,7 @@ export default function HODSubjects() {
 
   useEffect(() => {
     fetchSubjects();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchSubjects = async () => {
     try {

@@ -8,5 +8,6 @@ export interface ISubject extends Document {
   department: string;
   instructor: string;
   branch: string[]; // Array to support multiple branches
+  sections: string[]; // Array to support multiple sections
   questions: string[];
 }

@@ -244,7 +244,7 @@ export const bulkRegisterStudents = async (req: Request, res: Response): Promise
 
     // Process each student
     for (const student of students) {
-      const { name, rollNumber, email, department, branch, year } = student;
+      const { name, rollNumber, email, department, branch, section, year } = student;
       
       // Validate required fields - these match the same validation as individual user creation
       const missingFields = [];
@@ -302,6 +302,7 @@ export const bulkRegisterStudents = async (req: Request, res: Response): Promise
         
         // Add additional fields if provided
         if (department) userData.department = department;
+        if (section) userData.section = section;
         if (year) userData.year = parseInt(year.toString());
         
         // Create new student
@@ -321,6 +322,7 @@ export const bulkRegisterStudents = async (req: Request, res: Response): Promise
           email: newStudent.email,
           rollNumber: newStudent.rollNumber,
           branch: newStudent.branch,
+          section: newStudent.section,
           year: newStudent.year
         });
       } catch (error: any) {

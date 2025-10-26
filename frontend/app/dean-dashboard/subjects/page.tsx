@@ -43,7 +43,7 @@ export default function SubjectsPage() {
       showToast('An unexpected error occurred while loading subjects', 'error');
       setLoading(false);
     }
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchSubjects = async () => {
     try {

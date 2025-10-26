@@ -8,6 +8,7 @@ interface StudentData {
   email: string;
   rollNumber: string;
   branch: string;
+  section: string;
   year: number;
 }
 
@@ -23,14 +24,15 @@ export default function BulkStudentUpload({ onUploadComplete }: { onUploadComple
     failures: { email: string; reason: string }[];
   } | null>(null);
 
-  // Template data with updated branches including CSE, AIML, DS
+  // Template data with updated branches including CSE, AIML, DS and sections
   const generateTemplateData = () => {
     const sampleData = [
       {
         name: 'John Doe',
         email: 'john.doe@student.edu',
         rollNumber: 'CSE21001',
-        branch: 'CSE',
+        branch: 'Computer Science',
+        section: 'A',
         year: 2
       },
       {
@@ -38,6 +40,7 @@ export default function BulkStudentUpload({ onUploadComplete }: { onUploadComple
         email: 'jane.smith@student.edu',
         rollNumber: 'AIML21002',
         branch: 'AIML',
+        section: 'B',
         year: 2
       },
       {
@@ -45,21 +48,24 @@ export default function BulkStudentUpload({ onUploadComplete }: { onUploadComple
         email: 'mike.johnson@student.edu',
         rollNumber: 'DS21003',
         branch: 'DS',
-        year: 3
+        section: 'C',
+        year: 2
       },
       {
         name: 'Sarah Wilson',
         email: 'sarah.wilson@student.edu',
-        rollNumber: 'CS21004',
+        rollNumber: 'CSE21004',
         branch: 'Computer Science',
-        year: 1
+        section: 'B',
+        year: 3
       },
       {
-        name: 'David Brown',
-        email: 'david.brown@student.edu',
-        rollNumber: 'IT21005',
-        branch: 'Information Technology',
-        year: 4
+        name: 'Robert Brown',
+        email: 'robert.brown@student.edu',
+        rollNumber: 'MCA21005',
+        branch: 'MCA Regular',
+        section: 'A',
+        year: 1
       }
     ];
     return sampleData;
@@ -69,7 +75,7 @@ export default function BulkStudentUpload({ onUploadComplete }: { onUploadComple
     const sampleData = generateTemplateData();
     
     // Create CSV content
-    const headers = ['name', 'email', 'rollNumber', 'branch', 'year'];
+    const headers = ['name', 'email', 'rollNumber', 'branch', 'section', 'year'];
     const csvContent = [
       headers.join(','),
       ...sampleData.map(row => 
@@ -117,7 +123,7 @@ export default function BulkStudentUpload({ onUploadComplete }: { onUploadComple
               });
               
               // Validate required columns
-              const requiredColumns = ['name', 'email', 'rollNumber', 'branch', 'year'];
+              const requiredColumns = ['name', 'email', 'rollNumber', 'branch', 'section', 'year'];
               const headers = Object.keys(data[0] || {});
               const missingColumns = requiredColumns.filter(col => !headers.includes(col));
               
@@ -191,15 +197,16 @@ export default function BulkStudentUpload({ onUploadComplete }: { onUploadComple
           email: student.email?.trim() || '',
           rollNumber: student.rollNumber?.trim() || '',
           branch: student.branch?.trim() || '',
+          section: student.section?.trim() || '',
           year: parseInt(student.year?.toString() || '1')
         };
         
         console.log(`Row ${index + 1}:`, trimmedStudent);
         
-        if (!trimmedStudent.name || !trimmedStudent.email || !trimmedStudent.rollNumber || !trimmedStudent.branch) {
+        if (!trimmedStudent.name || !trimmedStudent.email || !trimmedStudent.rollNumber || !trimmedStudent.branch || !trimmedStudent.section) {
           errors.push({
             index,
-            message: `Row ${index + 1} is missing required fields (name: '${trimmedStudent.name}', email: '${trimmedStudent.email}', rollNumber: '${trimmedStudent.rollNumber}', branch: '${trimmedStudent.branch}')`
+            message: `Row ${index + 1} is missing required fields (name: '${trimmedStudent.name}', email: '${trimmedStudent.email}', rollNumber: '${trimmedStudent.rollNumber}', branch: '${trimmedStudent.branch}', section: '${trimmedStudent.section}')`
           });
         } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedStudent.email)) {
           errors.push({
@@ -233,6 +240,7 @@ export default function BulkStudentUpload({ onUploadComplete }: { onUploadComple
         email: student.email?.trim() || '',
         rollNumber: student.rollNumber?.trim() || '',
         branch: student.branch?.trim() || '',
+        section: student.section?.trim() || '',
         year: parseInt(student.year?.toString() || '1')
       }));
       
@@ -269,7 +277,7 @@ export default function BulkStudentUpload({ onUploadComplete }: { onUploadComple
           <div>
             <p className="text-gray-700 mb-2">Upload a CSV file with the following columns:</p>
             <div className="bg-gray-50 p-3 rounded-md border border-gray-200">
-              <code>name, email, rollNumber, branch, year</code>
+              <code>name, email, rollNumber, branch, section, year</code>
             </div>
           </div>
           <button
@@ -284,28 +292,33 @@ export default function BulkStudentUpload({ onUploadComplete }: { onUploadComple
         </div>
         
         <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-          <h3 className="font-medium text-blue-900 mb-2">Supported Branches:</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-sm text-blue-800">
-            <span className="bg-red-100 px-2 py-1 rounded text-red-800">CSE</span>
-            <span className="bg-red-100 px-2 py-1 rounded text-red-800">AIML</span>
-            <span className="bg-red-100 px-2 py-1 rounded text-red-800">DS</span>
-            <span className="bg-blue-100 px-2 py-1 rounded">Computer Science</span>
-            <span className="bg-blue-100 px-2 py-1 rounded">Electronics</span>
-            <span className="bg-blue-100 px-2 py-1 rounded">Mechanical</span>
-            <span className="bg-blue-100 px-2 py-1 rounded">Civil</span>
-            <span className="bg-blue-100 px-2 py-1 rounded">Information Technology</span>
-            <span className="bg-blue-100 px-2 py-1 rounded">Electrical</span>
-            <span className="bg-blue-100 px-2 py-1 rounded">Chemical</span>
-            <span className="bg-blue-100 px-2 py-1 rounded">Aerospace</span>
-            <span className="bg-blue-100 px-2 py-1 rounded">Biotechnology</span>
-            <span className="bg-green-100 px-2 py-1 rounded text-green-800">MCA Regular</span>
-            <span className="bg-green-100 px-2 py-1 rounded text-green-800">MCA DS</span>
-            <span className="bg-purple-100 px-2 py-1 rounded text-purple-800">MBA Finance</span>
-            <span className="bg-purple-100 px-2 py-1 rounded text-purple-800">MBA Marketing</span>
-            <span className="bg-purple-100 px-2 py-1 rounded text-purple-800">MBA HR</span>
+          <h3 className="font-medium text-blue-900 mb-2">Supported Branches & Sections:</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-blue-800">
+            <div>
+              <h4 className="font-semibold mb-1">Engineering Branches:</h4>
+              <div className="space-y-1">
+                <span className="bg-red-100 px-2 py-1 rounded text-red-800 block">Computer Science (Sections: A, B, C)</span>
+                <span className="bg-red-100 px-2 py-1 rounded text-red-800 block">AIML (Sections: A, B, C)</span>
+                <span className="bg-red-100 px-2 py-1 rounded text-red-800 block">DS (Sections: A, B, C)</span>
+                <span className="bg-blue-100 px-2 py-1 rounded block">Electronics (Sections: A, B, C)</span>
+                <span className="bg-blue-100 px-2 py-1 rounded block">Mechanical (Sections: A, B, C)</span>
+                <span className="bg-blue-100 px-2 py-1 rounded block">Civil (Sections: A, B, C)</span>
+                <span className="bg-blue-100 px-2 py-1 rounded block">Information Technology (Sections: A, B, C)</span>
+              </div>
+            </div>
+            <div>
+              <h4 className="font-semibold mb-1">Other Programs:</h4>
+              <div className="space-y-1">
+                <span className="bg-green-100 px-2 py-1 rounded text-green-800 block">MCA Regular (Sections: A, B, C)</span>
+                <span className="bg-green-100 px-2 py-1 rounded text-green-800 block">MCA DS (Sections: A, B, C)</span>
+                <span className="bg-purple-100 px-2 py-1 rounded text-purple-800 block">MBA Finance (Section: A)</span>
+                <span className="bg-purple-100 px-2 py-1 rounded text-purple-800 block">MBA Marketing (Section: A)</span>
+                <span className="bg-purple-100 px-2 py-1 rounded text-purple-800 block">MBA HR (Section: A)</span>
+              </div>
+            </div>
           </div>
-          <p className="text-sm text-blue-700 mt-2">
-            <strong>Tip:</strong> Download the template above to get started with sample data and proper formatting. <span className="text-red-700 font-medium">New branches: CSE, AIML, DS</span>
+          <p className="text-sm text-blue-700 mt-3">
+            <strong>Important:</strong> Include section field for proper subject assignment. Students will only see subjects assigned to their section.
           </p>
         </div>
       </div>
@@ -347,6 +360,7 @@ export default function BulkStudentUpload({ onUploadComplete }: { onUploadComple
                           <th className="px-4 py-2 text-left">Email</th>
                           <th className="px-4 py-2 text-left">Roll Number</th>
                           <th className="px-4 py-2 text-left">Branch</th>
+                          <th className="px-4 py-2 text-left">Section</th>
                           <th className="px-4 py-2 text-left">Year</th>
                         </tr>
                       </thead>
@@ -357,6 +371,7 @@ export default function BulkStudentUpload({ onUploadComplete }: { onUploadComple
                             <td className="px-4 py-2">{student.email}</td>
                             <td className="px-4 py-2">{student.rollNumber}</td>
                             <td className="px-4 py-2">{student.branch}</td>
+                            <td className="px-4 py-2">{student.section}</td>
                             <td className="px-4 py-2">{student.year}</td>
                           </tr>
                         ))}

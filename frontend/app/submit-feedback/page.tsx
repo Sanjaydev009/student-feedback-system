@@ -72,7 +72,7 @@ export default function SubmitFeedbackPage() {
       localStorage.removeItem('token');
       router.push('/login');
     }
-  }, [router]);
+  }, [router]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch subject details
   const fetchSubject = async (subjectId: string) => {
