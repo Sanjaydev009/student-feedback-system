@@ -40,32 +40,33 @@ export default function UserFormModal({ user, isOpen, onClose, onSubmit, isLoadi
     term: 1
   });
 
-  // Department-Branch-Year hierarchy configuration
+  // Department-Branch-Section configuration for college structure
   const departmentConfig = {
     "Engineering": {
       branches: {
-        "Computer Science": { years: [1, 2, 3, 4] },
-        "Electronics": { years: [1, 2, 3, 4] },
-        "Mechanical": { years: [1, 2, 3, 4] },
-        "Civil": { years: [1, 2, 3, 4] },
-        "Electrical": { years: [1, 2, 3, 4] },
-        "Information Technology": { years: [1, 2, 3, 4] },
-        "Chemical": { years: [1, 2, 3, 4] },
-        "Aerospace": { years: [1, 2, 3, 4] },
-        "Biotechnology": { years: [1, 2, 3, 4] }
+        "Computer Science": { years: [1, 2, 3, 4], sections: ['A'] },
+        "AIML": { years: [1, 2, 3, 4], sections: ['A', 'B', 'C'] },
+        "Electronics": { years: [1, 2, 3, 4], sections: ['A', 'B'] },
+        "Mechanical": { years: [1, 2, 3, 4], sections: ['A', 'B'] },
+        "Civil": { years: [1, 2, 3, 4], sections: ['A'] },
+        "Electrical": { years: [1, 2, 3, 4], sections: ['A'] },
+        "Information Technology": { years: [1, 2, 3, 4], sections: ['A', 'B'] },
+        "Chemical": { years: [1, 2, 3, 4], sections: ['A'] },
+        "Aerospace": { years: [1, 2, 3, 4], sections: ['A'] },
+        "Biotechnology": { years: [1, 2, 3, 4], sections: ['A'] }
       }
     },
     "MCA": {
       branches: {
-        "MCA Regular": { years: [1, 2] },
-        "MCA DS": { years: [1, 2] }
+        "MCA Regular": { years: [1, 2], sections: ['A', 'B'] },
+        "MCA DS": { years: [1, 2], sections: ['A'] }
       }
     },
     "MBA": {
       branches: {
-        "MBA Finance": { years: [1, 2] },
-        "MBA Marketing": { years: [1, 2] },
-        "MBA HR": { years: [1, 2] }
+        "MBA Finance": { years: [1, 2], sections: ['A'] },
+        "MBA Marketing": { years: [1, 2], sections: ['A'] },
+        "MBA HR": { years: [1, 2], sections: ['A'] }
       }
     }
   } as const;
@@ -80,8 +81,16 @@ export default function UserFormModal({ user, isOpen, onClose, onSubmit, isLoadi
   const getAvailableYears = (department: string, branch: string) => {
     const deptData = departmentConfig[department as keyof typeof departmentConfig];
     if (!deptData) return [];
-    const branchData = deptData.branches[branch as keyof typeof deptData.branches] as { years: number[] } | undefined;
+    const branchData = deptData.branches[branch as keyof typeof deptData.branches] as { years: number[], sections: string[] } | undefined;
     return branchData?.years || [];
+  };
+
+  // Get available sections for selected department and branch
+  const getAvailableSections = (department: string, branch: string) => {
+    const deptData = departmentConfig[department as keyof typeof departmentConfig];
+    if (!deptData) return [];
+    const branchData = deptData.branches[branch as keyof typeof deptData.branches] as { years: number[], sections: string[] } | undefined;
+    return branchData?.sections || [];
   };
 
   // Reset form when user prop changes
@@ -243,12 +252,14 @@ export default function UserFormModal({ user, isOpen, onClose, onSubmit, isLoadi
                     value={formData.section || ''}
                     onChange={handleChange}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
                   >
                     <option value="">Select Section</option>
-                    <option value="A">Section A</option>
-                    <option value="B">Section B</option>
-                    <option value="C">Section C</option>
-                    <option value="D">Section D</option>
+                    {formData.department && formData.branch && getAvailableSections(formData.department, formData.branch).map(section => (
+                      <option key={section} value={section}>
+                        Section {section} ({formData.branch}-{section})
+                      </option>
+                    ))}
                   </select>
                 </div>
 

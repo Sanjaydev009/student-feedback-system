@@ -95,6 +95,11 @@ const UserSchema = new Schema({
     type: Number,
     enum: [1, 2, 3, 4]
   },
+  section: {
+    type: String,
+    enum: ['A', 'B', 'C', 'D', 'E', 'F'],
+    default: 'A' // Default section
+  },
   passwordResetRequired: {
     type: Boolean,
     default: true

@@ -42,7 +42,7 @@ export default function BulkUploadPage() {
           <p>Follow these steps to upload students in bulk:</p>
           <ol className="list-decimal pl-5 space-y-2">
             <li><strong>Download the template:</strong> Click the "Download Template" button above to get a CSV file with the correct format and sample data.</li>
-            <li><strong>Fill in student data:</strong> Replace the sample data with actual student information. Required columns are: <code className="bg-gray-100 px-1 py-0.5 rounded">name</code>, <code className="bg-gray-100 px-1 py-0.5 rounded">email</code>, <code className="bg-gray-100 px-1 py-0.5 rounded">rollNumber</code>, <code className="bg-gray-100 px-1 py-0.5 rounded">branch</code>, <code className="bg-gray-100 px-1 py-0.5 rounded">year</code>.</li>
+            <li><strong>Fill in student data:</strong> Replace the sample data with actual student information. Required columns are: <code className="bg-gray-100 px-1 py-0.5 rounded">name</code>, <code className="bg-gray-100 px-1 py-0.5 rounded">email</code>, <code className="bg-gray-100 px-1 py-0.5 rounded">rollNumber</code>, <code className="bg-gray-100 px-1 py-0.5 rounded">branch</code>, <code className="bg-gray-100 px-1 py-0.5 rounded">section</code>, <code className="bg-gray-100 px-1 py-0.5 rounded">year</code>.</li>
             <li><strong>Validate data:</strong> Ensure all required fields are completed and email addresses are valid.</li>
             <li><strong>Upload the file:</strong> Use the upload form above to process your CSV file.</li>
             <li><strong>Review results:</strong> Check for any errors and successfully uploaded students.</li>
@@ -64,31 +64,34 @@ export default function BulkUploadPage() {
             </p>
           </div>
           <div className="mt-4 p-4 bg-green-50 rounded-md">
-            <h4 className="font-medium text-green-800 mb-2">Supported Branches:</h4>
+            <h4 className="font-medium text-green-800 mb-2">Supported Branches & Sections:</h4>
             <div className="text-sm text-green-700 grid grid-cols-1 sm:grid-cols-2 gap-1">
               <div>
                 <h5 className="font-medium mb-1">Engineering & Technology:</h5>
-                <span>• CSE (Computer Science & Engineering)</span><br/>
-                <span>• AIML (Artificial Intelligence & Machine Learning)</span><br/>
-                <span>• DS (Data Science)</span><br/>
-                <span>• Computer Science</span><br/>
-                <span>• Electronics</span><br/>
-                <span>• Mechanical</span><br/>
-                <span>• Civil</span><br/>
-                <span>• Information Technology</span><br/>
-                <span>• Electrical</span><br/>
-                <span>• Chemical</span><br/>
-                <span>• Aerospace</span><br/>
-                <span>• Biotechnology</span>
+                <span>• Computer Science (Section: A)</span><br/>
+                <span>• AIML - Artificial Intelligence & Machine Learning (Sections: A, B, C)</span><br/>
+                <span>• Electronics (Sections: A, B)</span><br/>
+                <span>• Mechanical (Sections: A, B)</span><br/>
+                <span>• Civil (Section: A)</span><br/>
+                <span>• Information Technology (Sections: A, B)</span><br/>
+                <span>• Electrical (Section: A)</span><br/>
+                <span>• Chemical (Section: A)</span><br/>
+                <span>• Aerospace (Section: A)</span><br/>
+                <span>• Biotechnology (Section: A)</span>
               </div>
               <div>
                 <h5 className="font-medium mb-1">Other Programs:</h5>
-                <span>• MCA Regular</span><br/>
-                <span>• MCA DS</span><br/>
-                <span>• MBA Finance</span><br/>
-                <span>• MBA Marketing</span><br/>
-                <span>• MBA HR</span>
+                <span>• MCA Regular (Sections: A, B)</span><br/>
+                <span>• MCA DS (Section: A)</span><br/>
+                <span>• MBA Finance (Section: A)</span><br/>
+                <span>• MBA Marketing (Section: A)</span><br/>
+                <span>• MBA HR (Section: A)</span>
               </div>
+            </div>
+            <div className="mt-3 p-3 bg-blue-50 rounded border-l-4 border-blue-400">
+              <p className="text-blue-800 text-sm">
+                <strong>Section Example:</strong> For AIML students, use sections A, B, or C. For CSE students, use section A only.
+              </p>
             </div>
           </div>
         </div>

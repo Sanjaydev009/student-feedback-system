@@ -69,7 +69,7 @@ export default function DeanReportsPage() {
     fetchReports();
     fetchDashboardStats();
     fetchAnalyticsData();
-  }, [yearFilter, termFilter, branchFilter]);
+  }, [yearFilter, termFilter, branchFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchReports = async () => {
     setLoading(true);

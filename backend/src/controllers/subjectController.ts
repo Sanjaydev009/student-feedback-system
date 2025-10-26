@@ -54,9 +54,18 @@ export const getSubjectsForStudent = async (req: Request, res: Response): Promis
       query.term = parseInt(term.toString());
     }
 
-    console.log('Student query:', query, 'Student branch:', student.branch, 'Student year:', student.year);
+    // Add section filter if student has section information
+    if (student.section) {
+      query.$or = [
+        { sections: { $in: [student.section] } }, // Subject has student's section
+        { sections: { $size: 0 } }, // Subject has no sections assigned (backward compatibility)
+        { sections: { $exists: false } } // Subject doesn't have sections field (backward compatibility)
+      ];
+    }
 
-    // Find subjects matching student's branch and optionally year/term
+    console.log('Student query:', query, 'Student branch:', student.branch, 'Student year:', student.year, 'Student section:', student.section);
+
+    // Find subjects matching student's branch and optionally year/term/section
     const subjects = await Subject.find(query);
 
     console.log('Found subjects for student:', subjects.length);
@@ -77,6 +86,7 @@ export const createSubject = async (req: Request, res: Response): Promise<void> 
     year,
     term,
     branch,
+    sections,
     questions,
     midtermQuestions,
     endtermQuestions
@@ -113,7 +123,8 @@ export const createSubject = async (req: Request, res: Response): Promise<void> 
       department,
       year: parseInt(year.toString()),
       term: parseInt(term.toString()),
-      branch
+      branch,
+      sections: sections || []
     };
 
     // Add questions based on what's provided
@@ -160,6 +171,7 @@ export const updateSubject = async (req: Request, res: Response): Promise<void> 
     year,
     term,
     branch,
+    sections,
     questions,
     midtermQuestions,
     endtermQuestions
@@ -203,7 +215,8 @@ export const updateSubject = async (req: Request, res: Response): Promise<void> 
       department,
       year: parseInt(year.toString()),
       term: parseInt(term.toString()),
-      branch
+      branch,
+      sections: sections || []
     };
 
     // Add questions based on what's provided
@@ -293,6 +306,105 @@ export const deleteSubject = async (req: Request, res: Response): Promise<void> 
       success: false,
       message: err.message || 'Internal server error while deleting subject' 
     });
+  }
+};
+
+// Get subject statistics
+export const getSubjectStats = async (req: Request, res: Response): Promise<void> => {
+  try {
+    // Get total subjects count
+    const totalSubjects = await Subject.countDocuments();
+    
+    // Get unique instructors count
+    const instructors = await Subject.distinct('instructor');
+    const totalInstructors = instructors.length;
+    
+    // Get department distribution
+    const departmentAggregation = await Subject.aggregate([
+      {
+        $group: {
+          _id: '$department',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+    
+    const departmentDistribution = departmentAggregation.reduce((acc, item) => {
+      acc[item._id] = item.count;
+      return acc;
+    }, {} as { [key: string]: number });
+    
+    // Get year distribution
+    const yearAggregation = await Subject.aggregate([
+      {
+        $group: {
+          _id: '$year',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+    
+    const yearDistribution = yearAggregation.reduce((acc, item) => {
+      acc[`Year ${item._id}`] = item.count;
+      return acc;
+    }, {} as { [key: string]: number });
+    
+    res.json({
+      totalSubjects,
+      totalInstructors,
+      departmentDistribution,
+      yearDistribution
+    });
+  } catch (err: any) {
+    console.error('Error getting subject stats:', err);
+    res.status(500).json({ message: 'Server error while getting subject statistics' });
+  }
+};
+
+// Bulk delete subjects
+export const bulkDeleteSubjects = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { ids } = req.body;
+    
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      res.status(400).json({ message: 'Subject IDs array is required' });
+      return;
+    }
+    
+    // Validate all subject IDs exist
+    const subjects = await Subject.find({ _id: { $in: ids } });
+    if (subjects.length !== ids.length) {
+      res.status(404).json({ message: 'One or more subjects not found' });
+      return;
+    }
+    
+    // Check for feedback entries (optional check - can be forced)
+    const feedbackExists = await Feedback.exists({ subject: { $in: ids } });
+    const forceDelete = req.query.force === 'true';
+    
+    if (feedbackExists && !forceDelete) {
+      res.status(400).json({ 
+        message: 'Cannot delete subjects with existing feedback entries. Use force=true to override.' 
+      });
+      return;
+    }
+    
+    // Delete the subjects
+    const deleteResult = await Subject.deleteMany({ _id: { $in: ids } });
+    
+    // If feedback exists and force delete was used, delete related feedback
+    if (feedbackExists && forceDelete) {
+      await Feedback.deleteMany({ subject: { $in: ids } });
+    }
+    
+    res.json({
+      success: true,
+      message: `Successfully deleted ${deleteResult.deletedCount} subjects`,
+      deletedCount: deleteResult.deletedCount
+    });
+  } catch (err: any) {
+    console.error('Error bulk deleting subjects:', err);
+    res.status(500).json({ message: 'Server error while deleting subjects' });
   }
 };
 

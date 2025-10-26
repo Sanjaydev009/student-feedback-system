@@ -55,7 +55,7 @@ export default function FeedbackPeriodsPage() {
 
   useEffect(() => {
     fetchFeedbackPeriods();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchFeedbackPeriods = async () => {
     try {

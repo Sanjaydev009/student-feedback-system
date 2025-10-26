@@ -44,6 +44,11 @@ const SubjectSchema = new Schema({
     ],
     default: ['Computer Science']
   },
+  sections: {
+    type: [String], // Array to support multiple sections
+    enum: ['A', 'B', 'C', 'D', 'E', 'F'],
+    default: []
+  },
   questions: [String]
 });
 

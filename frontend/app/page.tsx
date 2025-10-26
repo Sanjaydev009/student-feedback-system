@@ -70,6 +70,7 @@ export default function Home() {
     });
     
     return () => {
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       sectionsRef.current.forEach(section => {
         if (section) observer.unobserve(section);
       });

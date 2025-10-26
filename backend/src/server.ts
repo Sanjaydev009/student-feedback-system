@@ -188,6 +188,248 @@ if (process.env.NODE_ENV !== 'production') {
     }
   });
 
+  // Public endpoint for cumulative subject data (no auth needed) - for reports
+  app.get('/api/test/feedback/cumulative', async (req, res) => {
+    try {
+      const { year, term, branch, section } = req.query;
+      const Feedback = require('./models/Feedback').default;
+      const Subject = require('./models/Subject').default;
+      const User = require('./models/User').default;
+      
+      // Build match conditions for filtering
+      let subjectFilter: any = {};
+      if (year && year !== 'all') subjectFilter.year = parseInt(year as string);
+      if (term && term !== 'all') subjectFilter.term = parseInt(term as string);
+      if (branch && branch !== 'all') subjectFilter.branch = { $in: [branch] };
+      
+      // Get filtered subjects
+      const filteredSubjects = await Subject.find(subjectFilter);
+      const subjectIds = filteredSubjects.map((s: any) => s._id);
+      
+      // Build feedback filter
+      let feedbackFilter: any = {};
+      if (subjectIds.length > 0) {
+        feedbackFilter.subject = { $in: subjectIds };
+      }
+      
+      // Get cumulative data
+      const cumulativeData = await Feedback.aggregate([
+        { $match: feedbackFilter },
+        {
+          $lookup: {
+            from: 'subjects',
+            localField: 'subject',
+            foreignField: '_id',
+            as: 'subject'
+          }
+        },
+        {
+          $unwind: '$subject'
+        },
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'student',
+            foreignField: '_id',
+            as: 'student'
+          }
+        },
+        {
+          $unwind: '$student'
+        },
+        // Apply section filter if needed
+        ...(section && section !== 'all' ? [{ $match: { 'student.section': section } }] : []),
+        {
+          $group: {
+            _id: '$subject._id',
+            subjectId: { $first: '$subject._id' },
+            subjectName: { $first: '$subject.name' },
+            subjectCode: { $first: '$subject.code' },
+            instructor: { $first: '$subject.instructor' },
+            branch: { $first: '$subject.branch' },
+            year: { $first: '$subject.year' },
+            term: { $first: '$subject.term' },
+            section: { $first: '$student.section' },
+            feedbackCount: { $sum: 1 },
+            averageRating: { $avg: '$averageRating' }
+          }
+        },
+        {
+          $project: {
+            _id: 0,
+            subjectId: 1,
+            subjectName: 1,
+            subjectCode: 1,
+            instructor: 1,
+            branch: 1,
+            year: 1,
+            term: 1,
+            section: 1,
+            feedbackCount: 1,
+            averageRating: { $round: ['$averageRating', 2] }
+          }
+        },
+        {
+          $sort: { averageRating: -1 }
+        }
+      ]);
+      
+      res.json(cumulativeData);
+    } catch (error: any) {
+      console.error('Error getting cumulative subject data:', error);
+      res.status(500).json({ message: 'Server error while getting cumulative data', error: error.message });
+    }
+  });
+
+  // Public endpoint for testing cumulative question data (no auth needed)
+  app.get('/api/test/feedback/cumulative-questions', async (req: any, res: any) => {
+    try {
+      const { year, term, branch, section } = req.query;
+      const Feedback = require('./models/Feedback').default;
+      const Subject = require('./models/Subject').default;
+      
+      // Build subject filter
+      let subjectFilter: any = {};
+      if (year && year !== 'all') subjectFilter.year = parseInt(year as string);
+      if (term && term !== 'all') subjectFilter.term = parseInt(term as string);
+      if (branch && branch !== 'all') subjectFilter.branch = { $in: [branch] };
+      
+      // Get filtered subjects
+      const filteredSubjects = await Subject.find(subjectFilter);
+      const subjectIds = filteredSubjects.map((s: any) => s._id);
+      
+      // Build feedback filter
+      let feedbackFilter: any = {};
+      if (subjectIds.length > 0) {
+        feedbackFilter.subject = { $in: subjectIds };
+      }
+
+      const questionData = await Feedback.aggregate([
+        { $match: feedbackFilter },
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'student',
+            foreignField: '_id',
+            as: 'student'
+          }
+        },
+        {
+          $unwind: '$student'
+        },
+        {
+          $lookup: {
+            from: 'subjects',
+            localField: 'subject',
+            foreignField: '_id',
+            as: 'subject'
+          }
+        },
+        {
+          $unwind: '$subject'
+        },
+        // Apply section filter if needed
+        ...(section && section !== 'all' ? [{ $match: { 'student.section': section } }] : []),
+        {
+          $unwind: '$answers'
+        },
+        {
+          $match: {
+            'answers.type': 'rating',
+            'answers.answer': { $gte: 1, $lte: 5 }
+          }
+        },
+        {
+          $group: {
+            _id: {
+              question: '$answers.question',
+              subjectId: '$subject._id'
+            },
+            question: { $first: '$answers.question' },
+            subjectId: { $first: '$subject._id' },
+            subjectName: { $first: '$subject.name' },
+            subjectCode: { $first: '$subject.code' },
+            instructor: { $first: '$subject.instructor' },
+            responseCount: { $sum: 1 },
+            averageRating: { $avg: '$answers.answer' },
+            ratings: { $push: '$answers.answer' }
+          }
+        },
+        {
+          $group: {
+            _id: '$question',
+            question: { $first: '$question' },
+            totalResponses: { $sum: '$responseCount' },
+            overallAverage: { $avg: '$averageRating' },
+            subjectBreakdown: {
+              $push: {
+                subjectId: '$subjectId',
+                subjectName: '$subjectName',
+                subjectCode: '$subjectCode',
+                instructor: '$instructor',
+                responseCount: '$responseCount',
+                averageRating: '$averageRating'
+              }
+            }
+          }
+        },
+        {
+          $project: {
+            _id: 0,
+            question: 1,
+            totalResponses: 1,
+            overallAverage: { $round: ['$overallAverage', 2] },
+            subjectBreakdown: {
+              $map: {
+                input: '$subjectBreakdown',
+                as: 'subject',
+                in: {
+                  subjectId: '$$subject.subjectId',
+                  subjectName: '$$subject.subjectName',
+                  subjectCode: '$$subject.subjectCode',
+                  instructor: '$$subject.instructor',
+                  responseCount: '$$subject.responseCount',
+                  averageRating: { $round: ['$$subject.averageRating', 2] }
+                }
+              }
+            },
+            subjectCount: { $size: '$subjectBreakdown' }
+          }
+        },
+        {
+          $sort: { overallAverage: -1 }
+        }
+      ]);
+      
+      // Calculate additional statistics
+      const questionStats = questionData.map((item: any) => {
+        const ratings = item.subjectBreakdown.map((s: any) => s.averageRating);
+        const variance = ratings.length > 1 ? 
+          ratings.reduce((sum: number, rating: number) => sum + Math.pow(rating - item.overallAverage, 2), 0) / (ratings.length - 1) : 0;
+        const standardDeviation = Math.sqrt(variance);
+        
+        return {
+          ...item,
+          statistics: {
+            variance: Math.round(variance * 100) / 100,
+            standardDeviation: Math.round(standardDeviation * 100) / 100,
+            consistency: standardDeviation < 0.5 ? 'High' : standardDeviation < 1.0 ? 'Medium' : 'Low'
+          },
+          performanceRange: {
+            highest: Math.round(Math.max(...ratings) * 100) / 100,
+            lowest: Math.round(Math.min(...ratings) * 100) / 100,
+            range: Math.round((Math.max(...ratings) - Math.min(...ratings)) * 100) / 100
+          }
+        };
+      });
+      
+      res.json(questionStats);
+    } catch (error: any) {
+      console.error('Error getting cumulative question data:', error);
+      res.status(500).json({ message: 'Server error while getting cumulative question data', error: error.message });
+    }
+  });
+
   // Public endpoint for testing feedback summary (no auth needed) - enhanced with categories
   app.get('/api/test/feedback/summary/:subjectId', async (req: any, res: any) => {
     try {

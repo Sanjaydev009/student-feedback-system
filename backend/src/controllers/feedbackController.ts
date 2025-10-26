@@ -459,3 +459,329 @@ export const getReports = async (req: Request, res: Response): Promise<void> => 
     res.status(500).json({ message: 'Server error while getting reports' });
   }
 };
+
+// Get section-wise statistics
+export const getSectionStats = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { year, term, branch } = req.query;
+    
+    // Build match conditions
+    const matchConditions: any = {};
+    if (year && year !== 'all') matchConditions['student.year'] = parseInt(year as string);
+    if (term && term !== 'all') matchConditions.term = parseInt(term as string);
+    if (branch && branch !== 'all') matchConditions['student.branch'] = branch;
+    
+    // Aggregate feedback data by student sections
+    const sectionStats = await Feedback.aggregate([
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'student',
+          foreignField: '_id',
+          as: 'student'
+        }
+      },
+      {
+        $unwind: '$student'
+      },
+      {
+        $lookup: {
+          from: 'subjects',
+          localField: 'subject',
+          foreignField: '_id',
+          as: 'subject'
+        }
+      },
+      {
+        $unwind: '$subject'
+      },
+      ...(Object.keys(matchConditions).length > 0 ? [{ $match: matchConditions }] : []),
+      {
+        $group: {
+          _id: '$student.section',
+          section: { $first: '$student.section' },
+          studentCount: { $addToSet: '$student._id' },
+          feedbackCount: { $sum: 1 },
+          subjects: { $addToSet: '$subject._id' },
+          averageRating: { $avg: '$averageRating' }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          section: '$section',
+          studentCount: { $size: '$studentCount' },
+          feedbackCount: 1,
+          subjects: { $size: '$subjects' },
+          averageRating: { $round: ['$averageRating', 2] }
+        }
+      },
+      {
+        $sort: { section: 1 }
+      }
+    ]);
+    
+    res.json(sectionStats);
+  } catch (err: any) {
+    console.error('Error getting section stats:', err);
+    res.status(500).json({ message: 'Server error while getting section statistics' });
+  }
+};
+
+// Get cumulative subject performance data
+export const getCumulativeSubjectData = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { year, term, branch, section } = req.query;
+    
+    // Build match conditions for filtering
+    const matchConditions: any = {};
+    
+    if (year && year !== 'all') {
+      matchConditions['subject.year'] = parseInt(year as string);
+    }
+    
+    if (term && term !== 'all') {
+      matchConditions['subject.term'] = parseInt(term as string);
+    }
+    
+    if (branch && branch !== 'all') {
+      matchConditions['subject.branch'] = { $in: [branch] };
+    }
+    
+    if (section && section !== 'all') {
+      matchConditions['student.section'] = section;
+    }
+
+    const cumulativeData = await Feedback.aggregate([
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'student',
+          foreignField: '_id',
+          as: 'student'
+        }
+      },
+      {
+        $unwind: '$student'
+      },
+      {
+        $lookup: {
+          from: 'subjects',
+          localField: 'subject',
+          foreignField: '_id',
+          as: 'subject'
+        }
+      },
+      {
+        $unwind: '$subject'
+      },
+      ...(Object.keys(matchConditions).length > 0 ? [{ $match: matchConditions }] : []),
+      {
+        $group: {
+          _id: '$subject._id',
+          subjectId: { $first: '$subject._id' },
+          subjectName: { $first: '$subject.name' },
+          subjectCode: { $first: '$subject.code' },
+          instructor: { $first: '$subject.instructor' },
+          branch: { $first: '$subject.branch' },
+          year: { $first: '$subject.year' },
+          term: { $first: '$subject.term' },
+          section: { $first: '$student.section' },
+          feedbackCount: { $sum: 1 },
+          averageRating: { $avg: '$averageRating' }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          subjectId: 1,
+          subjectName: 1,
+          subjectCode: 1,
+          instructor: 1,
+          branch: 1,
+          year: 1,
+          term: 1,
+          section: 1,
+          feedbackCount: 1,
+          averageRating: { $round: ['$averageRating', 2] }
+        }
+      },
+      {
+        $sort: { averageRating: -1 }
+      }
+    ]);
+    
+    res.json(cumulativeData);
+  } catch (err: any) {
+    console.error('Error getting cumulative subject data:', err);
+    res.status(500).json({ message: 'Server error while getting cumulative data' });
+  }
+};
+
+// Get cumulative question-wise analysis across all subjects
+export const getCumulativeQuestionData = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { year, term, branch, section } = req.query;
+    
+    // Build match conditions for filtering
+    const matchConditions: any = {};
+    
+    if (year && year !== 'all') {
+      matchConditions['subject.year'] = parseInt(year as string);
+    }
+    
+    if (term && term !== 'all') {
+      matchConditions['subject.term'] = parseInt(term as string);
+    }
+    
+    if (branch && branch !== 'all') {
+      matchConditions['subject.branch'] = { $in: [branch] };
+    }
+    
+    if (section && section !== 'all') {
+      matchConditions['student.section'] = section;
+    }
+
+    const questionData = await Feedback.aggregate([
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'student',
+          foreignField: '_id',
+          as: 'student'
+        }
+      },
+      {
+        $unwind: '$student'
+      },
+      {
+        $lookup: {
+          from: 'subjects',
+          localField: 'subject',
+          foreignField: '_id',
+          as: 'subject'
+        }
+      },
+      {
+        $unwind: '$subject'
+      },
+      ...(Object.keys(matchConditions).length > 0 ? [{ $match: matchConditions }] : []),
+      {
+        $unwind: '$answers'
+      },
+      {
+        $match: {
+          'answers.type': 'rating',
+          'answers.answer': { $gte: 1, $lte: 5 }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            question: '$answers.question',
+            subjectId: '$subject._id'
+          },
+          question: { $first: '$answers.question' },
+          subjectId: { $first: '$subject._id' },
+          subjectName: { $first: '$subject.name' },
+          subjectCode: { $first: '$subject.code' },
+          instructor: { $first: '$subject.instructor' },
+          responseCount: { $sum: 1 },
+          averageRating: { $avg: '$answers.answer' },
+          ratings: { $push: '$answers.answer' }
+        }
+      },
+      {
+        $group: {
+          _id: '$question',
+          question: { $first: '$question' },
+          totalResponses: { $sum: '$responseCount' },
+          overallAverage: { $avg: '$averageRating' },
+          subjectBreakdown: {
+            $push: {
+              subjectId: '$subjectId',
+              subjectName: '$subjectName',
+              subjectCode: '$subjectCode',
+              instructor: '$instructor',
+              responseCount: '$responseCount',
+              averageRating: '$averageRating'
+            }
+          },
+          bestPerformingSubject: {
+            $max: {
+              subject: {
+                $concat: ['$subjectName', ' (', '$subjectCode', ')']
+              },
+              rating: '$averageRating'
+            }
+          },
+          worstPerformingSubject: {
+            $min: {
+              subject: {
+                $concat: ['$subjectName', ' (', '$subjectCode', ')']
+              },
+              rating: '$averageRating'
+            }
+          }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          question: 1,
+          totalResponses: 1,
+          overallAverage: { $round: ['$overallAverage', 2] },
+          subjectBreakdown: {
+            $map: {
+              input: '$subjectBreakdown',
+              as: 'subject',
+              in: {
+                subjectId: '$$subject.subjectId',
+                subjectName: '$$subject.subjectName',
+                subjectCode: '$$subject.subjectCode',
+                instructor: '$$subject.instructor',
+                responseCount: '$$subject.responseCount',
+                averageRating: { $round: ['$$subject.averageRating', 2] }
+              }
+            }
+          },
+          performanceRange: {
+            highest: { $max: '$subjectBreakdown.averageRating' },
+            lowest: { $min: '$subjectBreakdown.averageRating' }
+          },
+          subjectCount: { $size: '$subjectBreakdown' }
+        }
+      },
+      {
+        $sort: { overallAverage: -1 }
+      }
+    ]);
+    
+    // Calculate additional statistics
+    const questionStats = questionData.map(item => {
+      const ratings = item.subjectBreakdown.map((s: any) => s.averageRating);
+      const variance = ratings.length > 1 ? 
+        ratings.reduce((sum: number, rating: number) => sum + Math.pow(rating - item.overallAverage, 2), 0) / (ratings.length - 1) : 0;
+      const standardDeviation = Math.sqrt(variance);
+      
+      return {
+        ...item,
+        statistics: {
+          variance: Math.round(variance * 100) / 100,
+          standardDeviation: Math.round(standardDeviation * 100) / 100,
+          consistency: standardDeviation < 0.5 ? 'High' : standardDeviation < 1.0 ? 'Medium' : 'Low'
+        },
+        performanceRange: {
+          highest: Math.round(Math.max(...ratings) * 100) / 100,
+          lowest: Math.round(Math.min(...ratings) * 100) / 100,
+          range: Math.round((Math.max(...ratings) - Math.min(...ratings)) * 100) / 100
+        }
+      };
+    });
+    
+    res.json(questionStats);
+  } catch (err: any) {
+    console.error('Error getting cumulative question data:', err);
+    res.status(500).json({ message: 'Server error while getting cumulative question data' });
+  }
+};

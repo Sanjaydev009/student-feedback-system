@@ -82,7 +82,7 @@ function AdvancedFeedbackContent() {
       setError('No subject selected');
       setLoading(false);
     }
-  }, [subjectId, feedbackType]);
+  }, [subjectId, feedbackType]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchSubject = async () => {
     try {

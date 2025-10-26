@@ -32,7 +32,7 @@ export default function HODStudents() {
 
   useEffect(() => {
     fetchStudents();
-  }, [currentPage, searchTerm]);
+  }, [currentPage, searchTerm]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchStudents = async () => {
     try {

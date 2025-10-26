@@ -25,7 +25,7 @@
 //         console.error('Failed to decode token');
 //       }
 //     }
-//   }, []);
+//   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
 //   const handleLogout = () => {
 //     localStorage.removeItem('token');
@@ -97,7 +97,7 @@ export default function Navbar() {
       localStorage.removeItem('token');
       router.push('/login');
     }
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleLogout = () => {
     localStorage.removeItem('token');
