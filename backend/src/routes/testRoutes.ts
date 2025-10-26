@@ -9,7 +9,23 @@ const router = express.Router();
 router.get('/email-status', async (req, res) => {
   try {
     const configCheck = emailService.checkConfiguration();
-    const isReady = await emailService.verifyConnection();
+    console.log('🔍 Public email configuration check:', configCheck);
+    
+    let isReady = false;
+    let connectionError = null;
+    
+    try {
+      console.log('🔍 Testing email connection...');
+      isReady = await emailService.verifyConnection();
+      console.log('✅ Email connection successful');
+    } catch (error: any) {
+      connectionError = {
+        message: error.message,
+        code: error.code,
+        response: error.response
+      };
+      console.error('❌ Email connection failed:', error);
+    }
     
     res.json({
       configurationCheck: configCheck,
@@ -19,10 +35,15 @@ router.get('/email-status', async (req, res) => {
         emailUser: process.env.EMAIL_USER ? 
           `${process.env.EMAIL_USER.substring(0, 3)}...${process.env.EMAIL_USER.split('@')[1]}` : 
           'Not configured',
-        smtpHost: process.env.SMTP_HOST || 'Not configured'
-      }
+        smtpHost: process.env.SMTP_HOST || 'Not configured',
+        hasEmailPassword: !!process.env.EMAIL_PASSWORD,
+        emailPasswordLength: process.env.EMAIL_PASSWORD?.length || 0
+      },
+      connectionError: connectionError,
+      timestamp: new Date().toISOString()
     });
   } catch (error) {
+    console.error('❌ Email status endpoint error:', error);
     res.status(500).json({
       message: 'Failed to check email configuration',
       error: error instanceof Error ? error.message : String(error)
@@ -153,22 +174,48 @@ router.post('/test-email', protect, isAdmin, async (req, res): Promise<void> => 
 router.get('/email-status', protect, isAdmin, async (req, res): Promise<void> => {
   try {
     const configCheck = emailService.checkConfiguration();
-    const isReady = await emailService.verifyConnection();
+    console.log('🔍 Email configuration check:', configCheck);
+    
+    let isReady = false;
+    let connectionError = null;
+    
+    try {
+      isReady = await emailService.verifyConnection();
+    } catch (error: any) {
+      connectionError = {
+        message: error.message,
+        code: error.code,
+        response: error.response
+      };
+      console.error('❌ Email verification failed:', error);
+    }
     
     res.json({
       emailServiceReady: isReady,
       configuration: {
-        emailUser: process.env.EMAIL_USER ? 'Configured' : 'Not configured',
+        emailUser: process.env.EMAIL_USER ? 
+          `${process.env.EMAIL_USER.substring(0, 3)}...${process.env.EMAIL_USER.split('@')[1]}` : 
+          'Not configured',
         emailPassword: process.env.EMAIL_PASSWORD ? 'Configured' : 'Not configured',
         emailService: process.env.EMAIL_SERVICE || 'Not configured',
         smtpHost: process.env.SMTP_HOST || 'Not configured'
       },
-      configurationCheck: configCheck
+      configurationCheck: configCheck,
+      connectionError: connectionError,
+      environmentCheck: {
+        nodeEnv: process.env.NODE_ENV,
+        port: process.env.PORT,
+        hasEmailUser: !!process.env.EMAIL_USER,
+        hasEmailPassword: !!process.env.EMAIL_PASSWORD,
+        emailPasswordLength: process.env.EMAIL_PASSWORD?.length || 0
+      }
     });
   } catch (error: any) {
+    console.error('❌ Email status check failed:', error);
     res.status(500).json({
       emailServiceReady: false,
-      error: error.message
+      error: error.message,
+      stack: error.stack
     });
   }
 });
