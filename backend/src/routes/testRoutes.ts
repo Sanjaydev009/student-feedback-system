@@ -149,7 +149,7 @@ router.post('/test-email', protect, isAdmin, async (req, res): Promise<void> => 
   }
 });
 
-// Check email service status
+// Check email service status (admin only)
 router.get('/email-status', protect, isAdmin, async (req, res): Promise<void> => {
   try {
     const configCheck = emailService.checkConfiguration();
