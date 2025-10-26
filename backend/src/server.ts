@@ -97,47 +97,6 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Admin initialization endpoint - production safe
-app.post('/api/auth/init-admin', async (req: any, res: any) => {
-  try {
-    const User = require('./models/User').default;
-    
-    // Check if any admin user already exists
-    const existingAdmin = await User.findOne({ role: 'admin' });
-    
-    if (existingAdmin) {
-      return res.status(400).json({ 
-        message: 'Admin user already exists',
-        email: existingAdmin.email
-      });
-    }
-
-    // Create default admin user
-    const adminUser = await User.create({
-      name: 'System Administrator',
-      email: 'admin@test.com',
-      password: 'admin123',
-      role: 'admin',
-      passwordResetRequired: false
-    });
-
-    console.log('✅ Admin user created successfully:', adminUser.email);
-
-    res.status(201).json({
-      message: 'Admin user created successfully',
-      email: adminUser.email,
-      password: 'admin123',
-      note: 'Please change the default password after first login'
-    });
-  } catch (error: any) {
-    console.error('❌ Error creating admin user:', error);
-    res.status(500).json({ 
-      message: 'Failed to create admin user',
-      error: error.message 
-    });
-  }
-});
-
 // API Health check endpoint  
 app.get('/api/health', (req, res) => {
   res.header('Access-Control-Allow-Origin', '*');
@@ -153,51 +112,14 @@ app.get('/api/health', (req, res) => {
   });
 });
  
-// Test endpoint to verify database connection and initialize admin
-app.get('/setup-admin', async (req: any, res: any) => {
+// Test routes
+app.get('/', (req, res) => {
+  // Add explicit CORS headers for root endpoint too
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, X-Requested-With, Origin, Cache-Control, Pragma, Expires');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, X-Requested-With, Origin, X-Auth-Token, Cache-Control, Pragma, Expires');
   
-  try {
-    const User = require('./models/User').default;
-    
-    // Check if any admin user already exists
-    const existingAdmin = await User.findOne({ role: 'admin' });
-    
-    if (existingAdmin) {
-      return res.status(200).json({ 
-        message: 'Admin user already exists',
-        email: existingAdmin.email,
-        canLogin: true
-      });
-    }
-
-    // Create default admin user
-    const adminUser = await User.create({
-      name: 'System Administrator',
-      email: 'admin@test.com',
-      password: 'admin123',
-      role: 'admin',
-      passwordResetRequired: false
-    });
-
-    console.log('✅ Admin user created successfully:', adminUser.email);
-
-    res.status(201).json({
-      message: 'Admin user created successfully',
-      email: 'admin@test.com',
-      password: 'admin123',
-      note: 'Admin user ready for login'
-    });
-  } catch (error: any) {
-    console.error('❌ Error with admin setup:', error);
-    res.status(500).json({ 
-      message: 'Failed to setup admin user',
-      error: error.message,
-      mongoConnected: require('mongoose').connection.readyState === 1
-    });
-  }
+  res.send('API is running with CORS support...');
 });
 
 // Development only - public endpoints for testing (no auth required)
