@@ -23,58 +23,77 @@ interface EmailTemplate {
 
 class EmailService {
   private transporter!: nodemailer.Transporter;
+  private isConfigured: boolean = false;
 
   constructor() {
     this.initializeTransporter();
   }
 
   private initializeTransporter() {
-    // Email configuration - optimized for production hosting (Render, Heroku, etc.)
-    const emailConfig: EmailConfig = {
-      auth: {
-        user: process.env.EMAIL_USER || '',
-        pass: process.env.EMAIL_PASSWORD || '',
-      },
-    };
-
-    // Check if using SendGrid
-    if (process.env.EMAIL_SERVICE === 'sendgrid') {
-      emailConfig.host = 'smtp.sendgrid.net';
-      emailConfig.port = 587;
-      emailConfig.secure = false;
-      emailConfig.auth = {
-        user: 'apikey', // SendGrid uses 'apikey' as username
-        pass: process.env.SENDGRID_API_KEY || '',
+    try {
+      // Email configuration - optimized for production hosting (Render, Heroku, etc.)
+      const emailConfig: EmailConfig = {
+        auth: {
+          user: process.env.EMAIL_USER || '',
+          pass: process.env.EMAIL_PASSWORD || '',
+        },
       };
-    }
-    // Use explicit SMTP configuration for better reliability on hosting platforms
-    else if (process.env.EMAIL_SERVICE === 'gmail' || (!process.env.SMTP_HOST && process.env.EMAIL_USER?.includes('@gmail.com'))) {
-      // Gmail with explicit SMTP settings for better compatibility
-      emailConfig.host = 'smtp.gmail.com';
-      emailConfig.port = 587;
-      emailConfig.secure = false; // Use STARTTLS
-    } else if (process.env.SMTP_HOST) {
-      // Custom SMTP configuration
-      emailConfig.host = process.env.SMTP_HOST;
-      emailConfig.port = parseInt(process.env.SMTP_PORT || '587');
-      emailConfig.secure = process.env.SMTP_SECURE === 'true';
-    } else {
-      // Fallback to service-based configuration
-      emailConfig.service = process.env.EMAIL_SERVICE || 'gmail';
-    }
 
-    // Add connection timeout and other reliability settings
-    this.transporter = nodemailer.createTransport({
-      ...emailConfig,
-      connectionTimeout: 10000, // Reduced to 10 seconds for faster failure
-      greetingTimeout: 10000, // Reduced to 10 seconds
-      socketTimeout: 10000, // Reduced to 10 seconds
-      pool: false, // Disable connection pooling for hosting platforms
-      // Add TLS options for better compatibility
-      tls: {
-        rejectUnauthorized: false
+      // Check if using SendGrid
+      if (process.env.EMAIL_SERVICE === 'sendgrid') {
+        emailConfig.host = 'smtp.sendgrid.net';
+        emailConfig.port = 587;
+        emailConfig.secure = false;
+        emailConfig.auth = {
+          user: 'apikey', // SendGrid uses 'apikey' as username
+          pass: process.env.SENDGRID_API_KEY || '',
+        };
       }
-    } as any);
+      // Use explicit SMTP configuration for better reliability on hosting platforms
+      else if (process.env.EMAIL_SERVICE === 'gmail' || (!process.env.SMTP_HOST && process.env.EMAIL_USER?.includes('@gmail.com'))) {
+        // Gmail with explicit SMTP settings for better compatibility
+        emailConfig.host = 'smtp.gmail.com';
+        emailConfig.port = 587;
+        emailConfig.secure = false; // Use STARTTLS
+      } else if (process.env.SMTP_HOST) {
+        // Custom SMTP configuration
+        emailConfig.host = process.env.SMTP_HOST;
+        emailConfig.port = parseInt(process.env.SMTP_PORT || '587');
+        emailConfig.secure = process.env.SMTP_SECURE === 'true';
+      } else {
+        // Fallback to service-based configuration
+        emailConfig.service = process.env.EMAIL_SERVICE || 'gmail';
+      }
+
+      // Add connection timeout and other reliability settings - increased timeouts for better reliability
+      this.transporter = nodemailer.createTransport({
+        ...emailConfig,
+        connectionTimeout: 30000, // Increased to 30 seconds for better reliability
+        greetingTimeout: 15000, // Increased to 15 seconds
+        socketTimeout: 30000, // Increased to 30 seconds
+        pool: false, // Disable connection pooling for hosting platforms
+        maxConnections: 1, // Limit to single connection
+        maxMessages: 3, // Limit messages per connection
+        rateDelta: 1000, // Rate limiting
+        rateLimit: 5, // Max 5 messages per second
+        // Add TLS options for better compatibility
+        tls: {
+          rejectUnauthorized: false,
+          ciphers: 'SSLv3'
+        }
+      } as any);
+
+      console.log('🔧 Email transporter initialized with config:', {
+        service: emailConfig.service || 'Custom SMTP',
+        host: emailConfig.host,
+        port: emailConfig.port,
+        secure: emailConfig.secure,
+        user: process.env.EMAIL_USER?.replace(/(.{3})(.*)(@.*)/, '$1***$3') // Mask email for security
+      });
+    } catch (error) {
+      console.error('❌ Error initializing email transporter:', error);
+      throw error;
+    }
   }
 
   // Check configuration and provide guidance
@@ -117,38 +136,81 @@ class EmailService {
     };
   }
 
-  // Verify email connection
-  async verifyConnection(): Promise<boolean> {
+  // Verify email connection with retry logic and better error handling
+  async verifyConnection(retries = 2): Promise<boolean> {
     try {
-      await this.transporter.verify();
-      console.log('✅ Email service is ready to send emails');
-      return true;
-    } catch (error: any) {
-      console.error('❌ Email service configuration error:', error.message);
+      console.log('🔄 Attempting to verify email connection...');
       
-      // Provide specific guidance for common Gmail errors
-      if (error.code === 'EAUTH' && error.response?.includes('Username and Password not accepted')) {
-        console.error('\n🔧 GMAIL AUTHENTICATION ERROR - ACTION REQUIRED:');
-        console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.error('Gmail requires an App Password, not your regular password!');
-        console.error('');
-        console.error('Quick Fix:');
-        console.error('1. Go to https://myaccount.google.com/security');
-        console.error('2. Enable "2-Step Verification" if not already enabled');
-        console.error('3. Click "App passwords" → "Mail" → "Other"');
-        console.error('4. Generate a 16-character App Password');
-        console.error('5. Update your .env file with the App Password');
-        console.error('');
-        console.error('See GMAIL_SETUP_GUIDE.md for detailed instructions');
-        console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      } else if (error.code === 'ECONNECTION') {
-        console.error('\n🌐 CONNECTION ERROR:');
-        console.error('Check your internet connection and SMTP server settings');
-      } else if (error.code === 'ESOCKET') {
-        console.error('\n🔌 SOCKET ERROR:');
-        console.error('SMTP server connection failed. Check host and port settings');
+      for (let attempt = 1; attempt <= retries + 1; attempt++) {
+        try {
+          const isVerified = await this.transporter.verify();
+          if (isVerified) {
+            console.log('✅ Email service connection verified successfully');
+            this.isConfigured = true;
+            return true;
+          }
+        } catch (error: any) {
+          console.log(`❌ Email connection attempt ${attempt}/${retries + 1} failed:`, {
+            message: error.message,
+            code: error.code,
+            responseCode: error.responseCode,
+            command: error.command
+          });
+          
+          // If this is the last attempt, provide detailed error guidance
+          if (attempt === retries + 1) {
+            // Provide specific guidance for common Gmail errors
+            if (error.code === 'EAUTH' && error.response?.includes('Username and Password not accepted')) {
+              console.error('\n🔧 GMAIL AUTHENTICATION ERROR - ACTION REQUIRED:');
+              console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+              console.error('Gmail requires an App Password, not your regular password!');
+              console.error('');
+              console.error('Quick Fix:');
+              console.error('1. Go to https://myaccount.google.com/security');
+              console.error('2. Enable "2-Step Verification" if not already enabled');
+              console.error('3. Click "App passwords" → "Mail" → "Other"');
+              console.error('4. Generate a 16-character App Password');
+              console.error('5. Update your .env file with the App Password');
+              console.error('');
+              console.error('See GMAIL_SETUP_GUIDE.md for detailed instructions');
+              console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            } else if (error.code === 'ECONNECTION' || error.code === 'ETIMEDOUT') {
+              console.error('\n🌐 CONNECTION/TIMEOUT ERROR:');
+              console.error('This often happens on hosting platforms (Render, Heroku, etc.)');
+              console.error('Solutions to try:');
+              console.error('1. Use SendGrid instead of Gmail for production');
+              console.error('2. Check if your hosting platform blocks SMTP');
+              console.error('3. Try using port 465 with SSL instead of 587');
+              console.error('4. Consider using your hosting platform\'s email service');
+            } else if (error.code === 'ESOCKET') {
+              console.error('\n🔌 SOCKET ERROR:');
+              console.error('SMTP server connection failed. Check host and port settings');
+            } else {
+              console.error('\n❌ Email service configuration error:', error.message);
+            }
+          } else {
+            console.log(`⏳ Retrying in 2 seconds...`);
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+        }
       }
       
+      // All attempts failed
+      console.log('❌ All email connection attempts failed');
+      this.isConfigured = false;
+      return false;
+      
+    } catch (error: any) {
+      console.error('❌ Unexpected error during email connection verification:', {
+        message: error.message,
+        stack: error.stack,
+        config: {
+          service: process.env.EMAIL_SERVICE,
+          user: process.env.EMAIL_USER?.replace(/(.{3})(.*)(@.*)/, '$1***$3'),
+          hasPassword: !!process.env.EMAIL_PASSWORD
+        }
+      });
+      this.isConfigured = false;
       return false;
     }
   }
@@ -227,13 +289,13 @@ class EmailService {
         </div>
         
         <div class="content">
-          <h2>Hello ${user.name}!</h2>
+          <h2>Hello ${user.name || 'User'}!</h2>
           <p>Your account has been successfully created in the Student Feedback System. Below are your login credentials:</p>
           
           <div class="credentials">
             <h3>📧 Login Credentials</h3>
             <p><strong>Email:</strong> ${user.email}</p>
-            <p><strong>Role:</strong> ${user.role.charAt(0).toUpperCase() + user.role.slice(1)}</p>
+            <p><strong>Role:</strong> ${user.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'Student'}</p>
             <div class="password">
               <strong>Password:</strong> ${password}
             </div>

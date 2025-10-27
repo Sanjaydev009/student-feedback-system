@@ -12,6 +12,7 @@ import deanRoutes from './routes/deanRoutes';
 import settingsRoutes from './routes/settingsRoutes';
 import adminRoutes from './routes/adminRoutes';
 import testRoutes from './routes/testRoutes';
+import testEmailRoutes from './routes/testEmailRoutes';
 import feedbackPeriodRoutes from './routes/feedbackPeriodRoutes';
 
 const app = express();
@@ -80,6 +81,7 @@ app.use('/api/dean', deanRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/test', testRoutes);
+app.use('/api/email-test', testEmailRoutes);
 app.use('/api/feedback-periods', feedbackPeriodRoutes);
 
 // Health check endpoint
