@@ -68,18 +68,19 @@ class EmailService {
       // Add connection timeout and other reliability settings - increased timeouts for better reliability
       this.transporter = nodemailer.createTransport({
         ...emailConfig,
-        connectionTimeout: 30000, // Increased to 30 seconds for better reliability
-        greetingTimeout: 15000, // Increased to 15 seconds
-        socketTimeout: 30000, // Increased to 30 seconds
+        // Production-optimized timeouts for hosting platforms
+        connectionTimeout: 10000, // Reduced to 10 seconds for hosting platform limits
+        greetingTimeout: 5000, // Reduced to 5 seconds
+        socketTimeout: 10000, // Reduced to 10 seconds for faster failures
         pool: false, // Disable connection pooling for hosting platforms
         maxConnections: 1, // Limit to single connection
         maxMessages: 3, // Limit messages per connection
         rateDelta: 1000, // Rate limiting
         rateLimit: 5, // Max 5 messages per second
-        // Add TLS options for better compatibility
+        // Optimized TLS configuration for production
         tls: {
           rejectUnauthorized: false,
-          ciphers: 'SSLv3'
+          ciphers: 'TLSv1.2' // More compatible than SSLv3
         }
       } as any);
 
@@ -136,80 +137,64 @@ class EmailService {
     };
   }
 
-  // Verify email connection with retry logic and better error handling
-  async verifyConnection(retries = 2): Promise<boolean> {
+  // Verify email connection with production timeout optimization
+  async verifyConnection(retries = 1): Promise<boolean> {
     try {
       console.log('🔄 Attempting to verify email connection...');
       
-      for (let attempt = 1; attempt <= retries + 1; attempt++) {
-        try {
-          const isVerified = await this.transporter.verify();
-          if (isVerified) {
-            console.log('✅ Email service connection verified successfully');
-            this.isConfigured = true;
-            return true;
-          }
-        } catch (error: any) {
-          console.log(`❌ Email connection attempt ${attempt}/${retries + 1} failed:`, {
-            message: error.message,
-            code: error.code,
-            responseCode: error.responseCode,
-            command: error.command
-          });
-          
-          // If this is the last attempt, provide detailed error guidance
-          if (attempt === retries + 1) {
-            // Provide specific guidance for common Gmail errors
-            if (error.code === 'EAUTH' && error.response?.includes('Username and Password not accepted')) {
-              console.error('\n🔧 GMAIL AUTHENTICATION ERROR - ACTION REQUIRED:');
-              console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-              console.error('Gmail requires an App Password, not your regular password!');
-              console.error('');
-              console.error('Quick Fix:');
-              console.error('1. Go to https://myaccount.google.com/security');
-              console.error('2. Enable "2-Step Verification" if not already enabled');
-              console.error('3. Click "App passwords" → "Mail" → "Other"');
-              console.error('4. Generate a 16-character App Password');
-              console.error('5. Update your .env file with the App Password');
-              console.error('');
-              console.error('See GMAIL_SETUP_GUIDE.md for detailed instructions');
-              console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-            } else if (error.code === 'ECONNECTION' || error.code === 'ETIMEDOUT') {
-              console.error('\n🌐 CONNECTION/TIMEOUT ERROR:');
-              console.error('This often happens on hosting platforms (Render, Heroku, etc.)');
-              console.error('Solutions to try:');
-              console.error('1. Use SendGrid instead of Gmail for production');
-              console.error('2. Check if your hosting platform blocks SMTP');
-              console.error('3. Try using port 465 with SSL instead of 587');
-              console.error('4. Consider using your hosting platform\'s email service');
-            } else if (error.code === 'ESOCKET') {
-              console.error('\n🔌 SOCKET ERROR:');
-              console.error('SMTP server connection failed. Check host and port settings');
-            } else {
-              console.error('\n❌ Email service configuration error:', error.message);
+      // Use production timeout of 5 seconds with race condition
+      const verifyWithTimeout = new Promise<boolean>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Connection verification timeout (5 seconds) - hosting platform limit'));
+        }, 5000);
+
+        (async () => {
+          try {
+            for (let attempt = 1; attempt <= retries + 1; attempt++) {
+              try {
+                const isVerified = await this.transporter.verify();
+                if (isVerified) {
+                  clearTimeout(timeout);
+                  console.log('✅ Email service connection verified successfully');
+                  this.isConfigured = true;
+                  resolve(true);
+                  return;
+                }
+              } catch (error: any) {
+                console.log(`❌ Email connection attempt ${attempt}/${retries + 1} failed:`, {
+                  message: error.message,
+                  code: error.code
+                });
+                
+                // If this is the last attempt, provide basic error guidance
+                if (attempt === retries + 1) {
+                  if (error.code === 'EAUTH') {
+                    console.error('🔧 Authentication error - check email credentials');
+                  } else if (error.code === 'ECONNECTION' || error.code === 'ETIMEDOUT') {
+                    console.error('🌐 Connection timeout - hosting platform may block SMTP');
+                  }
+                } else {
+                  console.log(`⏳ Retrying...`);
+                  await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+              }
             }
-          } else {
-            console.log(`⏳ Retrying in 2 seconds...`);
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            clearTimeout(timeout);
+            console.log('❌ All email connection attempts failed');
+            this.isConfigured = false;
+            resolve(false);
+          } catch (error) {
+            clearTimeout(timeout);
+            reject(error);
           }
-        }
-      }
-      
-      // All attempts failed
-      console.log('❌ All email connection attempts failed');
-      this.isConfigured = false;
-      return false;
+        })();
+      });
+
+      return await verifyWithTimeout;
       
     } catch (error: any) {
-      console.error('❌ Unexpected error during email connection verification:', {
-        message: error.message,
-        stack: error.stack,
-        config: {
-          service: process.env.EMAIL_SERVICE,
-          user: process.env.EMAIL_USER?.replace(/(.{3})(.*)(@.*)/, '$1***$3'),
-          hasPassword: !!process.env.EMAIL_PASSWORD
-        }
-      });
+      console.error('❌ Email connection verification failed:', error.message);
       this.isConfigured = false;
       return false;
     }
@@ -386,26 +371,37 @@ class EmailService {
   // Send welcome email with password
   async sendPasswordEmail(user: any, password: string): Promise<boolean> {
     try {
-      // Add a quick connection check before sending
-      const isConnected = await this.verifyConnection();
-      if (!isConnected) {
-        console.warn(`⚠️ Email service not ready - skipping email to ${user.email}`);
-        return false;
-      }
+      // Use production timeout of 8 seconds for faster failure
+      const sendWithTimeout = new Promise<boolean>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Email send timeout (8 seconds) - hosting platform limit'));
+        }, 8000);
 
-      const template = this.generatePasswordEmail(user, password);
-      
-      const mailOptions = {
-        from: `"Student Feedback System" <${process.env.EMAIL_USER}>`,
-        to: user.email,
-        subject: template.subject,
-        html: template.html,
-        text: template.text,
-      };
+        (async () => {
+          try {
+            // Skip connection check in production for speed
+            const template = this.generatePasswordEmail(user, password);
+            
+            const mailOptions = {
+              from: `"Student Feedback System" <${process.env.EMAIL_USER}>`,
+              to: user.email,
+              subject: template.subject,
+              html: template.html,
+              text: template.text,
+            };
 
-      const info = await this.transporter.sendMail(mailOptions);
-      console.log(`✅ Password email sent to ${user.email}:`, info.messageId);
-      return true;
+            const info = await this.transporter.sendMail(mailOptions);
+            clearTimeout(timeout);
+            console.log(`✅ Password email sent to ${user.email}:`, info.messageId);
+            resolve(true);
+          } catch (error) {
+            clearTimeout(timeout);
+            reject(error);
+          }
+        })();
+      });
+
+      return await sendWithTimeout;
     } catch (error) {
       console.error(`❌ Failed to send password email to ${user.email}:`, error);
       return false;
@@ -419,50 +415,60 @@ class EmailService {
     totalProcessed: number
   ): Promise<boolean> {
     try {
-      // Check connection before sending
-      const isConnected = await this.verifyConnection();
-      if (!isConnected) {
-        console.warn(`⚠️ Email service not ready - skipping bulk summary to ${adminEmail}`);
-        return false;
-      }
+      // Use production timeout of 8 seconds for bulk email
+      const sendWithTimeout = new Promise<boolean>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Bulk email timeout (8 seconds) - hosting platform limit'));
+        }, 8000);
 
-      const subject = `Bulk Registration Summary - ${results.success} Users Created`;
-      
-      const html = `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #4f46e5;">Bulk Registration Summary</h2>
-          <div style="background-color: #f8f9fa; padding: 20px; border-radius: 5px;">
-            <h3>Registration Results</h3>
-            <p><strong>Total Processed:</strong> ${totalProcessed}</p>
-            <p><strong>Successfully Created:</strong> ${results.success}</p>
-            <p><strong>Failed:</strong> ${results.failed}</p>
-          </div>
-          
-          ${results.failures && results.failures.length > 0 ? `
-          <div style="background-color: #fff3cd; padding: 15px; border-radius: 5px; margin-top: 20px;">
-            <h4>Failed Registrations:</h4>
-            <ul>
-              ${results.failures.map((failure: any) => 
-                `<li>${failure.email}: ${failure.reason}</li>`
-              ).join('')}
-            </ul>
-          </div>
-          ` : ''}
-          
-          <p style="margin-top: 20px;">All successfully registered users have been sent their login credentials via email.</p>
-        </div>
-      `;
+        (async () => {
+          try {
+            const subject = `Bulk Registration Summary - ${results.success} Users Created`;
+            
+            const html = `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #4f46e5;">Bulk Registration Summary</h2>
+                <div style="background-color: #f8f9fa; padding: 20px; border-radius: 5px;">
+                  <h3>Registration Results</h3>
+                  <p><strong>Total Processed:</strong> ${totalProcessed}</p>
+                  <p><strong>Successfully Created:</strong> ${results.success}</p>
+                  <p><strong>Failed:</strong> ${results.failed}</p>
+                </div>
+                
+                ${results.failures && results.failures.length > 0 ? `
+                <div style="background-color: #fff3cd; padding: 15px; border-radius: 5px; margin-top: 20px;">
+                  <h4>Failed Registrations:</h4>
+                  <ul>
+                    ${results.failures.map((failure: any) => 
+                      `<li>${failure.email}: ${failure.reason}</li>`
+                    ).join('')}
+                  </ul>
+                </div>
+                ` : ''}
+                
+                <p style="margin-top: 20px;">All successfully registered users have been sent their login credentials via email.</p>
+              </div>
+            `;
 
-      const mailOptions = {
-        from: `"Student Feedback System" <${process.env.EMAIL_USER}>`,
-        to: adminEmail,
-        subject,
-        html,
-      };
+            const mailOptions = {
+              from: `"Student Feedback System" <${process.env.EMAIL_USER}>`,
+              to: adminEmail,
+              subject,
+              html,
+            };
 
-      await this.transporter.sendMail(mailOptions);
-      console.log('✅ Bulk registration summary sent to admin');
-      return true;
+            await this.transporter.sendMail(mailOptions);
+            clearTimeout(timeout);
+            console.log('✅ Bulk registration summary sent to admin');
+            resolve(true);
+          } catch (error) {
+            clearTimeout(timeout);
+            reject(error);
+          }
+        })();
+      });
+
+      return await sendWithTimeout;
     } catch (error) {
       console.error('❌ Failed to send bulk registration summary:', error);
       return false;
@@ -472,39 +478,56 @@ class EmailService {
   // Send test email
   async sendTestEmail(toEmail: string): Promise<boolean> {
     try {
-      const mailOptions = {
-        from: `"Student Feedback System" <${process.env.EMAIL_USER}>`,
-        to: toEmail,
-        subject: '📧 Test Email - Student Feedback System',
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background-color: #4f46e5; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
-              <h1>✅ Test Email Successful!</h1>
-            </div>
-            <div style="background-color: #f9f9f9; padding: 20px; border: 1px solid #ddd; border-radius: 0 0 5px 5px;">
-              <p>Congratulations! Your email service is working correctly.</p>
-              <p><strong>Email Service:</strong> ${process.env.EMAIL_SERVICE || 'Custom SMTP'}</p>
-              <p><strong>From:</strong> ${process.env.EMAIL_USER}</p>
-              <p><strong>Time:</strong> ${new Date().toLocaleString()}</p>
-              <p>You can now send welcome emails to new users when they are registered.</p>
-            </div>
-          </div>
-        `,
-        text: `
-          Test Email Successful!
-          
-          Your email service is working correctly.
-          Email Service: ${process.env.EMAIL_SERVICE || 'Custom SMTP'}
-          From: ${process.env.EMAIL_USER}
-          Time: ${new Date().toLocaleString()}
-          
-          You can now send welcome emails to new users when they are registered.
-        `
-      };
+      // Use production timeout of 7 seconds for test emails
+      const sendWithTimeout = new Promise<boolean>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Test email timeout (7 seconds) - hosting platform limit'));
+        }, 7000);
 
-      const info = await this.transporter.sendMail(mailOptions);
-      console.log(`Test email sent to ${toEmail}:`, info.messageId);
-      return true;
+        (async () => {
+          try {
+            const mailOptions = {
+              from: `"Student Feedback System" <${process.env.EMAIL_USER}>`,
+              to: toEmail,
+              subject: '📧 Test Email - Student Feedback System',
+              html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                  <div style="background-color: #4f46e5; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
+                    <h1>✅ Test Email Successful!</h1>
+                  </div>
+                  <div style="background-color: #f9f9f9; padding: 20px; border: 1px solid #ddd; border-radius: 0 0 5px 5px;">
+                    <p>Congratulations! Your email service is working correctly.</p>
+                    <p><strong>Email Service:</strong> ${process.env.EMAIL_SERVICE || 'Custom SMTP'}</p>
+                    <p><strong>From:</strong> ${process.env.EMAIL_USER}</p>
+                    <p><strong>Time:</strong> ${new Date().toLocaleString()}</p>
+                    <p>You can now send welcome emails to new users when they are registered.</p>
+                  </div>
+                </div>
+              `,
+              text: `
+                Test Email Successful!
+                
+                Your email service is working correctly.
+                Email Service: ${process.env.EMAIL_SERVICE || 'Custom SMTP'}
+                From: ${process.env.EMAIL_USER}
+                Time: ${new Date().toLocaleString()}
+                
+                You can now send welcome emails to new users when they are registered.
+              `
+            };
+
+            const info = await this.transporter.sendMail(mailOptions);
+            clearTimeout(timeout);
+            console.log(`Test email sent to ${toEmail}:`, info.messageId);
+            resolve(true);
+          } catch (error) {
+            clearTimeout(timeout);
+            reject(error);
+          }
+        })();
+      });
+
+      return await sendWithTimeout;
     } catch (error) {
       console.error(`Failed to send test email to ${toEmail}:`, error);
       return false;
