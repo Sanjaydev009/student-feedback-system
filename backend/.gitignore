@@ -13,6 +13,7 @@ yarn-error.log*
 .env.staging
 .env.production
 .env.test
+.env.email
 .env*.local
 # Allow .env.example to be committed
 !.env.example
