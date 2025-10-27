@@ -150,33 +150,117 @@ export const getStudentFeedback = async (req: Request, res: Response): Promise<v
 
 export const getDashboardStats = async (req: Request, res: Response): Promise<void> => {
   try {
-    // Get feedback statistics
-    const feedbacks = await Feedback.find();
+    const { year, term, branch, section } = req.query;
+    
+    // Build match conditions for filtering
+    const matchConditions: any = {};
+    
+    // Build aggregation pipeline to filter by student and subject criteria
+    const pipeline: any[] = [
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'student',
+          foreignField: '_id',
+          as: 'studentData'
+        }
+      },
+      {
+        $unwind: '$studentData'
+      },
+      {
+        $lookup: {
+          from: 'subjects',
+          localField: 'subject',
+          foreignField: '_id',
+          as: 'subjectData'
+        }
+      },
+      {
+        $unwind: '$subjectData'
+      }
+    ];
+    
+    // Add filtering conditions
+    const filterConditions: any = {};
+    
+    if (year && year !== 'all') {
+      filterConditions['subjectData.year'] = parseInt(year as string);
+    }
+    
+    if (term && term !== 'all') {
+      filterConditions['subjectData.term'] = parseInt(term as string);
+    }
+    
+    if (branch && branch !== 'all') {
+      filterConditions['subjectData.branch'] = branch;
+    }
+    
+    if (section && section !== 'all') {
+      filterConditions['studentData.section'] = section;
+    }
+    
+    // Add match stage if there are filters
+    if (Object.keys(filterConditions).length > 0) {
+      pipeline.push({ $match: filterConditions });
+    }
+    
+    // Get filtered feedback data
+    const feedbacks = await Feedback.aggregate(pipeline);
+    
+    console.log(`📊 [DASHBOARD STATS] Found ${feedbacks.length} feedbacks with filters:`, {
+      year, term, branch, section
+    });
     
     // Calculate average rating
     const totalRating = feedbacks.reduce((sum, item) => sum + (item.averageRating || 0), 0);
-    const averageRating = feedbacks.length > 0 ? 
-      (totalRating / feedbacks.length).toFixed(1) : '0.0';
+    const averageRating = feedbacks.length > 0 ? totalRating / feedbacks.length : 0;
     
-    // Get counts of users by role
-    const [students, faculty, subjects] = await Promise.all([
+    // Get unique subjects with feedback
+    const subjectsWithFeedback = new Set(feedbacks.map(f => f.subject.toString())).size;
+    
+    // Calculate faculty ratings
+    const facultyRatings: { [key: string]: number } = {};
+    const facultyFeedbackCount: { [key: string]: number } = {};
+    
+    feedbacks.forEach(feedback => {
+      const instructor = feedback.subjectData?.instructor;
+      if (instructor) {
+        if (!facultyRatings[instructor]) {
+          facultyRatings[instructor] = 0;
+          facultyFeedbackCount[instructor] = 0;
+        }
+        facultyRatings[instructor] += feedback.averageRating || 0;
+        facultyFeedbackCount[instructor]++;
+      }
+    });
+    
+    // Calculate average ratings for each faculty
+    Object.keys(facultyRatings).forEach(instructor => {
+      facultyRatings[instructor] = facultyRatings[instructor] / facultyFeedbackCount[instructor];
+    });
+    
+    // Get total counts (without filters for context)
+    const [totalStudents, totalFaculty, totalSubjects] = await Promise.all([
       User.countDocuments({ role: 'student' }),
       User.countDocuments({ role: 'faculty' }),
       Subject.countDocuments()
     ]);
     
-    // Calculate feedback completion rate
-    const potentialTotal = students * subjects;
-    const feedbackCompletion = potentialTotal > 0 ? 
-      Math.round((feedbacks.length / potentialTotal) * 100) : 0;
-    
     res.json({
-      totalStudents: students,
-      totalFaculty: faculty,
-      totalSubjects: subjects,
-      totalFeedbacks: feedbacks.length,
-      averageRating: parseFloat(averageRating),
-      feedbackCompletion: feedbackCompletion
+      // Main stats that respect filters
+      totalFeedback: feedbacks.length,
+      averageRating: averageRating,
+      subjectsWithFeedback: subjectsWithFeedback,
+      facultyRatings: facultyRatings,
+      
+      // Context stats (total counts)
+      totalStudents: totalStudents,
+      totalFaculty: totalFaculty,
+      totalSubjects: totalSubjects,
+      
+      // Additional info
+      appliedFilters: { year, term, branch, section }
     });
     
   } catch (err: any) {
@@ -205,17 +289,45 @@ export const getFeedbackSummary = async (req: Request, res: Response): Promise<v
   try {
     const { subjectId } = req.params;
     
+    console.log(`🔍 [FEEDBACK SUMMARY] Querying feedback for subject ID: ${subjectId}`);
+    // Fixed variable naming conflict
+    
+    // First check if the subject exists
+    const subjectDoc = await Subject.findById(subjectId);
+    
+    if (!subjectDoc) {
+      console.log(`❌ [FEEDBACK SUMMARY] Subject ${subjectId} not found`);
+      res.status(404).json({ message: 'Subject not found' });
+      return;
+    }
+    
     // Get all feedback for the specific subject
     const feedbacks = await Feedback.find({ subject: subjectId })
       .populate('student', 'name rollNumber branch')
       .populate('subject', 'name code instructor branch');
     
+    console.log(`🔍 [FEEDBACK SUMMARY] Found ${feedbacks.length} feedback records for subject ${subjectId}`);
+    
     if (feedbacks.length === 0) {
-      res.status(404).json({ message: 'No feedback found for this subject' });
+      console.log(`❌ [FEEDBACK SUMMARY] No feedback found for subject ${subjectId}`);
+      // Return empty data structure with actual subject info for consistency
+      res.status(200).json({
+        subject: {
+          _id: subjectDoc._id,
+          name: subjectDoc.name,
+          code: subjectDoc.code,
+          instructor: subjectDoc.instructor,
+          branch: subjectDoc.branch
+        },
+        totalFeedbacks: 0,
+        averageRating: 0,
+        categories: {},
+        lastUpdated: new Date()
+      });
       return;
     }
     
-    const subject = feedbacks[0].subject as any;
+    const subjectInfo = feedbacks[0].subject as any;
     
     // Calculate average rating
     const totalRating = feedbacks.reduce((sum, feedback) => sum + (feedback.averageRating || 0), 0);
@@ -260,10 +372,10 @@ export const getFeedbackSummary = async (req: Request, res: Response): Promise<v
     categories['General'] = generalCategory;
     
     const summary = {
-      subjectId: subject._id,
-      subjectName: subject.name,
-      subjectCode: subject.code,
-      instructor: subject.instructor,
+      subjectId: subjectInfo._id,
+      subjectName: subjectInfo.name,
+      subjectCode: subjectInfo.code,
+      instructor: subjectInfo.instructor,
       feedbackCount: feedbacks.length,
       averageRating: averageRating,
       categories: categories
