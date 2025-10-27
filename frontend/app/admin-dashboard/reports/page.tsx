@@ -124,23 +124,22 @@ export default function ReportsPage() {
   const questionComparisonChartRef = useRef<any>(null);
   const reportContainerRef = useRef<HTMLDivElement>(null);
 
-  // Available filter options
-  const years = [1, 2, 3, 4];
-  const terms = [1, 2, 3, 4];
-  const branches = [
-    'Computer Science', 
-    'Electronics', 
-    'Mechanical', 
-    'Civil', 
-    'Electrical',
-    'Information Technology',
-    'Chemical',
-    'Aerospace',
-    'Biotechnology',
+  // Dynamic filter options - will be populated from actual data
+  const [availableYears, setAvailableYears] = useState<number[]>([]);
+  const [availableTerms, setAvailableTerms] = useState<number[]>([]);
+  const [availableBranches, setAvailableBranches] = useState<string[]>([]);
+  const [availableSections, setAvailableSections] = useState<string[]>([]);
+
+  // Fallback filter options
+  const years = availableYears.length > 0 ? availableYears : [1, 2, 3, 4];
+  const terms = availableTerms.length > 0 ? availableTerms : [1, 2, 3, 4];
+  const branches = availableBranches.length > 0 ? availableBranches : [
+    'CSE',
+    'AIML',
     'MCA Regular', 
     'MCA DS'
   ];
-  const sections = ['A', 'B', 'C', 'D', 'E', 'F']; // Available sections
+  const sections = availableSections.length > 0 ? availableSections : ['A', 'B', 'C', 'D'];
 
   // Color palette for subjects
   const subjectColors = [
@@ -172,6 +171,11 @@ export default function ReportsPage() {
     'rgba(235, 54, 162, 1)',
     'rgba(162, 235, 54, 1)',
   ];
+
+  // Initial load - fetch filter options
+  useEffect(() => {
+    fetchFilterOptions();
+  }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -205,7 +209,7 @@ export default function ReportsPage() {
       if (branchFilter !== 'all') params.append('branch', branchFilter);
       if (sectionFilter !== 'all') params.append('section', sectionFilter);
       
-      const response = await api.get(`/api/test/subjects?${params.toString()}`);
+      const response = await api.get(`/api/subjects?${params.toString()}`);
       setSubjects(response.data);
       
       // Reset selected subjects if they're not in the filtered results
@@ -216,7 +220,9 @@ export default function ReportsPage() {
       }
       setSelectedSubjects(prev => prev.filter(id => filteredSubjectIds.includes(id)));
       
-      showInfo(`Subjects loaded successfully (${response.data.length} found)`);
+      console.log(`📚 Loaded ${response.data.length} subjects with filters:`, {
+        year: yearFilter, term: termFilter, branch: branchFilter, section: sectionFilter
+      });
     } catch (err: any) {
       console.error('Failed to fetch subjects:', err);
       showError('Failed to load subjects. Please try again.');
@@ -247,7 +253,7 @@ export default function ReportsPage() {
       if (branchFilter !== 'all') params.append('branch', branchFilter);
       if (sectionFilter !== 'all') params.append('section', sectionFilter);
       
-      const response = await api.get(`/api/test/feedback/stats?${params.toString()}`);
+      const response = await api.get(`/api/feedback/stats?${params.toString()}`);
       
       // Calculate faculty ratings
       if (response.data && response.data.facultyRatings) {
@@ -256,11 +262,19 @@ export default function ReportsPage() {
       
       // Set overall summary
       if (response.data) {
+        console.log('📊 Stats response data:', response.data);
         setOverallSummary({
           totalFeedback: response.data.totalFeedback || 0,
           averageRating: response.data.averageRating || 0,
           subjectsWithFeedback: response.data.subjectsWithFeedback || 0
         });
+        console.log('📊 Updated overall summary:', {
+          totalFeedback: response.data.totalFeedback || 0,
+          averageRating: response.data.averageRating || 0,
+          subjectsWithFeedback: response.data.subjectsWithFeedback || 0
+        });
+      } else {
+        console.warn('📊 No data received from stats endpoint');
       }
     } catch (err: any) {
       console.error('Failed to fetch overall stats:', err);
@@ -275,7 +289,7 @@ export default function ReportsPage() {
       if (branchFilter !== 'all') params.append('branch', branchFilter);
       if (sectionFilter !== 'all') params.append('section', sectionFilter);
       
-      const response = await api.get(`/api/test/feedback/cumulative?${params.toString()}`);
+      const response = await api.get(`/api/feedback/cumulative?${params.toString()}`);
       setCumulativeData(response.data || []);
     } catch (err: any) {
       console.error('Failed to fetch cumulative data:', err);
@@ -291,7 +305,7 @@ export default function ReportsPage() {
       if (branchFilter !== 'all') params.append('branch', branchFilter);
       if (sectionFilter !== 'all') params.append('section', sectionFilter);
       
-      const response = await api.get(`/api/test/feedback/cumulative-questions?${params.toString()}`);
+      const response = await api.get(`/api/feedback/cumulative-questions?${params.toString()}`);
       setQuestionAnalysisData(response.data || []);
     } catch (err: any) {
       console.error('Failed to fetch question analysis data:', err);
@@ -299,10 +313,44 @@ export default function ReportsPage() {
     }
   };
 
+  // Fetch dynamic filter options from actual data
+  const fetchFilterOptions = async () => {
+    try {
+      // Get all subjects to extract filter options
+      const subjectsResponse = await api.get('/api/subjects');
+      const allSubjects: Subject[] = subjectsResponse.data;
+      
+      // Get all users to extract sections
+      const usersResponse = await api.get('/api/users');
+      const allUsers: any[] = usersResponse.data;
+      
+      // Extract unique years, terms, branches, and sections
+      const uniqueYears = [...new Set(allSubjects.map((s: Subject) => s.year).filter((year): year is number => typeof year === 'number'))].sort((a, b) => a - b);
+      const uniqueTerms = [...new Set(allSubjects.map((s: Subject) => s.term).filter((term): term is number => typeof term === 'number'))].sort((a, b) => a - b);
+      const uniqueBranches = [...new Set(allSubjects.flatMap((s: Subject) => s.branch).filter((branch): branch is string => typeof branch === 'string'))].sort();
+      const uniqueSections = [...new Set(allUsers.filter((u: any) => u.section && typeof u.section === 'string').map((u: any) => u.section as string))].sort();
+      
+      setAvailableYears(uniqueYears);
+      setAvailableTerms(uniqueTerms);
+      setAvailableBranches(uniqueBranches);
+      setAvailableSections(uniqueSections);
+      
+      console.log('🔧 Filter options loaded:', {
+        years: uniqueYears,
+        terms: uniqueTerms,
+        branches: uniqueBranches,
+        sections: uniqueSections
+      });
+    } catch (err: any) {
+      console.error('Failed to fetch filter options:', err);
+      // Keep using fallback options
+    }
+  };
+
   const fetchFeedbackSummary = async (subjectId: string) => {
     setLoading(true);
     try {
-      const response = await api.get(`/api/test/feedback/summary/${subjectId}`);
+      const response = await api.get(`/api/feedback/summary/${subjectId}`);
       setFeedbackSummary(response.data);
       
       if (response.data && response.data.feedbackCount > 0) {
@@ -763,7 +811,7 @@ export default function ReportsPage() {
       setLoading(true);
       const comparisonData = await Promise.all(
         comparisonSubjects.map(async (subjectId) => {
-          const response = await api.get(`/api/test/feedback/summary/${subjectId}`);
+          const response = await api.get(`/api/feedback/summary/${subjectId}`);
           return {
             subjectId,
             ...response.data

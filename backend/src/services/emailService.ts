@@ -37,8 +37,18 @@ class EmailService {
       },
     };
 
+    // Check if using SendGrid
+    if (process.env.EMAIL_SERVICE === 'sendgrid') {
+      emailConfig.host = 'smtp.sendgrid.net';
+      emailConfig.port = 587;
+      emailConfig.secure = false;
+      emailConfig.auth = {
+        user: 'apikey', // SendGrid uses 'apikey' as username
+        pass: process.env.SENDGRID_API_KEY || '',
+      };
+    }
     // Use explicit SMTP configuration for better reliability on hosting platforms
-    if (process.env.EMAIL_SERVICE === 'gmail' || (!process.env.SMTP_HOST && process.env.EMAIL_USER?.includes('@gmail.com'))) {
+    else if (process.env.EMAIL_SERVICE === 'gmail' || (!process.env.SMTP_HOST && process.env.EMAIL_USER?.includes('@gmail.com'))) {
       // Gmail with explicit SMTP settings for better compatibility
       emailConfig.host = 'smtp.gmail.com';
       emailConfig.port = 587;
@@ -56,14 +66,15 @@ class EmailService {
     // Add connection timeout and other reliability settings
     this.transporter = nodemailer.createTransport({
       ...emailConfig,
-      connectionTimeout: 60000, // 60 seconds
-      greetingTimeout: 30000, // 30 seconds
-      socketTimeout: 60000, // 60 seconds
-      pool: true, // Use connection pooling
-      maxConnections: 5,
-      maxMessages: 100,
-      rateLimit: 14, // 14 emails per second max
-    });
+      connectionTimeout: 10000, // Reduced to 10 seconds for faster failure
+      greetingTimeout: 10000, // Reduced to 10 seconds
+      socketTimeout: 10000, // Reduced to 10 seconds
+      pool: false, // Disable connection pooling for hosting platforms
+      // Add TLS options for better compatibility
+      tls: {
+        rejectUnauthorized: false
+      }
+    } as any);
   }
 
   // Check configuration and provide guidance
