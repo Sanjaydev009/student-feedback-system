@@ -205,7 +205,7 @@ export default function ReportsPage() {
       if (branchFilter !== 'all') params.append('branch', branchFilter);
       if (sectionFilter !== 'all') params.append('section', sectionFilter);
       
-      const response = await api.get(`/api/test/subjects?${params.toString()}`);
+      const response = await api.get(`/api/subjects?${params.toString()}`);
       setSubjects(response.data);
       
       // Reset selected subjects if they're not in the filtered results
@@ -247,7 +247,7 @@ export default function ReportsPage() {
       if (branchFilter !== 'all') params.append('branch', branchFilter);
       if (sectionFilter !== 'all') params.append('section', sectionFilter);
       
-      const response = await api.get(`/api/test/feedback/stats?${params.toString()}`);
+      const response = await api.get(`/api/feedback/stats?${params.toString()}`);
       
       // Calculate faculty ratings
       if (response.data && response.data.facultyRatings) {
@@ -275,7 +275,7 @@ export default function ReportsPage() {
       if (branchFilter !== 'all') params.append('branch', branchFilter);
       if (sectionFilter !== 'all') params.append('section', sectionFilter);
       
-      const response = await api.get(`/api/test/feedback/cumulative?${params.toString()}`);
+      const response = await api.get(`/api/feedback/cumulative?${params.toString()}`);
       setCumulativeData(response.data || []);
     } catch (err: any) {
       console.error('Failed to fetch cumulative data:', err);
@@ -291,7 +291,7 @@ export default function ReportsPage() {
       if (branchFilter !== 'all') params.append('branch', branchFilter);
       if (sectionFilter !== 'all') params.append('section', sectionFilter);
       
-      const response = await api.get(`/api/test/feedback/cumulative-questions?${params.toString()}`);
+      const response = await api.get(`/api/feedback/cumulative-questions?${params.toString()}`);
       setQuestionAnalysisData(response.data || []);
     } catch (err: any) {
       console.error('Failed to fetch question analysis data:', err);
@@ -302,7 +302,7 @@ export default function ReportsPage() {
   const fetchFeedbackSummary = async (subjectId: string) => {
     setLoading(true);
     try {
-      const response = await api.get(`/api/test/feedback/summary/${subjectId}`);
+      const response = await api.get(`/api/feedback/summary/${subjectId}`);
       setFeedbackSummary(response.data);
       
       if (response.data && response.data.feedbackCount > 0) {
@@ -763,7 +763,7 @@ export default function ReportsPage() {
       setLoading(true);
       const comparisonData = await Promise.all(
         comparisonSubjects.map(async (subjectId) => {
-          const response = await api.get(`/api/test/feedback/summary/${subjectId}`);
+          const response = await api.get(`/api/feedback/summary/${subjectId}`);
           return {
             subjectId,
             ...response.data

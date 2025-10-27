@@ -38,17 +38,48 @@ export default function FeedbackPeriodsPage() {
   const [submitting, setSubmitting] = useState(false);
   const router = useRouter();
 
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    feedbackType: 'midterm' as 'midterm' | 'endterm',
-    academicYear: '2024-25',
-    term: 1,
-    startDate: '',
-    endDate: '',
-    allowedBranches: [] as string[],
-    allowedYears: [] as number[]
-  });
+  // Helper function to format date for datetime-local input
+  const formatDateForInput = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
+
+  // Helper function to get default dates for new feedback period
+  const getDefaultDates = () => {
+    const now = new Date();
+    const start = new Date(now);
+    start.setHours(now.getHours() + 1, 0, 0, 0); // Start 1 hour from now, rounded to the hour
+    
+    const end = new Date(start);
+    end.setDate(end.getDate() + 7); // End 7 days from start
+    
+    return {
+      startDate: formatDateForInput(start),
+      endDate: formatDateForInput(end)
+    };
+  };
+
+  // Helper function to get initial form data with default dates
+  const getInitialFormData = () => {
+    const { startDate, endDate } = getDefaultDates();
+    return {
+      title: '',
+      description: '',
+      feedbackType: 'midterm' as 'midterm' | 'endterm',
+      academicYear: '2024-25',
+      term: 1,
+      startDate,
+      endDate,
+      allowedBranches: [] as string[],
+      allowedYears: [] as number[]
+    };
+  };
+
+  const [formData, setFormData] = useState(() => getInitialFormData());
 
   const branches = ['Computer Science', 'Information Technology', 'MCA Regular', 'MCA DS', 'CSE', 'AIML', 'DS'];
   const years = [1, 2, 3, 4];
@@ -106,14 +137,18 @@ export default function FeedbackPeriodsPage() {
       const token = localStorage.getItem('token');
 
       // Transform data to match backend expected field names
+      // Convert local datetime-local values to proper ISO strings
+      const startDate = new Date(formData.startDate);
+      const endDate = new Date(formData.endDate);
+      
       const requestData = {
         title: formData.title,
         description: formData.description,
         feedbackType: formData.feedbackType,
         academicYear: formData.academicYear,
         term: formData.term,
-        startDate: formData.startDate,
-        endDate: formData.endDate,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
         branches: formData.allowedBranches,
         years: formData.allowedYears,
         subjects: [], // Default empty array
@@ -125,17 +160,7 @@ export default function FeedbackPeriodsPage() {
       });
 
       setShowCreateForm(false);
-      setFormData({
-        title: '',
-        description: '',
-        feedbackType: 'midterm',
-        academicYear: '2024-25',
-        term: 1,
-        startDate: '',
-        endDate: '',
-        allowedBranches: [],
-        allowedYears: []
-      });
+      setFormData(getInitialFormData());
       
       await fetchFeedbackPeriods();
     } catch (error: any) {
@@ -241,13 +266,24 @@ export default function FeedbackPeriodsPage() {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+    const date = new Date(dateString);
+    
+    // Check if the date is valid
+    if (isNaN(date.getTime())) {
+      return 'Invalid Date';
+    }
+    
+    // Format the date in local timezone
+    const options: Intl.DateTimeFormatOptions = {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    };
+    
+    return date.toLocaleString('en-US', options);
   };
 
   const getStatusBadge = (period: FeedbackPeriod) => {
