@@ -63,12 +63,23 @@ app.use(corsMiddleware);
 // DB Connection
 connectDB();
 
-// Initialize email service
+// Initialize email service with production guidance
 emailService.verifyConnection().then(isReady => {
   if (isReady) {
     console.log('✅ Email service initialized successfully');
   } else {
-    console.log('⚠️  Email service not configured properly. Check your environment variables.');
+    console.log('⚠️  Email service not configured properly.');
+    
+    // Provide production guidance
+    if (process.env.NODE_ENV === 'production') {
+      console.log('📧 PRODUCTION EMAIL GUIDANCE:');
+      console.log('   • Hosting platforms (Render, Heroku) often block SMTP');
+      console.log('   • Consider using SendGrid for reliable email delivery');
+      console.log('   • Set EMAIL_SERVICE=sendgrid and SENDGRID_API_KEY in environment');
+      console.log('   • Alternative: Email will be logged to console for manual delivery');
+    } else {
+      console.log('💡 Check your EMAIL_USER and EMAIL_PASSWORD environment variables');
+    }
   }
 });
 
