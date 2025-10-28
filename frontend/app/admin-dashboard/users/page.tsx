@@ -39,6 +39,8 @@ export default function UserManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [sectionFilter, setSectionFilter] = useState('all');
+  const [yearFilter, setYearFilter] = useState('all');
+  const [branchFilter, setBranchFilter] = useState('all');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [showUserFormModal, setShowUserFormModal] = useState(false);
@@ -152,11 +154,16 @@ export default function UserManagement() {
                          (user.rollNumber && user.rollNumber.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesRole = roleFilter === 'all' || user.role === roleFilter;
     const matchesSection = sectionFilter === 'all' || user.section === sectionFilter;
-    return matchesSearch && matchesRole && matchesSection;
+    const matchesYear = yearFilter === 'all' || (user.year && user.year.toString() === yearFilter);
+    const matchesBranch = branchFilter === 'all' || user.branch === branchFilter;
+    
+    return matchesSearch && matchesRole && matchesSection && matchesYear && matchesBranch;
   });
 
-  // Get unique sections from users for filter dropdown
+  // Get unique sections, years, and branches from users for filter dropdowns
   const availableSections = [...new Set(users.filter(user => user.section).map(user => user.section))].sort();
+  const availableYears = [...new Set(users.filter(user => user.year).map(user => user.year!.toString()))].sort((a, b) => parseInt(a) - parseInt(b));
+  const availableBranches = [...new Set(users.filter(user => user.branch).map(user => user.branch))].sort();
 
   const getRoleBadgeColor = (role: string) => {
     switch (role) {
@@ -210,8 +217,8 @@ export default function UserManagement() {
         </div>
 
         {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="flex-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="lg:col-span-2">
             <input
               type="text"
               placeholder="Search by name, email, or roll number..."
@@ -233,6 +240,32 @@ export default function UserManagement() {
             <option value="admin">Admin</option>
           </select>
           <select
+            value={yearFilter}
+            onChange={(e) => setYearFilter(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="all">All Years</option>
+            {availableYears.map(year => (
+              <option key={year} value={year}>
+                {year === '1' ? '1st Year' : year === '2' ? '2nd Year' : year === '3' ? '3rd Year' : '4th Year'}
+              </option>
+            ))}
+          </select>
+          <select
+            value={branchFilter}
+            onChange={(e) => setBranchFilter(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="all">All Branches</option>
+            {availableBranches.map(branch => (
+              <option key={branch} value={branch}>{branch}</option>
+            ))}
+          </select>
+        </div>
+        
+        {/* Second row for section filter and clear filters */}
+        <div className="flex justify-between items-center">
+          <select
             value={sectionFilter}
             onChange={(e) => setSectionFilter(e.target.value)}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -242,6 +275,24 @@ export default function UserManagement() {
               <option key={section} value={section}>Section {section}</option>
             ))}
           </select>
+          
+          {/* Clear Filters Button */}
+          {(searchTerm || roleFilter !== 'all' || sectionFilter !== 'all' || yearFilter !== 'all' || branchFilter !== 'all') && (
+            <motion.button
+              onClick={() => {
+                setSearchTerm('');
+                setRoleFilter('all');
+                setSectionFilter('all');
+                setYearFilter('all');
+                setBranchFilter('all');
+              }}
+              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors border border-gray-300"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              Clear Filters
+            </motion.button>
+          )}
         </div>
       </div>
 
@@ -290,6 +341,43 @@ export default function UserManagement() {
                   <div key={section} className="bg-blue-50 rounded-lg border border-blue-200 p-3">
                     <div className="text-xl font-bold text-blue-900">{count}</div>
                     <div className="text-sm text-blue-700">Section {section}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Year Statistics */}
+        {availableYears.length > 0 && (
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-3">Students by Year</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              {availableYears.map((year) => {
+                const count = users.filter(u => u.year?.toString() === year && u.role === 'student').length;
+                const yearLabel = year === '1' ? '1st Year' : year === '2' ? '2nd Year' : year === '3' ? '3rd Year' : '4th Year';
+                return (
+                  <div key={year} className="bg-green-50 rounded-lg border border-green-200 p-3">
+                    <div className="text-xl font-bold text-green-900">{count}</div>
+                    <div className="text-sm text-green-700">{yearLabel}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Branch Statistics */}
+        {availableBranches.length > 0 && (
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-3">Students by Branch</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {availableBranches.map((branch) => {
+                const count = users.filter(u => u.branch === branch && u.role === 'student').length;
+                return (
+                  <div key={branch} className="bg-purple-50 rounded-lg border border-purple-200 p-3">
+                    <div className="text-xl font-bold text-purple-900">{count}</div>
+                    <div className="text-sm text-purple-700">{branch}</div>
                   </div>
                 );
               })}
@@ -407,7 +495,9 @@ export default function UserManagement() {
             </svg>
             <h3 className="mt-2 text-sm font-medium text-gray-900">No users found</h3>
             <p className="mt-1 text-sm text-gray-500">
-              {searchTerm || roleFilter !== 'all' || sectionFilter !== 'all' ? 'Try adjusting your search or filter criteria.' : 'Get started by adding your first user.'}
+              {searchTerm || roleFilter !== 'all' || sectionFilter !== 'all' || yearFilter !== 'all' || branchFilter !== 'all' 
+                ? 'Try adjusting your search or filter criteria.' 
+                : 'Get started by adding your first user.'}
             </p>
           </div>
         )}

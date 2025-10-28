@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // Get API URL from environment variables with fallback
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
 console.log('🔗 API URL:', API_URL);
 

@@ -70,6 +70,9 @@ export default function Page() {
   const [timeOfDay, setTimeOfDay] = useState('');
   const [currentDate, setCurrentDate] = useState('');
   const [isClient, setIsClient] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(true);
   
   // Student creation modal states
   const [showStudentModal, setShowStudentModal] = useState(false);
@@ -113,9 +116,14 @@ export default function Page() {
   useEffect(() => {
     if (!isClient) return;
     
-    const fetchDashboardData = async () => {
-      console.log('🚀 Fetching dashboard data...');
-      setLoading(true);
+    const fetchDashboardData = async (isAutoRefresh = false) => {
+      if (!isAutoRefresh) {
+        console.log('🚀 Fetching dashboard data...');
+        setLoading(true);
+      } else {
+        setIsRefreshing(true);
+      }
+      
       try {
         // Verify token exists
         const token = localStorage.getItem('token');
@@ -156,46 +164,12 @@ export default function Page() {
           setRecentActivity(activityData);
         } catch (activityErr) {
           console.error('Activity API error:', activityErr);
-          // If API fails, use mock data for demo purposes
-          const mockActivityData: ActivityItem[] = [
-            {
-              _id: 'mock-1',
-              type: 'feedback',
-              user: { _id: 'user-1', name: 'John Doe', role: 'student' },
-              description: 'Submitted feedback for Computer Networks course',
-              timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString() // 30 minutes ago
-            },
-            {
-              _id: 'mock-2', 
-              type: 'login',
-              user: { _id: 'user-2', name: 'Dr. Smith', role: 'faculty' },
-              description: 'Logged into the system',
-              timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString() // 2 hours ago
-            },
-            {
-              _id: 'mock-3',
-              type: 'register',
-              user: { _id: 'user-3', name: 'Jane Wilson', role: 'student' },
-              description: 'New student registered in the system',
-              timestamp: new Date(Date.now() - 1000 * 60 * 60 * 6).toISOString() // 6 hours ago
-            },
-            {
-              _id: 'mock-4',
-              type: 'update',
-              user: { _id: 'admin-1', name: 'Admin User', role: 'admin' },
-              description: 'Updated system configuration',
-              timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString() // 1 day ago
-            },
-            {
-              _id: 'mock-5',
-              type: 'feedback',
-              user: { _id: 'user-4', name: 'Sarah Johnson', role: 'student' },
-              description: 'Submitted feedback for Database Management course',
-              timestamp: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString() // 2 days ago
-            }
-          ];
-          setRecentActivity(mockActivityData);
+          // Set empty array if API fails, don't use mock data
+          setRecentActivity([]);
         }
+        
+        // Update last refreshed time
+        setLastUpdated(new Date());
         
         // Only clear error if we have at least some data
         if (statsData || feedbackData.length || activityData.length) {
@@ -208,11 +182,28 @@ export default function Page() {
         setError('Failed to load dashboard data. Please try again later.');
       } finally {
         setLoading(false);
+        setIsRefreshing(false);
       }
     };
 
+    // Initial fetch
     fetchDashboardData();
-  }, [isClient]);
+    
+    // Set up auto-refresh interval
+    let refreshInterval: NodeJS.Timeout;
+    if (autoRefresh) {
+      refreshInterval = setInterval(() => {
+        fetchDashboardData(true); // Pass true for auto-refresh
+      }, 30000); // Refresh every 30 seconds
+    }
+
+    // Clean up interval on unmount or when autoRefresh changes
+    return () => {
+      if (refreshInterval) {
+        clearInterval(refreshInterval);
+      }
+    };
+  }, [isClient, autoRefresh]);
 
   // Format date for UI display
   const formatDate = (dateString: string | undefined) => {
@@ -238,6 +229,73 @@ export default function Page() {
     } catch (error) {
       console.error('Error formatting date:', error);
       return 'Format error';
+    }
+  };
+
+  // Format last updated time
+  const formatLastUpdated = () => {
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - lastUpdated.getTime()) / 1000);
+    
+    if (diffInSeconds < 60) {
+      return `${diffInSeconds} seconds ago`;
+    } else if (diffInSeconds < 3600) {
+      const minutes = Math.floor(diffInSeconds / 60);
+      return `${minutes} minute${minutes !== 1 ? 's' : ''} ago`;
+    } else {
+      const hours = Math.floor(diffInSeconds / 3600);
+      return `${hours} hour${hours !== 1 ? 's' : ''} ago`;
+    }
+  };
+
+  // Manual refresh handler
+  const handleManualRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      // Verify token exists
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.error('No token found');
+        window.location.href = '/login';
+        return;
+      }
+      
+      // Fetch all data manually
+      const [statsRes, feedbackRes, activityRes] = await Promise.allSettled([
+        api.get('/api/feedback/stats'),
+        api.get('/api/feedback/recent?limit=5'),
+        api.get('/api/feedback/activities')
+      ]);
+      
+      if (statsRes.status === 'fulfilled') {
+        setStats(statsRes.value.data);
+        console.log('✅ Stats updated:', statsRes.value.data);
+      } else {
+        console.error('❌ Stats failed:', statsRes.reason);
+      }
+      
+      if (feedbackRes.status === 'fulfilled') {
+        setRecentFeedback(feedbackRes.value.data || []);
+        console.log('✅ Feedback updated:', feedbackRes.value.data);
+      } else {
+        console.error('❌ Feedback failed:', feedbackRes.reason);
+      }
+      
+      if (activityRes.status === 'fulfilled') {
+        setRecentActivity(activityRes.value.data || []);
+        console.log('✅ Activities updated:', activityRes.value.data);
+      } else {
+        console.error('❌ Activities failed:', activityRes.reason);
+        setRecentActivity([]);
+      }
+      
+      setLastUpdated(new Date());
+      setError('');
+    } catch (err) {
+      console.error('Manual refresh error:', err);
+      setError('Failed to refresh data. Please try again.');
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -324,10 +382,68 @@ export default function Page() {
                     </svg>
                     {currentDate}
                   </p>
+                  {/* Real-time status indicator */}
+                  <div className="mt-2 flex items-center space-x-4">
+                    <div className="flex items-center">
+                      {autoRefresh ? (
+                        <div className="flex items-center">
+                          <span className="flex h-2 w-2 mr-2">
+                            <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-green-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                          </span>
+                          <span className="text-xs text-blue-100">Live updates enabled</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center">
+                          <span className="inline-flex rounded-full h-2 w-2 bg-gray-400 mr-2"></span>
+                          <span className="text-xs text-blue-100">Auto-refresh disabled</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1 text-blue-200" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                      </svg>
+                      <span className="text-xs text-blue-100">Updated {formatLastUpdated()}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
             <div className="mt-4 flex flex-wrap gap-2 md:mt-0">
+              {/* Real-time controls */}
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={handleManualRefresh}
+                  disabled={isRefreshing}
+                  className="inline-flex items-center px-3 py-2 border border-white/20 rounded-lg shadow-sm text-sm font-medium text-white bg-white/10 hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+                >
+                  <svg 
+                    xmlns="http://www.w3.org/2000/svg" 
+                    className={`h-4 w-4 mr-1 ${isRefreshing ? 'animate-spin' : ''}`} 
+                    viewBox="0 0 20 20" 
+                    fill="currentColor"
+                  >
+                    <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+                  </svg>
+                  {isRefreshing ? 'Refreshing...' : 'Refresh'}
+                </button>
+                
+                <button
+                  onClick={() => setAutoRefresh(!autoRefresh)}
+                  className={`inline-flex items-center px-3 py-2 border border-white/20 rounded-lg shadow-sm text-sm font-medium transition-all duration-300 ${
+                    autoRefresh 
+                      ? 'text-white bg-green-600/80 hover:bg-green-600' 
+                      : 'text-white bg-white/10 hover:bg-white/20'
+                  }`}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  Auto-refresh
+                </button>
+              </div>
+              
               <Link
                 href="/admin-dashboard/reports"
                 className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-blue-700 bg-white hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-300"
@@ -359,10 +475,11 @@ export default function Page() {
             <p className="font-bold">Error</p>
             <p>{error}</p>
             <button 
-              onClick={() => window.location.reload()} 
-              className="mt-2 bg-red-500 hover:bg-red-600 text-white py-1 px-3 rounded text-sm transition-colors"
+              onClick={handleManualRefresh} 
+              disabled={isRefreshing}
+              className="mt-2 bg-red-500 hover:bg-red-600 text-white py-1 px-3 rounded text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Retry
+              {isRefreshing ? 'Retrying...' : 'Retry'}
             </button>
           </div>
         )}
@@ -377,7 +494,16 @@ export default function Page() {
             {/* Stats Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {/* Students Card */}
-              <div className="bg-white overflow-hidden shadow-lg rounded-xl border border-gray-100 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+              <div className="bg-white overflow-hidden shadow-lg rounded-xl border border-gray-100 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 relative">
+                {/* Real-time indicator */}
+                {isRefreshing && (
+                  <div className="absolute top-2 right-2 z-10">
+                    <span className="flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-blue-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                    </span>
+                  </div>
+                )}
                 <div className="p-6 relative">
                   <div className="absolute top-0 right-0 mt-4 mr-4 bg-blue-50 rounded-full p-2">
                     <svg className="h-6 w-6 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -677,7 +803,18 @@ export default function Page() {
 
               {/* Recent Activities */}
               <div className="lg:col-span-2">
-                <div className="bg-white shadow-lg rounded-xl overflow-hidden border border-gray-100">
+                <div className="bg-white shadow-lg rounded-xl overflow-hidden border border-gray-100 relative">
+                  {/* Real-time refreshing indicator */}
+                  {isRefreshing && (
+                    <div className="absolute top-4 right-4 z-10">
+                      <div className="bg-white rounded-full p-2 shadow-md">
+                        <svg className="animate-spin h-4 w-4 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      </div>
+                    </div>
+                  )}
                   <div className="bg-gradient-to-r from-indigo-600 to-purple-700 px-6 py-4">
                     <h3 className="text-lg font-semibold text-white flex items-center">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
@@ -687,6 +824,15 @@ export default function Page() {
                       {recentActivity.length > 0 && (
                         <span className="ml-2 bg-white/20 text-white text-xs px-2 py-1 rounded-full">
                           {recentActivity.length} new
+                        </span>
+                      )}
+                      {autoRefresh && (
+                        <span className="ml-auto flex items-center">
+                          <span className="flex h-2 w-2 mr-1">
+                            <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-green-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-400"></span>
+                          </span>
+                          <span className="text-xs">Live</span>
                         </span>
                       )}
                     </h3>
@@ -803,7 +949,18 @@ export default function Page() {
 
             {/* Recent Feedback */}
             <div className="mt-8">
-              <div className="bg-white shadow-lg rounded-xl overflow-hidden border border-gray-100">
+              <div className="bg-white shadow-lg rounded-xl overflow-hidden border border-gray-100 relative">
+                {/* Real-time refreshing indicator */}
+                {isRefreshing && (
+                  <div className="absolute top-4 right-4 z-10">
+                    <div className="bg-white rounded-full p-2 shadow-md">
+                      <svg className="animate-spin h-4 w-4 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                    </div>
+                  </div>
+                )}
                 <div className="bg-gradient-to-r from-blue-600 to-cyan-600 px-6 py-4">
                   <h3 className="text-lg font-semibold text-white flex items-center">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
@@ -811,6 +968,15 @@ export default function Page() {
                       <path d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h2a2 2 0 002-2V9a2 2 0 00-2-2h-1z" />
                     </svg>
                     Recent Feedback
+                    {autoRefresh && (
+                      <span className="ml-auto flex items-center">
+                        <span className="flex h-2 w-2 mr-1">
+                          <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-green-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-green-400"></span>
+                        </span>
+                        <span className="text-xs">Live</span>
+                      </span>
+                    )}
                   </h3>
                 </div>
                 <div className="overflow-hidden">
@@ -929,13 +1095,14 @@ export default function Page() {
                         </p>
                         <div className="mt-6">
                           <button 
-                            onClick={() => window.location.reload()}
-                            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                            onClick={handleManualRefresh}
+                            disabled={isRefreshing}
+                            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           >
-                            <svg className="mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                            <svg className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                               <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
                             </svg>
-                            Refresh Data
+                            {isRefreshing ? 'Refreshing...' : 'Refresh Data'}
                           </button>
                         </div>
                       </div>
@@ -953,13 +1120,14 @@ export default function Page() {
                       </div>
                       <div className="flex space-x-2">
                         <button 
-                          onClick={() => window.location.reload()}
-                          className="inline-flex items-center px-3 py-1 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                          onClick={handleManualRefresh}
+                          disabled={isRefreshing}
+                          className="inline-flex items-center px-3 py-1 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                          <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 mr-1 ${isRefreshing ? 'animate-spin' : ''}`} viewBox="0 0 20 20" fill="currentColor">
                             <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
                           </svg>
-                          Refresh
+                          {isRefreshing ? 'Refreshing...' : 'Refresh'}
                         </button>
                         <Link 
                           href="/admin-dashboard/reports" 

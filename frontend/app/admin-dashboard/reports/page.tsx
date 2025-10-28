@@ -321,7 +321,7 @@ export default function ReportsPage() {
       const allSubjects: Subject[] = subjectsResponse.data;
       
       // Get all users to extract sections
-      const usersResponse = await api.get('/api/users');
+      const usersResponse = await api.get('/api/auth/users');
       const allUsers: any[] = usersResponse.data;
       
       // Extract unique years, terms, branches, and sections

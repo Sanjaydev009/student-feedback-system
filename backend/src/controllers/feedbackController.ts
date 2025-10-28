@@ -249,8 +249,8 @@ export const getDashboardStats = async (req: Request, res: Response): Promise<vo
     
     res.json({
       // Main stats that respect filters
-      totalFeedback: feedbacks.length,
-      averageRating: averageRating,
+      totalFeedbacks: feedbacks.length,
+      averageRating: parseFloat(averageRating.toFixed(1)),
       subjectsWithFeedback: subjectsWithFeedback,
       facultyRatings: facultyRatings,
       
@@ -258,6 +258,9 @@ export const getDashboardStats = async (req: Request, res: Response): Promise<vo
       totalStudents: totalStudents,
       totalFaculty: totalFaculty,
       totalSubjects: totalSubjects,
+      
+      // Calculate feedback completion rate
+      feedbackCompletion: totalStudents > 0 ? Math.round((feedbacks.length / totalStudents) * 100) : 0,
       
       // Additional info
       appliedFilters: { year, term, branch, section }
@@ -271,14 +274,26 @@ export const getDashboardStats = async (req: Request, res: Response): Promise<vo
 
 export const getRecentFeedback = async (req: Request, res: Response): Promise<void> => {
   try {
+    const limit = parseInt(req.query.limit as string) || 5;
+    
     // Get recent feedback with populated fields
     const recentFeedback = await Feedback.find()
       .populate('student', 'name email')
       .populate('subject', 'name instructor code')
       .sort({ createdAt: -1 })
-      .limit(5);
+      .limit(limit);
     
-    res.json(recentFeedback);
+    // Transform the data to include rating
+    const transformedFeedback = recentFeedback.map(feedback => ({
+      _id: feedback._id,
+      student: feedback.student,
+      subject: feedback.subject,
+      rating: feedback.averageRating || 0,
+      comments: feedback.comments,
+      createdAt: feedback.createdAt
+    }));
+    
+    res.json(transformedFeedback);
   } catch (err: any) {
     console.error('Error getting recent feedback:', err.message);
     res.status(500).json({ message: 'Server error while getting recent feedback' });
@@ -390,105 +405,90 @@ export const getFeedbackSummary = async (req: Request, res: Response): Promise<v
 
 export const getRecentActivities = async (req: Request, res: Response): Promise<void> => {
   try {
+    const activities: any[] = [];
+    
     // Get recent feedback submissions
     const recentFeedback = await Feedback.find()
-      .populate('student', 'name')
-      .populate('subject', 'name')
+      .populate({
+        path: 'student',
+        select: 'name role',
+        strictPopulate: false // Allow null values
+      })
+      .populate({
+        path: 'subject', 
+        select: 'name',
+        strictPopulate: false // Allow null values
+      })
       .sort({ createdAt: -1 })
       .limit(3);
+    
+    // Add feedback activities with null checks
+    recentFeedback.forEach((feedback: any) => {
+      const studentName = feedback.student?.name || 'Unknown Student';
+      const subjectName = feedback.subject?.name || 'Unknown Subject';
+      const userRole = feedback.student?.role || 'student';
+      
+      activities.push({
+        _id: `feedback-${feedback._id}`,
+        type: 'feedback',
+        user: {
+          _id: feedback.student?._id || 'unknown',
+          name: studentName,
+          role: userRole
+        },
+        description: `Submitted feedback for ${subjectName}`,
+        timestamp: feedback.createdAt
+      });
+    });
     
     // Get recent user registrations
     const recentUsers = await User.find({ role: 'student' })
       .sort({ createdAt: -1 })
       .limit(2);
     
+    // Add user registration activities
+    recentUsers.forEach((user: any) => {
+      activities.push({
+        _id: `register-${user._id}`,
+        type: 'register',
+        user: {
+          _id: user._id,
+          name: user.name || 'Unknown User',
+          role: user.role || 'student'
+        },
+        description: `New student registered in the system`,
+        timestamp: user.createdAt
+      });
+    });
+    
     // Get recent subject additions
     const recentSubjects = await Subject.find()
       .sort({ createdAt: -1 })
       .limit(2);
     
-    const activities: any[] = [];
-    
-    // Add feedback activities
-    recentFeedback.forEach((feedback: any) => {
-      const timeDiff = Date.now() - new Date(feedback.createdAt).getTime();
-      const minutesAgo = Math.floor(timeDiff / (1000 * 60));
-      const hoursAgo = Math.floor(timeDiff / (1000 * 60 * 60));
-      const daysAgo = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
-      
-      let timeString = '';
-      if (minutesAgo < 60) {
-        timeString = `${minutesAgo} minute${minutesAgo !== 1 ? 's' : ''} ago`;
-      } else if (hoursAgo < 24) {
-        timeString = `${hoursAgo} hour${hoursAgo !== 1 ? 's' : ''} ago`;
-      } else {
-        timeString = `${daysAgo} day${daysAgo !== 1 ? 's' : ''} ago`;
-      }
-      
-      activities.push({
-        id: `feedback-${feedback._id}`,
-        type: 'feedback',
-        message: `New feedback submitted for ${feedback.subject?.name || 'Unknown Subject'}`,
-        time: timeString,
-        timestamp: new Date(feedback.createdAt),
-        icon: '📝',
-        iconBg: 'from-blue-500 to-blue-600'
-      });
-    });
-    
-    // Add user activities
-    recentUsers.forEach((user: any) => {
-      const timeDiff = Date.now() - new Date(user.createdAt).getTime();
-      const daysAgo = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
-      const hoursAgo = Math.floor(timeDiff / (1000 * 60 * 60));
-      
-      let timeString = '';
-      if (hoursAgo < 24) {
-        timeString = `${hoursAgo} hour${hoursAgo !== 1 ? 's' : ''} ago`;
-      } else {
-        timeString = `${daysAgo} day${daysAgo !== 1 ? 's' : ''} ago`;
-      }
-      
-      activities.push({
-        id: `user-${user._id}`,
-        type: 'student',
-        message: `New student ${user.name} registered`,
-        time: timeString,
-        timestamp: new Date(user.createdAt),
-        icon: '👥',
-        iconBg: 'from-green-500 to-green-600'
-      });
-    });
-    
-    // Add subject activities
+    // Add subject creation activities (by admin)
     recentSubjects.forEach((subject: any) => {
-      const timeDiff = Date.now() - new Date(subject.createdAt).getTime();
-      const daysAgo = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
-      const hoursAgo = Math.floor(timeDiff / (1000 * 60 * 60));
-      
-      let timeString = '';
-      if (hoursAgo < 24) {
-        timeString = `${hoursAgo} hour${hoursAgo !== 1 ? 's' : ''} ago`;
-      } else {
-        timeString = `${daysAgo} day${daysAgo !== 1 ? 's' : ''} ago`;
-      }
-      
       activities.push({
-        id: `subject-${subject._id}`,
-        type: 'subject',
-        message: `Subject ${subject.name} was added`,
-        time: timeString,
-        timestamp: new Date(subject.createdAt),
-        icon: '📚',
-        iconBg: 'from-purple-500 to-purple-600'
+        _id: `subject-${subject._id}`,
+        type: 'update',
+        user: {
+          _id: 'admin-system',
+          name: 'System Admin',
+          role: 'admin'
+        },
+        description: `Added new subject: ${subject.name || 'Unknown Subject'}`,
+        timestamp: subject.createdAt
       });
     });
     
-    // Sort activities by creation time (most recent first)
+    // Sort activities by timestamp (most recent first)
     activities.sort((a: any, b: any) => {
       return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
     });
     
+    console.log(`✅ Returning ${activities.length} activities`);
+    
+    // Return only the most recent 5 activities
     res.json(activities.slice(0, 5));
   } catch (err: any) {
     console.error('Error getting recent activities:', err.message);
