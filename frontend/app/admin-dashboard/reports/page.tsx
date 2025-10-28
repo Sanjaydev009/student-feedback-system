@@ -264,12 +264,12 @@ export default function ReportsPage() {
       if (response.data) {
         console.log('📊 Stats response data:', response.data);
         setOverallSummary({
-          totalFeedback: response.data.totalFeedback || 0,
+          totalFeedback: response.data.totalFeedbacks || 0, // Changed from totalFeedback to totalFeedbacks
           averageRating: response.data.averageRating || 0,
           subjectsWithFeedback: response.data.subjectsWithFeedback || 0
         });
         console.log('📊 Updated overall summary:', {
-          totalFeedback: response.data.totalFeedback || 0,
+          totalFeedback: response.data.totalFeedbacks || 0, // Changed from totalFeedback to totalFeedbacks
           averageRating: response.data.averageRating || 0,
           subjectsWithFeedback: response.data.subjectsWithFeedback || 0
         });
