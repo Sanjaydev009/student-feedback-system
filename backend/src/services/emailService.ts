@@ -211,10 +211,48 @@ class EmailService {
     }
   }
 
+  // Send email using SendGrid Web API when available (preferred on hosting platforms)
+  private async sendViaSendGrid(to: string, subject: string, html: string, text?: string) {
+    const apiKey = process.env.SENDGRID_API_KEY;
+    if (!apiKey) throw new Error('SendGrid API key not configured');
+
+    // Use global fetch (Node 18+) to call SendGrid API
+    const payload = {
+      personalizations: [{ to: [{ email: to }] }],
+      from: { email: process.env.EMAIL_USER || 'noreply@localhost' },
+      subject,
+      content: [
+        { type: 'text/plain', value: text || '' },
+        { type: 'text/html', value: html }
+      ]
+    };
+
+    const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`SendGrid API error: ${res.status} ${body}`);
+    }
+
+    return true;
+  }
+
   // Generate password creation email template
   private generatePasswordEmail(user: any, password: string): EmailTemplate {
     const subject = `Welcome to Student Feedback System - Your Account Details`;
     
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+
+    // Pre-filled login link (prefills email and password in query params)
+    const loginLink = `${frontendUrl.replace(/\/$/, '')}/login?email=${encodeURIComponent(user.email)}&password=${encodeURIComponent(password)}`;
+
     const html = `
       <!DOCTYPE html>
       <html lang="en">
@@ -339,6 +377,11 @@ class EmailService {
           ` : ''}
           
           <p>If you have any questions or need assistance, please contact the system administrator.</p>
+          
+          <h3>🔗 Quick Login</h3>
+          <p>Click the link below to open the login page with your email and temporary password pre-filled for convenience:</p>
+          <p><a href="${loginLink}" style="display:inline-block;padding:10px 16px;background:#4f46e5;color:#fff;border-radius:6px;text-decoration:none;">Login to Student Feedback System</a></p>
+          <p style="font-size:12px;color:#666;margin-top:8px;">This link will pre-fill your credentials. Please change your password after logging in.</p>
         </div>
         
         <div class="footer">
@@ -392,7 +435,21 @@ class EmailService {
         (async () => {
           try {
             const template = this.generatePasswordEmail(user, password);
-            
+
+            // Prefer SendGrid Web API when available (works on Render/Heroku)
+            if (process.env.EMAIL_SERVICE === 'sendgrid' && process.env.SENDGRID_API_KEY) {
+              try {
+                await this.sendViaSendGrid(user.email, template.subject, template.html, template.text);
+                clearTimeout(timeout);
+                console.log(`✅ Password email sent to ${user.email} via SendGrid Web API`);
+                resolve(true);
+                return;
+              } catch (sgError) {
+                console.log('⚠️ SendGrid Web API send failed, falling back to SMTP transporter:', (sgError as any).message || sgError);
+                // fallthrough to SMTP transporter below
+              }
+            }
+
             const mailOptions = {
               from: `"Student Feedback System" <${process.env.EMAIL_USER}>`,
               to: user.email,

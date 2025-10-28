@@ -22,6 +22,11 @@ export default function LoginPage() {
       // Clear the query parameter
       window.history.replaceState({}, document.title, '/login');
     }
+    // Prefill email/password if present in query params (for quick-login links)
+    const prefillEmail = urlParams.get('email');
+    const prefillPassword = urlParams.get('password');
+    if (prefillEmail) setEmail(prefillEmail);
+    if (prefillPassword) setPassword(prefillPassword);
     
     // Check if the server is reachable using our utility
     const checkServerStatus = async () => {
