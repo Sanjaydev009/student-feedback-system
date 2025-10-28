@@ -13,19 +13,51 @@ interface Subject {
   code: string;
   instructor: string;
   branch: string[]; // Array to support multiple branches (common subjects)
-  questions: string[];
+  term: number;
+  year: number;
+  // Note: Removed questions field - we use MIDTERM_QUESTIONS only
 }
+
+interface FeedbackQuestion {
+  id: number;
+  question: string;
+  type: 'rating' | 'comment';
+  category: string;
+}
+
+// ONLY these 8 questions + 2 comments will be used for midterm feedback
+const MIDTERM_QUESTIONS: FeedbackQuestion[] = [
+  // Teaching Quality (4 questions)
+  { id: 1, question: "How clearly does the faculty explain concepts?", type: 'rating', category: 'Teaching Quality' },
+  { id: 2, question: "How well does the instructor adapt teaching methods to student needs?", type: 'rating', category: 'Teaching Quality' },
+  { id: 3, question: "How well does the faculty clarify learning objectives?", type: 'rating', category: 'Teaching Quality' },
+  { id: 4, question: "How well does the faculty encourage student participation?", type: 'rating', category: 'Teaching Quality' },
+  
+  // Faculty Engagement (2 questions)
+  { id: 5, question: "How accessible is the faculty for doubts and guidance?", type: 'rating', category: 'Faculty Engagement' },
+  { id: 6, question: "How effectively does the instructor handle student questions during class?", type: 'rating', category: 'Faculty Engagement' },
+  
+  // Course Delivery (2 questions)
+  { id: 7, question: "How well-prepared does the faculty come to classes?", type: 'rating', category: 'Course Delivery' },
+  { id: 8, question: "How would you rate the overall performance of the faculty?", type: 'rating', category: 'Course Delivery' },
+  
+  // Comments (2 questions)
+  { id: 9, question: "What could be improved in teaching or course delivery?", type: 'comment', category: 'Comments' },
+  { id: 10, question: "Any other comments or suggestions?", type: 'comment', category: 'Comments' }
+];
 
 export default function SubmitFeedbackPage() {
   const router = useRouter();
   const { showSuccess, showError, showWarning } = useToast();
   const [subject, setSubject] = useState<Subject | null>(null);
-  const [answers, setAnswers] = useState<number[]>(Array(10).fill(0));
+  const [answers, setAnswers] = useState<number[]>(Array(8).fill(0)); // 8 rating questions
+  const [comments, setComments] = useState<string[]>(Array(2).fill('')); // 2 comment questions
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [studentId, setStudentId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [feedbackType] = useState<'midterm' | 'endterm'>('midterm'); // Default to midterm
 
   // Step 1: Check authentication and get user info
   useEffect(() => {
@@ -79,16 +111,10 @@ export default function SubmitFeedbackPage() {
     try {
       const response = await api.get(`/api/subjects/${subjectId}`);
       const data = response.data;
-
-      if (!data.questions || data.questions.length < 10) {
-        setError('This subject has invalid feedback questions');
-        setTimeout(() => router.push('/subjects'), 2000);
-        return;
-      }
       
       setSubject(data);
       
-      // Check if student already submitted feedback for this subject
+      // Check if student already submitted feedback for this subject and type
       checkFeedbackStatus(data._id);
       
     } catch (err: any) {
@@ -105,8 +131,8 @@ export default function SubmitFeedbackPage() {
     if (!studentId) return;
     
     try {
-      // Use our API utility for consistent error handling
-      const response = await api.get(`/api/feedback/student/${studentId}?subject=${subjectId}`);
+      // Check for midterm feedback specifically
+      const response = await api.get(`/api/feedback/student/${studentId}?subject=${subjectId}&type=midterm`);
       const data = response.data;
       
       setSubmitted(Array.isArray(data) && data.length > 0);
@@ -121,9 +147,22 @@ export default function SubmitFeedbackPage() {
     setAnswers(updated);
   };
 
+  const handleCommentChange = (index: number, value: string) => {
+    const updated = [...comments];
+    updated[index] = value;
+    setComments(updated);
+  };
+
   const handleSubmit = async () => {
+    // Validate rating questions
     if (answers.some(a => a === 0)) {
-      showWarning('Please answer all questions');
+      showWarning('Please answer all rating questions');
+      return;
+    }
+
+    // Validate comment questions (check if both comments are provided and not empty)
+    if (comments.some(c => !c.trim() || c.trim().length < 5)) {
+      showWarning('Please provide detailed responses to both comment questions (minimum 5 characters each)');
       return;
     }
 
@@ -133,7 +172,7 @@ export default function SubmitFeedbackPage() {
     }
     
     if (submitted) {
-      showWarning('You have already submitted feedback for this subject');
+      showWarning('You have already submitted midterm feedback for this subject');
       router.push('/subjects');
       return;
     }
@@ -141,17 +180,36 @@ export default function SubmitFeedbackPage() {
     setSubmitting(true);
 
     try {
+      // Prepare answers array with both ratings and comments including category info
+      const allAnswers = [
+        // Rating questions (first 8)
+        ...MIDTERM_QUESTIONS.slice(0, 8).map((q, i) => ({
+          question: q.question,
+          answer: answers[i],
+          type: 'rating',
+          category: q.category
+        })),
+        // Comment questions (last 2)
+        ...MIDTERM_QUESTIONS.slice(8).map((q, i) => ({
+          question: q.question,
+          answer: 0, // No numeric rating for comments
+          type: 'comment',
+          comment: comments[i],
+          category: q.category
+        }))
+      ];
+
       const response = await api.post('/api/feedback', {
         student: studentId,
         subject: subject._id,
-        answers: answers.map((ans, i) => ({
-          question: subject.questions[i],
-          answer: ans
-        }))
+        feedbackType: feedbackType,
+        term: subject.term,
+        academicYear: '2025-26',
+        answers: allAnswers
       });
 
       // Show success message
-      showSuccess('Feedback submitted successfully!');
+      showSuccess('Midterm feedback submitted successfully!');
       
       // Set submitted state to true to update UI
       setSubmitted(true);
@@ -165,7 +223,7 @@ export default function SubmitFeedbackPage() {
       // Handle specific error cases
       if (err.response?.status === 409) {
         // Conflict - already submitted
-        showWarning('You have already submitted feedback for this subject');
+        showWarning('You have already submitted midterm feedback for this subject');
         setSubmitted(true);
         setTimeout(() => router.push('/subjects'), 1500);
       } else if (err.response?.data?.message) {
@@ -291,6 +349,12 @@ export default function SubmitFeedbackPage() {
                 </svg>
                 <p className="text-blue-100">Code: <span className="font-medium">{subject.code}</span></p>
               </div>
+              <div className="flex items-center mt-1">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-blue-200" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                </svg>
+                <p className="text-blue-100">Feedback Type: <span className="font-medium">Mid-Term Evaluation</span></p>
+              </div>
             </div>
 
             {submitted ? (
@@ -300,8 +364,8 @@ export default function SubmitFeedbackPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
-                <h2 className="text-2xl font-semibold text-gray-800 mb-2">Feedback Already Submitted</h2>
-                <p className="text-gray-600 mb-6">You have already provided feedback for this subject.</p>
+                <h2 className="text-2xl font-semibold text-gray-800 mb-2">Midterm Feedback Already Submitted</h2>
+                <p className="text-gray-600 mb-6">You have already provided midterm feedback for this subject.</p>
                 <div className="flex gap-4 justify-center">
                   <button 
                     onClick={() => router.push('/subjects')}
@@ -319,56 +383,197 @@ export default function SubmitFeedbackPage() {
               </div>
             ) : (
               <div className="p-8">
-                <h2 className="text-xl font-semibold text-gray-800 mb-6">Rate the following aspects:</h2>
+                <div className="mb-8">
+                  <div className="text-center mb-6">
+                    <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </div>
+                    <h2 className="text-2xl font-bold text-gray-800 mb-2">📝 Mid-Term Faculty Evaluation</h2>
+                    <p className="text-gray-600 max-w-2xl mx-auto">
+                      Please evaluate your instructor's teaching performance for the first half of this term. 
+                      Your feedback is <span className="font-semibold text-blue-600">anonymous</span> and will help improve the learning experience.
+                    </p>
+                  </div>
+                  
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-start">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600 mr-3 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <div>
+                        <p className="text-sm font-semibold text-blue-800 mb-1">📋 Instructions:</p>
+                        <ul className="text-sm text-blue-700 space-y-1">
+                          <li>• Rate each aspect on a scale of 1-5 (1 = Poor, 5 = Excellent)</li>
+                          <li>• Provide detailed comments in the text areas (minimum 20 characters)</li>
+                          <li>• Your feedback will remain completely anonymous</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 
                 <div className="space-y-8">
-                  {Array.isArray(subject.questions) && subject.questions.length >= 10 ? (
-                    subject.questions.slice(0, 10).map((q, index) => (
-                      <div key={index} className="p-4 border border-gray-200 rounded-lg bg-gray-50 hover:bg-white transition-medium">
-                        <label className="block font-medium text-gray-800 mb-3">{q}</label>
-                        <div className="flex justify-between items-center">
-                          {[1, 2, 3, 4, 5].map(rating => (
-                            <button
-                              key={rating}
-                              type="button"
-                              onClick={() => handleRatingChange(index, rating)}
-                              className={`flex flex-col items-center justify-center w-16 h-16 rounded-lg transition-transform duration-150 ${
-                                answers[index] === rating 
-                                  ? 'bg-blue-600 text-white scale-110' 
-                                  : answers[index] > rating
-                                    ? 'bg-blue-100 text-blue-800'
-                                    : 'bg-gray-100 hover:bg-gray-200'
-                              }`}
-                            >
-                              <span className="text-xl">{rating}</span>
-                              <span className="text-xs mt-1">{rating === 1 ? 'Poor' : rating === 5 ? 'Excellent' : ''}</span>
-                            </button>
+                  {/* RATING QUESTIONS - EXACTLY 3 SECTIONS */}
+                  {['Teaching Quality', 'Faculty Engagement', 'Course Delivery'].map((category) => {
+                    const categoryQuestions = MIDTERM_QUESTIONS.filter(q => q.category === category && q.type === 'rating');
+                    return (
+                      <div key={category} className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-6 border border-gray-200 shadow-sm">
+                        <div className="flex items-center mb-6">
+                          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center mr-3">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 012.184 1.327 3.42 3.42 0 01.63 2.248 3.42 3.42 0 01-.956 2.054 3.42 3.42 0 01-.62 3.135 3.42 3.42 0 01-2.054.956 3.42 3.42 0 01-2.184 1.327 3.42 3.42 0 01-4.438 0 3.42 3.42 0 01-2.184-1.327 3.42 3.42 0 01-2.054-.956 3.42 3.42 0 01-.62-3.135 3.42 3.42 0 01-.956-2.054 3.42 3.42 0 01.63-2.248 3.42 3.42 0 012.184-1.327z" />
+                            </svg>
+                          </div>
+                          <h3 className="text-xl font-bold text-gray-800">
+                            {category}
+                          </h3>
+                          <span className="ml-auto bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-1 rounded-full">
+                            {categoryQuestions.length} questions
+                          </span>
+                        </div>
+                        <div className="space-y-6">
+                          {categoryQuestions.map((q) => (
+                            <div key={q.id} className="p-5 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-all duration-200">
+                              <label className="block font-semibold text-gray-800 mb-4 text-lg">
+                                {q.id}. {q.question}
+                              </label>
+                              <div className="flex justify-between items-center">
+                                <div className="flex items-center">
+                                  <span className="text-sm text-red-500 font-medium mr-3">Poor</span>
+                                  <span className="text-xs text-gray-400">1</span>
+                                </div>
+                                <div className="flex space-x-3">
+                                  {[1, 2, 3, 4, 5].map(rating => (
+                                    <button
+                                      key={rating}
+                                      type="button"
+                                      onClick={() => handleRatingChange(q.id - 1, rating)}
+                                      className={`relative flex flex-col items-center justify-center w-16 h-16 rounded-xl transition-all duration-300 transform hover:scale-110 ${
+                                        answers[q.id - 1] === rating 
+                                          ? 'bg-gradient-to-t from-blue-600 to-blue-500 text-white scale-110 shadow-lg border-2 border-blue-400' 
+                                          : answers[q.id - 1] > rating
+                                            ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                                            : 'bg-gray-100 hover:bg-gray-200 hover:scale-105 border border-gray-200'
+                                      }`}
+                                    >
+                                      <span className="text-xl font-bold">{rating}</span>
+                                      {answers[q.id - 1] === rating && (
+                                        <div className="absolute -top-1 -right-1 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                          </svg>
+                                        </div>
+                                      )}
+                                    </button>
+                                  ))}
+                                </div>
+                                <div className="flex items-center">
+                                  <span className="text-xs text-gray-400 mr-3">5</span>
+                                  <span className="text-sm text-green-500 font-medium">Excellent</span>
+                                </div>
+                              </div>
+                            </div>
                           ))}
                         </div>
                       </div>
-                    ))
-                  ) : (
-                    <div className="p-4 border border-red-200 rounded-lg bg-red-50 text-center">
-                      <p className="text-red-600">⚠️ This subject doesn't have valid questions.</p>
-                    </div>
-                  )}                          <button
-                    onClick={handleSubmit}
-                    disabled={submitting}
-                    className={`w-full py-3 px-4 mt-8 text-white rounded-md font-medium shadow-sm transition-colors duration-200 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                      submitting 
-                        ? 'bg-gray-400 cursor-not-allowed' 
-                        : 'bg-blue-600 hover:bg-blue-700'
-                    }`}
-                  >
-                    {submitting ? (
-                      <div className="flex items-center justify-center">
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                        Submitting...
+                    );
+                  })}
+
+                  {/* COMMENT QUESTIONS - EXACTLY 1 SECTION */}
+                                    {/* Comment Questions */}
+                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6 border border-green-200 shadow-sm">
+                    <div className="flex items-center mb-6">
+                      <div className="w-8 h-8 bg-green-600 rounded-lg flex items-center justify-center mr-3">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                        </svg>
                       </div>
-                    ) : (
-                      'Submit Feedback'
-                    )}
-                  </button>
+                      <h3 className="text-xl font-bold text-gray-800">
+                        💬 Detailed Feedback
+                      </h3>
+                      <span className="ml-auto bg-green-100 text-green-800 text-xs font-medium px-2.5 py-1 rounded-full">
+                        {MIDTERM_QUESTIONS.filter(q => q.type === 'comment').length} comments
+                      </span>
+                    </div>
+                    <div className="space-y-6">
+                      {MIDTERM_QUESTIONS.filter(q => q.type === 'comment').map((q, index) => (
+                        <div key={q.id} className="p-5 bg-white border border-green-200 rounded-lg">
+                          <label className="block font-semibold text-gray-800 mb-4 text-lg">
+                            {q.id}. {q.question}
+                          </label>
+                          <textarea
+                            value={comments[index]}
+                            onChange={(e) => handleCommentChange(index, e.target.value)}
+                            placeholder="Please provide your detailed feedback here (minimum 20 characters)..."
+                            rows={4}
+                            className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none transition-all duration-200 ${
+                              comments[index].length < 5 && comments[index].length > 0
+                                ? 'border-red-300 bg-red-50'
+                                : comments[index].length >= 5
+                                ? 'border-green-300 bg-green-50'
+                                : 'border-gray-300'
+                            }`}
+                          />
+                          <div className="flex justify-between items-center mt-2">
+                            <span className={`text-sm ${
+                              comments[index].length < 5
+                                ? 'text-red-500' 
+                                : 'text-green-600'
+                            }`}>
+                              {comments[index].length >= 5
+                                ? `✓ ${comments[index].length} characters (Good!)`
+                                : `${comments[index].length}/5 characters (minimum required)`
+                              }
+                            </span>
+                            {comments[index].length >= 5 && (
+                              <span className="text-green-600 text-sm font-medium">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                                Complete
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Submit Section */}
+                  <div className="mt-8 p-6 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
+                    <div className="text-center mb-4">
+                      <h4 className="text-lg font-semibold text-gray-800 mb-2">🚀 Ready to Submit?</h4>
+                      <p className="text-sm text-gray-600">
+                        Please review your responses before submitting. Your feedback is valuable and will remain anonymous.
+                      </p>
+                    </div>
+                    
+                    <button
+                      onClick={handleSubmit}
+                      disabled={submitting}
+                      className={`w-full py-4 px-6 text-white rounded-xl font-bold text-lg shadow-xl transition-all duration-300 transform focus:ring-4 focus:ring-blue-500 focus:ring-offset-2 ${
+                        submitting 
+                          ? 'bg-gray-400 cursor-not-allowed' 
+                          : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 hover:scale-105 hover:shadow-2xl'
+                      }`}
+                    >
+                      {submitting ? (
+                        <div className="flex items-center justify-center">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white mr-3"></div>
+                          <span>📤 Submitting Your Midterm Feedback...</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-center">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                          </svg>
+                          <span>🎯 Submit Midterm Feedback</span>
+                        </div>
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
             )}

@@ -454,17 +454,17 @@ export default function SubjectsPage() {
                             {activeFeedbackPeriods.map((period) => (
                               <Link 
                                 key={period._id}
-                                href={`/advanced-feedback?subjectId=${subject._id}&type=${period.feedbackType}`} 
-                                className={`inline-flex items-center px-3 py-1.5 text-white text-xs font-medium rounded-md transition-all duration-200 shadow-sm ${
+                                href={`/submit-feedback?subjectId=${subject._id}&type=${period.feedbackType}`} 
+                                className={`inline-flex items-center justify-center px-4 py-2 text-white text-sm font-medium rounded-lg transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 ${
                                   period.feedbackType === 'midterm'
                                     ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700'
                                     : 'bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700'
                                 }`}
                               >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                 </svg>
-                                {period.feedbackType.charAt(0).toUpperCase() + period.feedbackType.slice(1)} Feedback
+                                {period.feedbackType === 'midterm' ? '📝 Midterm Feedback' : '📝 Endterm Feedback'}
                               </Link>
                             ))}
                           </div>

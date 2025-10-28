@@ -8,155 +8,81 @@ export interface FeedbackQuestion {
   required: boolean;
 }
 
-// Mid-term Feedback Questions (Focus on Teaching and Teacher Performance)
+// Mid-term Feedback Questions (8 Rating + 2 Comments - Faculty Focused)
 export const midtermQuestions: FeedbackQuestion[] = [
-  // Teaching Effectiveness
+  // Teaching Quality (4 questions)
   {
     id: 'mt_teaching_clarity',
-    text: 'How clearly does the instructor explain complex concepts?',
+    text: 'How clearly does the faculty explain concepts?',
     type: 'rating',
-    category: 'Teaching Effectiveness',
+    category: 'Teaching Quality',
     required: true
   },
   {
-    id: 'mt_teaching_pace',
-    text: 'Is the teaching pace appropriate for understanding the material?',
+    id: 'mt_teaching_aids',
+    text: 'How effectively does the faculty use teaching aids?',
     type: 'rating',
-    category: 'Teaching Effectiveness',
+    category: 'Teaching Quality',
     required: true
   },
   {
-    id: 'mt_teaching_enthusiasm',
-    text: 'How enthusiastic is the instructor about the subject?',
+    id: 'mt_learning_objectives',
+    text: 'How well does the faculty clarify learning objectives?',
     type: 'rating',
-    category: 'Teaching Effectiveness',
+    category: 'Teaching Quality',
     required: true
   },
   {
-    id: 'mt_teaching_preparation',
-    text: 'How well-prepared does the instructor appear for each class?',
+    id: 'mt_student_participation',
+    text: 'How well does the faculty encourage student participation?',
     type: 'rating',
-    category: 'Teaching Effectiveness',
-    required: true
-  },
-  
-  // Communication and Interaction
-  {
-    id: 'mt_communication_clear',
-    text: 'How effective is the instructor\'s communication style?',
-    type: 'rating',
-    category: 'Communication',
-    required: true
-  },
-  {
-    id: 'mt_student_interaction',
-    text: 'How well does the instructor encourage student participation?',
-    type: 'rating',
-    category: 'Communication',
-    required: true
-  },
-  {
-    id: 'mt_question_handling',
-    text: 'How effectively does the instructor handle student questions?',
-    type: 'rating',
-    category: 'Communication',
-    required: true
-  },
-  {
-    id: 'mt_feedback_provision',
-    text: 'How helpful is the feedback provided on assignments/tests?',
-    type: 'rating',
-    category: 'Communication',
+    category: 'Teaching Quality',
     required: true
   },
   
-  // Classroom Management
+  // Faculty Engagement (2 questions)
   {
-    id: 'mt_time_management',
-    text: 'How well does the instructor manage class time?',
+    id: 'mt_accessibility',
+    text: 'How accessible is the faculty for doubts and guidance?',
     type: 'rating',
-    category: 'Classroom Management',
+    category: 'Faculty Engagement',
     required: true
   },
   {
-    id: 'mt_class_control',
-    text: 'How effectively does the instructor maintain classroom discipline?',
+    id: 'mt_feedback_timely',
+    text: 'How timely is the faculty in providing feedback?',
     type: 'rating',
-    category: 'Classroom Management',
-    required: true
-  },
-  {
-    id: 'mt_punctuality',
-    text: 'How punctual is the instructor for classes?',
-    type: 'rating',
-    category: 'Classroom Management',
+    category: 'Faculty Engagement',
     required: true
   },
   
-  // Teaching Methods and Resources
+  // Course Delivery (2 questions)
   {
-    id: 'mt_teaching_methods',
-    text: 'How effective are the teaching methods used?',
+    id: 'mt_class_preparation',
+    text: 'How well-prepared does the faculty come to classes?',
     type: 'rating',
-    category: 'Teaching Methods',
+    category: 'Course Delivery',
     required: true
   },
   {
-    id: 'mt_technology_use',
-    text: 'How effectively does the instructor use technology/visual aids?',
+    id: 'mt_overall_performance',
+    text: 'How would you rate the overall performance of the faculty?',
     type: 'rating',
-    category: 'Teaching Methods',
-    required: true
-  },
-  {
-    id: 'mt_examples_relevance',
-    text: 'How relevant and helpful are the examples provided?',
-    type: 'rating',
-    category: 'Teaching Methods',
-    required: true
-  },
-  {
-    id: 'mt_practical_connection',
-    text: 'How well does the instructor connect theory to practical applications?',
-    type: 'rating',
-    category: 'Teaching Methods',
+    category: 'Course Delivery',
     required: true
   },
   
-  // Assessment and Support
+  // Comments (2 questions)
   {
-    id: 'mt_assessment_clarity',
-    text: 'How clear are the assessment criteria and expectations?',
-    type: 'rating',
-    category: 'Assessment',
-    required: true
-  },
-  {
-    id: 'mt_availability',
-    text: 'How available is the instructor for consultation outside class?',
-    type: 'rating',
-    category: 'Assessment',
-    required: true
-  },
-  {
-    id: 'mt_motivation',
-    text: 'How well does the instructor motivate students to learn?',
-    type: 'rating',
-    category: 'Assessment',
-    required: true
-  },
-  
-  // Comment Questions
-  {
-    id: 'mt_teaching_comments',
-    text: 'What specific aspects of the instructor\'s teaching methods do you find most effective? What improvements would you suggest?',
+    id: 'mt_effective_methods',
+    text: 'What teaching methods do you find most effective?',
     type: 'comment',
     category: 'Comments',
     required: false
   },
   {
-    id: 'mt_additional_comments',
-    text: 'Any additional comments or suggestions about the instructor\'s performance and teaching approach?',
+    id: 'mt_improvements',
+    text: 'What suggestions do you have for improvement?',
     type: 'comment',
     category: 'Comments',
     required: false

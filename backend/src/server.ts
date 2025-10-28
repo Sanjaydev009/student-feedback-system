@@ -705,6 +705,64 @@ if (process.env.NODE_ENV !== 'production') {
     }
   });
 
+  // Development only - endpoint to test midterm feedback system with existing subjects
+  app.post('/api/dev/test-midterm-system', async (req: any, res: any) => {
+    try {
+      const Subject = require('./models/Subject').default;
+      const User = require('./models/User').default;
+      const Feedback = require('./models/Feedback').default;
+      
+      // Get existing subjects and users
+      const existingSubjects = await Subject.find().limit(3);
+      const existingStudents = await User.find({ role: 'student' }).limit(2);
+      
+      if (existingSubjects.length === 0) {
+        return res.status(404).json({ 
+          message: 'No subjects found. Please create some subjects first through the admin interface.',
+          suggestion: 'Go to Admin Dashboard → Subjects → Add Subject'
+        });
+      }
+      
+      if (existingStudents.length === 0) {
+        return res.status(404).json({ 
+          message: 'No students found. Please create some student accounts first.',
+          suggestion: 'Go to Admin Dashboard → User Management → Add User'
+        });
+      }
+      
+      // Test the midterm feedback system
+      let testResults = {
+        subjectsAvailable: existingSubjects.length,
+        studentsAvailable: existingStudents.length,
+        midtermFeedbackCount: 0,
+        subjects: existingSubjects.map((s: any) => ({
+          id: s._id,
+          name: s.name,
+          code: s.code,
+          instructor: s.instructor,
+          hasQuestions: s.questions && s.questions.length > 0
+        }))
+      };
+      
+      // Count existing midterm feedback
+      const midtermFeedbackCount = await Feedback.countDocuments({ feedbackType: 'midterm' });
+      testResults.midtermFeedbackCount = midtermFeedbackCount;
+      
+      res.json({ 
+        message: 'Midterm feedback system ready to test with existing data',
+        data: testResults,
+        instructions: {
+          forStudents: 'Students can now submit midterm feedback by going to Subjects → Select Subject → Submit Feedback',
+          forAdmins: 'Admins can view midterm feedback in the reports section',
+          note: 'The new system supports both midterm and endterm feedback types'
+        }
+      });
+    } catch (error: any) {
+      console.error('Error testing midterm system:', error);
+      res.status(500).json({ message: 'Error testing midterm system', error: error.message });
+    }
+  });
+
   // Development only - endpoint to create test accounts
   app.post('/api/dev/create-test-accounts', async (req, res) => {
     try {

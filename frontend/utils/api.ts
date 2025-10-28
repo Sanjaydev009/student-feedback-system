@@ -42,12 +42,18 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    console.error('API Error:', {
-      url: error.config?.url,
-      method: error.config?.method,
-      status: error.response?.status,
-      message: error.message
-    });
+    // Don't log 404 errors for feedback check endpoints as they're expected
+    const isFeedbackCheckEndpoint = error.config?.url?.includes('/api/feedback/check/');
+    const is404Error = error.response?.status === 404;
+    
+    if (!isFeedbackCheckEndpoint || !is404Error) {
+      console.error('API Error:', {
+        url: error.config?.url,
+        method: error.config?.method,
+        status: error.response?.status,
+        message: error.message
+      });
+    }
     
     // Handle authentication errors
     if (error.response?.status === 401) {

@@ -26,7 +26,8 @@ const FeedbackSchema = new Schema({
         enum: ['rating', 'comment'],
         default: 'rating'
       },
-      comment: String // For comment-type questions
+      comment: String, // For comment-type questions
+      category: String // Category for the question
     }
   ],
   comments: {

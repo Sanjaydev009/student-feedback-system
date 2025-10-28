@@ -56,6 +56,7 @@ export default function EnhancedSubjectsPage() {
   });
   const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
   const [autoQuestionsEnabled, setAutoQuestionsEnabled] = useState(false);
+  const [feedbackStatus, setFeedbackStatus] = useState<{[key: string]: {midterm: number, endterm: number}}>({});
   const [selectedTemplate, setSelectedTemplate] = useState('teaching');
   
   // Available sections and departments
@@ -113,6 +114,87 @@ export default function EnhancedSubjectsPage() {
     fetchStats();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Check feedback status for all subjects efficiently
+  const checkFeedbackStatus = async () => {
+    if (subjects.length === 0) return;
+    
+    const subjectIds = subjects.map(s => s._id);
+    const statusMap: {[key: string]: {midterm: number, endterm: number}} = {};
+    
+    try {
+      // Batch check for midterm feedback
+      const midtermResponse = await api.post('/api/feedback/batch-check?feedbackType=midterm', {
+        subjectIds: subjectIds
+      });
+      
+      // Batch check for endterm feedback  
+      const endtermResponse = await api.post('/api/feedback/batch-check?feedbackType=endterm', {
+        subjectIds: subjectIds
+      });
+      
+      // Build status map
+      for (const subjectId of subjectIds) {
+        statusMap[subjectId] = {
+          midterm: midtermResponse.data[subjectId]?.feedbackCount || 0,
+          endterm: endtermResponse.data[subjectId]?.feedbackCount || 0
+        };
+      }
+      
+      setFeedbackStatus(statusMap);
+      console.log('✅ Feedback status loaded for', Object.keys(statusMap).length, 'subjects');
+      
+    } catch (error: any) {
+      console.warn('Error checking feedback status:', error.message);
+      
+      // Fallback: Initialize all subjects with 0 counts and try individual checks
+      for (const subjectId of subjectIds) {
+        statusMap[subjectId] = { midterm: 0, endterm: 0 };
+      }
+      
+      // Try fallback approach with individual checks if batch fails
+      if (error.response?.status === 404) {
+        console.log('Batch endpoint not available, falling back to individual checks...');
+        await checkFeedbackStatusFallback(statusMap, subjectIds);
+      }
+      
+      setFeedbackStatus(statusMap);
+    }
+  };
+
+  // Fallback method for checking feedback status individually
+  const checkFeedbackStatusFallback = async (statusMap: {[key: string]: {midterm: number, endterm: number}}, subjectIds: string[]) => {
+    for (const subjectId of subjectIds) {
+      try {
+        // Check midterm feedback
+        const midtermResponse = await api.get(`/api/feedback/check/${subjectId}?feedbackType=midterm`);
+        statusMap[subjectId] = { 
+          ...statusMap[subjectId],
+          midterm: midtermResponse.data.feedbackCount || 0
+        };
+      } catch {
+        // Keep default 0 value
+      }
+      
+      try {
+        // Check endterm feedback
+        const endtermResponse = await api.get(`/api/feedback/check/${subjectId}?feedbackType=endterm`);
+        statusMap[subjectId] = { 
+          ...statusMap[subjectId],
+          endterm: endtermResponse.data.feedbackCount || 0
+        };
+      } catch {
+        // Keep default 0 value
+      }
+    }
+  };
+
+  // Check feedback status when subjects change
+  useEffect(() => {
+    if (subjects.length > 0 && !loading) {
+      checkFeedbackStatus();
+    }
+  }, [subjects]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Filter subjects based on search and filters
   useEffect(() => {
     let filtered = subjects;
@@ -139,6 +221,25 @@ export default function EnhancedSubjectsPage() {
 
     setFilteredSubjects(filtered);
   }, [subjects, searchTerm, selectedDepartment, selectedYear, selectedTerm]);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.dropdown-container')) {
+        // Close all dropdowns
+        const dropdowns = document.querySelectorAll('[id^="dropdown-"], [id^="grid-dropdown-"]');
+        dropdowns.forEach(dropdown => {
+          dropdown.classList.add('hidden');
+        });
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   const fetchSubjects = async () => {
     try {
@@ -366,6 +467,108 @@ export default function EnhancedSubjectsPage() {
       showSuccess('Subject deleted successfully');
     } catch (error) {
       showError('Failed to delete subject');
+    }
+  };
+
+  // Download feedback CSV for a subject
+  const handleDownloadFeedbackCSV = async (subjectId: string, subjectName: string, feedbackType: 'midterm' | 'endterm' = 'midterm') => {
+    try {
+      showWarning('Checking feedback availability...');
+      
+      // First check if feedback exists
+      const checkResponse = await api.get(`/api/feedback/check/${subjectId}?feedbackType=${feedbackType}`);
+      
+      showWarning(`Generating CSV with complete comments... (${checkResponse.data.feedbackCount} responses found)`);
+      
+      // If check passed, download the actual CSV
+      const response = await api.get(`/api/feedback/export-csv/${subjectId}?feedbackType=${feedbackType}`, {
+        responseType: 'blob'
+      });
+      
+      // Create and download the file
+      const blob = new Blob([response.data], { type: 'text/csv;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${subjectName.replace(/[^a-z0-9]/gi, '_')}_${feedbackType}_feedback_${new Date().toISOString().split('T')[0]}.csv`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+      
+      showSuccess(`✅ ${feedbackType} feedback CSV downloaded successfully (${checkResponse.data.feedbackCount} responses)`);
+    } catch (error: any) {
+      console.error('CSV download error:', error);
+      
+      if (error.response?.status === 404) {
+        const errorData = error.response?.data;
+        if (errorData && errorData.subjectName) {
+          // Show detailed notification with subject information
+          showError(
+            `📋 No ${feedbackType} feedback available!\n\n` +
+            `Subject: "${errorData.subjectName}" (${errorData.subjectCode})\n` +
+            `Instructor: ${errorData.instructor}\n\n` +
+            `❌ ${feedbackType.charAt(0).toUpperCase() + feedbackType.slice(1)} feedback has not been submitted yet by any student for this subject.\n\n` +
+            `💡 Please check back after students have completed their feedback submissions.`
+          );
+        } else {
+          showError(`❌ No ${feedbackType} feedback available!\n\nStudents have not yet submitted feedback for "${subjectName}". Please try again later.`);
+        }
+      } else if (error.response?.status === 500) {
+        showError('❌ Server error while generating CSV file. Please contact system administrator.');
+      } else if (error.code === 'ECONNREFUSED' || !error.response) {
+        showError('❌ Cannot connect to server. Please ensure the backend is running and try again.');
+      } else {
+        showError('❌ Failed to download feedback data. Please try again or contact support.');
+      }
+    }
+  };
+
+  // New function for anonymous faculty report
+  const handleDownloadFacultyReport = async (subjectId: string, subjectName: string, feedbackType: 'midterm' | 'endterm' = 'midterm') => {
+    try {
+      showWarning('Checking feedback availability...');
+      
+      // First check if feedback exists
+      const checkResponse = await api.get(`/api/feedback/check/${subjectId}?feedbackType=${feedbackType}`);
+      
+      showWarning(`Generating anonymous faculty feedback report... (${checkResponse.data.feedbackCount} responses found)`);
+      
+      // If check passed, download the actual report
+      const response = await api.get(`/api/feedback/faculty-report/${subjectId}?feedbackType=${feedbackType}`, {
+        responseType: 'blob'
+      });
+      
+      // Create and download the file
+      const blob = new Blob([response.data], { type: 'text/csv;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${subjectName.replace(/[^a-z0-9]/gi, '_')}_Faculty_Report_${feedbackType}_${new Date().toISOString().split('T')[0]}.csv`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+      
+      showSuccess(`✅ Anonymous faculty report downloaded successfully (${checkResponse.data.feedbackCount} responses)`);
+    } catch (error: any) {
+      console.error('Faculty report download error:', error);
+      
+      if (error.response?.status === 404) {
+        const errorData = error.response?.data;
+        if (errorData && errorData.subjectName) {
+          // Show detailed notification with subject information
+          showError(
+            `📊 No ${feedbackType} feedback available for Faculty Report!\n\n` +
+            `Subject: "${errorData.subjectName}" (${errorData.subjectCode})\n` +
+            `Instructor: ${errorData.instructor}\n\n` +
+            `❌ ${feedbackType.charAt(0).toUpperCase() + feedbackType.slice(1)} feedback has not been submitted yet by any student for this subject.\n\n` +
+            `💡 Faculty reports are generated from student feedback. Please check back after students have completed their feedback submissions.`
+          );
+        } else {
+          showError(`❌ No ${feedbackType} feedback available for Faculty Report!\n\nStudents have not yet submitted feedback for "${subjectName}". Please try again later.`);
+        }
+      } else if (error.response?.status === 500) {
+        showError('❌ Server error while generating faculty report. Please contact system administrator.');
+      } else {
+        showError('❌ Failed to download faculty report. Please try again or contact support.');
+      }
     }
   };
 
@@ -982,6 +1185,102 @@ export default function EnhancedSubjectsPage() {
                           >
                             Edit
                           </button>
+                          <div className="inline-block relative dropdown-container">
+                            <button
+                              onClick={() => {
+                                const dropdown = document.getElementById(`dropdown-${subject._id}`);
+                                if (dropdown) {
+                                  dropdown.classList.toggle('hidden');
+                                }
+                              }}
+                              className="px-3 py-1 border border-green-300 text-green-700 rounded hover:bg-green-50 text-sm"
+                            >
+                              Download CSV ▼
+                            </button>
+                            <div id={`dropdown-${subject._id}`} className="hidden absolute right-0 mt-1 w-48 bg-white border border-gray-200 rounded-md shadow-lg z-10">
+                              <button
+                                onClick={() => {
+                                  handleDownloadFeedbackCSV(subject._id, subject.name, 'midterm');
+                                  const dropdown = document.getElementById(`dropdown-${subject._id}`);
+                                  if (dropdown) dropdown.classList.add('hidden');
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center justify-between"
+                              >
+                                <span>� Midterm Anonymous Report</span>
+                                <span className={`text-xs px-2 py-1 rounded-full ${
+                                  feedbackStatus[subject._id]?.midterm > 0 
+                                    ? 'bg-green-100 text-green-800' 
+                                    : 'bg-red-100 text-red-800'
+                                }`}>
+                                  {feedbackStatus[subject._id]?.midterm > 0 
+                                    ? `${feedbackStatus[subject._id].midterm} responses` 
+                                    : 'No data'
+                                  }
+                                </span>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  handleDownloadFeedbackCSV(subject._id, subject.name, 'endterm');
+                                  const dropdown = document.getElementById(`dropdown-${subject._id}`);
+                                  if (dropdown) dropdown.classList.add('hidden');
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center justify-between"
+                              >
+                                <span>� Endterm Anonymous Report</span>
+                                <span className={`text-xs px-2 py-1 rounded-full ${
+                                  feedbackStatus[subject._id]?.endterm > 0 
+                                    ? 'bg-green-100 text-green-800' 
+                                    : 'bg-red-100 text-red-800'
+                                }`}>
+                                  {feedbackStatus[subject._id]?.endterm > 0 
+                                    ? `${feedbackStatus[subject._id].endterm} responses` 
+                                    : 'No data'
+                                  }
+                                </span>
+                              </button>
+                              <hr className="my-1 border-gray-200" />
+                              <button
+                                onClick={() => {
+                                  handleDownloadFacultyReport(subject._id, subject.name, 'midterm');
+                                  const dropdown = document.getElementById(`dropdown-${subject._id}`);
+                                  if (dropdown) dropdown.classList.add('hidden');
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-blue-700 hover:bg-blue-50 font-medium flex items-center justify-between"
+                              >
+                                <span>� Midterm Faculty Summary</span>
+                                <span className={`text-xs px-2 py-1 rounded-full ${
+                                  feedbackStatus[subject._id]?.midterm > 0 
+                                    ? 'bg-blue-100 text-blue-800' 
+                                    : 'bg-red-100 text-red-800'
+                                }`}>
+                                  {feedbackStatus[subject._id]?.midterm > 0 
+                                    ? `${feedbackStatus[subject._id].midterm} responses` 
+                                    : 'No data'
+                                  }
+                                </span>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  handleDownloadFacultyReport(subject._id, subject.name, 'endterm');
+                                  const dropdown = document.getElementById(`dropdown-${subject._id}`);
+                                  if (dropdown) dropdown.classList.add('hidden');
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-blue-700 hover:bg-blue-50 font-medium flex items-center justify-between"
+                              >
+                                <span>� Endterm Faculty Summary</span>
+                                <span className={`text-xs px-2 py-1 rounded-full ${
+                                  feedbackStatus[subject._id]?.endterm > 0 
+                                    ? 'bg-blue-100 text-blue-800' 
+                                    : 'bg-red-100 text-red-800'
+                                }`}>
+                                  {feedbackStatus[subject._id]?.endterm > 0 
+                                    ? `${feedbackStatus[subject._id].endterm} responses` 
+                                    : 'No data'
+                                  }
+                                </span>
+                              </button>
+                            </div>
+                          </div>
                           <button
                             onClick={() => handleDelete(subject._id)}
                             className="px-3 py-1 border border-red-300 text-red-700 rounded hover:bg-red-50 text-sm"
@@ -1059,6 +1358,62 @@ export default function EnhancedSubjectsPage() {
                         >
                           Edit
                         </button>
+                        <div className="flex-1 relative dropdown-container">
+                          <button
+                            onClick={() => {
+                              const dropdown = document.getElementById(`grid-dropdown-${subject._id}`);
+                              if (dropdown) {
+                                dropdown.classList.toggle('hidden');
+                              }
+                            }}
+                            className="w-full px-3 py-2 border border-green-300 text-green-700 rounded hover:bg-green-50 text-sm"
+                          >
+                            CSV ▼
+                          </button>
+                          <div id={`grid-dropdown-${subject._id}`} className="hidden absolute left-0 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg z-10">
+                            <button
+                              onClick={() => {
+                                handleDownloadFeedbackCSV(subject._id, subject.name, 'midterm');
+                                const dropdown = document.getElementById(`grid-dropdown-${subject._id}`);
+                                if (dropdown) dropdown.classList.add('hidden');
+                              }}
+                              className="block w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-100"
+                            >
+                              Midterm (Students)
+                            </button>
+                            <button
+                              onClick={() => {
+                                handleDownloadFeedbackCSV(subject._id, subject.name, 'endterm');
+                                const dropdown = document.getElementById(`grid-dropdown-${subject._id}`);
+                                if (dropdown) dropdown.classList.add('hidden');
+                              }}
+                              className="block w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-100"
+                            >
+                              Endterm (Students)
+                            </button>
+                            <hr className="my-1 border-gray-200" />
+                            <button
+                              onClick={() => {
+                                handleDownloadFacultyReport(subject._id, subject.name, 'midterm');
+                                const dropdown = document.getElementById(`grid-dropdown-${subject._id}`);
+                                if (dropdown) dropdown.classList.add('hidden');
+                              }}
+                              className="block w-full text-left px-3 py-2 text-xs text-blue-700 hover:bg-blue-50 font-medium"
+                            >
+                              📊 Midterm Faculty
+                            </button>
+                            <button
+                              onClick={() => {
+                                handleDownloadFacultyReport(subject._id, subject.name, 'endterm');
+                                const dropdown = document.getElementById(`grid-dropdown-${subject._id}`);
+                                if (dropdown) dropdown.classList.add('hidden');
+                              }}
+                              className="block w-full text-left px-3 py-2 text-xs text-blue-700 hover:bg-blue-50 font-medium"
+                            >
+                              📊 Endterm Faculty
+                            </button>
+                          </div>
+                        </div>
                         <button
                           onClick={() => handleDelete(subject._id)}
                           className="flex-1 px-3 py-2 border border-red-300 text-red-700 rounded hover:bg-red-50 text-sm"

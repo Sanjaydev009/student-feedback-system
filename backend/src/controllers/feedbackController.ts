@@ -48,8 +48,8 @@ import Subject from '../models/Subject';
 export const submitFeedback = async (req: Request, res: Response): Promise<void> => {
   const { student, subject, answers, feedbackType, term, academicYear, comments } = req.body;
 
-  if (!student || !subject || !Array.isArray(answers) || answers.length < 5) {
-    res.status(400).json({ message: 'All fields including minimum 5 questions are required' });
+  if (!student || !subject || !Array.isArray(answers) || answers.length < 8) {
+    res.status(400).json({ message: 'All fields including minimum 8 questions are required' });
     return;
   }
 
@@ -127,24 +127,26 @@ export const getMyFeedback = async (req: Request, res: Response): Promise<void> 
 
 export const getStudentFeedback = async (req: Request, res: Response): Promise<void> => {
   try {
-    const studentId = req.user?.id;
+    const { id: studentId } = req.params;
+    const { subject, type } = req.query;
 
-    if (!studentId) {
-      res.status(401).json({ message: 'Unauthorized' });
-      return;
+    // Build query conditions
+    const query: any = { student: studentId };
+    
+    if (subject) {
+      query.subject = subject;
+    }
+    
+    if (type) {
+      query.feedbackType = type;
     }
 
-    const feedbacks = await Feedback.find({ student: studentId }).populate('subject', 'name instructor code');
-
-    if (!feedbacks.length) {
-      res.status(404).json({ message: 'No feedback found for this student' });
-      return;
-    }
+    const feedbacks = await Feedback.find(query).populate('subject', 'name instructor code');
 
     res.json(feedbacks);
   } catch (err: any) {
-    console.error('Error fetching feedback:', err.message);
-    res.status(500).json({ message: 'Server error while fetching feedback' });
+    console.error('Error fetching student feedback:', err.message);
+    res.status(500).json({ message: 'Server error while fetching student feedback' });
   }
 };
 
@@ -300,6 +302,125 @@ export const getRecentFeedback = async (req: Request, res: Response): Promise<vo
   }
 };
 
+export const getFeedbackCSVData = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { subjectId } = req.params;
+    const { type } = req.query; // Optional: filter by feedback type (midterm/endterm)
+    
+    console.log(`📊 [CSV EXPORT] Generating CSV data for subject ID: ${subjectId}`);
+    
+    // First check if the subject exists
+    const subjectDoc = await Subject.findById(subjectId);
+    
+    if (!subjectDoc) {
+      res.status(404).json({ message: 'Subject not found' });
+      return;
+    }
+    
+    // Build query filter
+    const query: any = { subject: subjectId };
+    if (type && ['midterm', 'endterm'].includes(type as string)) {
+      query.feedbackType = type;
+    }
+    
+    // Get all feedback for the specific subject with populated data
+    const feedbacks = await Feedback.find(query)
+      .populate('student', 'name rollNumber branch section year')
+      .populate('subject', 'name code instructor branch year term')
+      .sort({ createdAt: -1 });
+    
+    console.log(`📊 [CSV EXPORT] Found ${feedbacks.length} feedback records for export`);
+    
+    if (feedbacks.length === 0) {
+      res.status(200).json({
+        subject: {
+          _id: subjectDoc._id,
+          name: subjectDoc.name,
+          code: subjectDoc.code,
+          instructor: subjectDoc.instructor
+        },
+        csvData: [],
+        message: 'No feedback data available for export'
+      });
+      return;
+    }
+    
+    // Prepare CSV data with complete information including comments
+    const csvData = feedbacks.map((feedback: any, index: number) => {
+      const student = feedback.student || {};
+      const subject = feedback.subject || {};
+      
+      // Extract rating questions and comments separately
+      const ratingAnswers = feedback.answers?.filter((ans: any) => ans.type === 'rating') || [];
+      const commentAnswers = feedback.answers?.filter((ans: any) => ans.type === 'comment') || [];
+      
+      // Calculate individual ratings
+      const ratings: any = {};
+      ratingAnswers.forEach((ans: any, i: number) => {
+        ratings[`Q${i + 1}_Rating`] = ans.answer || 0;
+        ratings[`Q${i + 1}_Question`] = ans.question || '';
+      });
+      
+      // Extract comments
+      const comments: any = {};
+      commentAnswers.forEach((ans: any, i: number) => {
+        comments[`Comment${i + 1}_Question`] = ans.question || '';
+        comments[`Comment${i + 1}_Response`] = ans.comment || '';
+      });
+      
+      return {
+        // Basic Information
+        SNo: index + 1,
+        StudentName: student.name || 'Unknown',
+        RollNumber: student.rollNumber || 'N/A',
+        Branch: student.branch || 'N/A',
+        Section: student.section || 'N/A',
+        Year: student.year || 'N/A',
+        
+        // Subject Information
+        SubjectName: subject.name || 'Unknown',
+        SubjectCode: subject.code || 'N/A',
+        Instructor: subject.instructor || 'N/A',
+        Term: subject.term || 'N/A',
+        
+        // Feedback Information
+        FeedbackType: feedback.feedbackType || 'midterm',
+        AverageRating: feedback.averageRating || 0,
+        SubmissionDate: feedback.createdAt ? new Date(feedback.createdAt).toLocaleDateString() : 'N/A',
+        
+        // Individual Ratings (Q1, Q2, Q3, etc.)
+        ...ratings,
+        
+        // Comments (Full text responses)
+        ...comments,
+        
+        // Additional metadata
+        AcademicYear: feedback.academicYear || '2024-25'
+      };
+    });
+    
+    res.json({
+      subject: {
+        _id: subjectDoc._id,
+        name: subjectDoc.name,
+        code: subjectDoc.code,
+        instructor: subjectDoc.instructor
+      },
+      totalRecords: feedbacks.length,
+      csvData: csvData,
+      exportInfo: {
+        generatedAt: new Date().toISOString(),
+        feedbackType: type || 'all',
+        includesComments: true
+      }
+    });
+    
+  } catch (err: any) {
+    console.error('Error generating CSV data:', err);
+    res.status(500).json({ message: 'Failed to generate CSV data', error: err.message });
+  }
+};
+
 export const getFeedbackSummary = async (req: Request, res: Response): Promise<void> => {
   try {
     const { subjectId } = req.params;
@@ -351,40 +472,50 @@ export const getFeedbackSummary = async (req: Request, res: Response): Promise<v
     // Process categories and questions
     const categories: { [key: string]: { average: number; questions: { question: string; average: number; }[] } } = {};
     
-    // Group answers by question
-    const questionStats: { [question: string]: number[] } = {};
+    // Group answers by question and category
+    const questionStats: { [question: string]: { answers: number[]; category: string } } = {};
     
     feedbacks.forEach(feedback => {
       feedback.answers.forEach((answer: any) => {
-        const questionText = answer.question || `Question ${answer._id}`;
-        if (!questionStats[questionText]) {
-          questionStats[questionText] = [];
+        if (answer.type === 'rating') { // Only process rating questions for statistics
+          const questionText = answer.question || `Question ${answer._id}`;
+          if (!questionStats[questionText]) {
+            questionStats[questionText] = {
+              answers: [],
+              category: answer.category || 'General'
+            };
+          }
+          questionStats[questionText].answers.push(answer.answer || 0);
         }
-        questionStats[questionText].push(answer.answer || 0);
       });
     });
     
     // Calculate averages for each question and organize by categories
-    const generalCategory = {
-      average: 0,
-      questions: [] as { question: string; average: number; }[]
-    };
-    
-    let totalQuestionAverage = 0;
-    let questionCount = 0;
-    
-    Object.entries(questionStats).forEach(([question, answers]) => {
-      const questionAverage = answers.length > 0 ? answers.reduce((sum, ans) => sum + ans, 0) / answers.length : 0;
-      generalCategory.questions.push({
+    Object.entries(questionStats).forEach(([question, data]) => {
+      const questionAverage = data.answers.length > 0 ? data.answers.reduce((sum, ans) => sum + ans, 0) / data.answers.length : 0;
+      const category = data.category;
+      
+      if (!categories[category]) {
+        categories[category] = {
+          average: 0,
+          questions: []
+        };
+      }
+      
+      categories[category].questions.push({
         question,
         average: questionAverage
       });
-      totalQuestionAverage += questionAverage;
-      questionCount++;
     });
     
-    generalCategory.average = questionCount > 0 ? totalQuestionAverage / questionCount : 0;
-    categories['General'] = generalCategory;
+    // Calculate category averages
+    Object.keys(categories).forEach(categoryName => {
+      const categoryQuestions = categories[categoryName].questions;
+      if (categoryQuestions.length > 0) {
+        const categoryTotal = categoryQuestions.reduce((sum, q) => sum + q.average, 0);
+        categories[categoryName].average = categoryTotal / categoryQuestions.length;
+      }
+    });
     
     const summary = {
       subjectId: subjectInfo._id,
@@ -890,5 +1021,436 @@ export const getCumulativeQuestionData = async (req: Request, res: Response): Pr
   } catch (err: any) {
     console.error('Error getting cumulative question data:', err);
     res.status(500).json({ message: 'Server error while getting cumulative question data' });
+  }
+};
+
+// Export feedback data as CSV - Anonymous version only (no student data)
+export const exportFeedbackAsCSV = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { subjectId } = req.params;
+    const { feedbackType = 'midterm' } = req.query;
+
+    // Get subject details
+    const subject = await Subject.findById(subjectId);
+    if (!subject) {
+      res.status(404).json({ message: 'Subject not found' });
+      return;
+    }
+
+    // Get feedback for this subject (no student population needed)
+    const feedbacks = await Feedback.find({ 
+      subject: subjectId,
+      feedbackType: feedbackType 
+    });
+
+    if (feedbacks.length === 0) {
+      res.status(404).json({ 
+        message: `No ${feedbackType} feedback found for this subject`,
+        subjectName: subject.name,
+        subjectCode: subject.code,
+        instructor: subject.instructor,
+        feedbackType: feedbackType,
+        suggestion: `${feedbackType} feedback has not been submitted yet by any student for this subject. Please check back after students have completed their feedback submissions.`
+      });
+      return;
+    }
+
+    // Prepare anonymous CSV content
+    let csvContent = '';
+    
+    // CSV Headers - Anonymous format with overall statistics
+    csvContent += 'ANONYMOUS FEEDBACK SUMMARY REPORT\n';
+    csvContent += `Subject: ${subject.name} (${subject.code})\n`;
+    csvContent += `Instructor: ${subject.instructor}\n`;
+    csvContent += `Feedback Type: ${feedbackType}\n`;
+    csvContent += `Total Responses: ${feedbacks.length}\n`;
+    csvContent += `Generated: ${new Date().toLocaleDateString()}\n\n`;
+
+    // Calculate overall average
+    const allRatings = feedbacks.map(f => f.averageRating || 0).filter(r => r > 0);
+    const overallAverage = allRatings.length > 0 ? 
+      (allRatings.reduce((sum, rating) => sum + rating, 0) / allRatings.length).toFixed(2) : '0.00';
+
+    csvContent += `Overall Average Rating: ${overallAverage}/5.0\n\n`;
+
+    // Question-wise analysis
+    csvContent += 'Question Analysis:\n';
+    csvContent += 'Question,Average Rating,Total Responses\n';
+
+    // Calculate question averages
+    const questionStats: { [question: string]: { total: number; count: number; } } = {};
+    
+    feedbacks.forEach(feedback => {
+      feedback.answers.forEach((answer: any) => {
+        if (answer.type === 'rating' && answer.answer > 0) {
+          const question = answer.question || 'Unknown Question';
+          if (!questionStats[question]) {
+            questionStats[question] = { total: 0, count: 0 };
+          }
+          questionStats[question].total += answer.answer || 0;
+          questionStats[question].count += 1;
+        }
+      });
+    });
+
+    // Add question statistics
+    Object.entries(questionStats).forEach(([question, stats]) => {
+      const average = stats.count > 0 ? (stats.total / stats.count).toFixed(2) : '0.00';
+      const escapedQuestion = question.includes(',') ? `"${question.replace(/"/g, '""')}"` : question;
+      csvContent += `${escapedQuestion},${average}/5,${stats.count}\n`;
+    });
+
+    csvContent += '\n';
+
+    // Anonymous comments section
+    csvContent += 'Anonymous Comments:\n';
+    csvContent += 'Comment\n';
+
+    // Extract all comments anonymously
+    let commentCount = 0;
+    feedbacks.forEach(feedback => {
+      feedback.answers.forEach((answer: any) => {
+        if (answer.type === 'comment' && answer.comment && answer.comment.trim()) {
+          const comment = answer.comment.trim();
+          
+          // Escape CSV special characters
+          const escapeCSV = (text: string) => {
+            if (text.includes(',') || text.includes('"') || text.includes('\n') || text.includes('\r')) {
+              return `"${text.replace(/"/g, '""')}"`;
+            }
+            return text;
+          };
+          
+          csvContent += `${escapeCSV(comment)}\n`;
+          commentCount++;
+        }
+      });
+    });
+
+    if (commentCount === 0) {
+      csvContent += 'No comments provided\n';
+    }
+
+    csvContent += '\n';
+    csvContent += 'NOTE: This is an anonymous report. No student identification data is included.\n';
+
+    // Set response headers for CSV download
+    const safeName = subject.name ? subject.name.replace(/[^a-z0-9]/gi, '_') : 'Unknown_Subject';
+    const filename = `${subject.code}_${safeName}_Anonymous_${feedbackType}_${new Date().toISOString().split('T')[0]}.csv`;
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    
+    // Send CSV content
+    res.send(csvContent);
+    
+  } catch (err: any) {
+    console.error('Error exporting feedback as CSV:', err);
+    res.status(500).json({ message: 'Error exporting feedback data', error: err.message });
+  }
+};
+
+// New endpoint for anonymous faculty feedback reports
+export const exportAnonymousFacultyReport = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { subjectId } = req.params;
+    const { feedbackType = 'midterm' } = req.query;
+
+    // Get subject details
+    const subject = await Subject.findById(subjectId);
+    if (!subject) {
+      res.status(404).json({ 
+        message: `No ${feedbackType} feedback found for this subject`,
+        subjectName: 'Unknown Subject',
+        subjectCode: 'N/A',
+        instructor: 'N/A',
+        feedbackType: feedbackType,
+        suggestion: `${feedbackType} feedback has not been submitted yet by any student for this subject. Please check back after students have completed their feedback submissions.`
+      });
+      return;
+    }
+
+    // Get feedback for this subject (no student population needed for anonymous report)
+    const feedbacks = await Feedback.find({ 
+      subject: subjectId,
+      feedbackType: feedbackType 
+    });
+
+    if (feedbacks.length === 0) {
+      res.status(404).json({ 
+        message: `No ${feedbackType} feedback found for this subject`,
+        subjectName: subject.name,
+        subjectCode: subject.code,
+        instructor: subject.instructor,
+        feedbackType: feedbackType,
+        suggestion: `${feedbackType} feedback has not been submitted yet by any student for this subject. Please check back after students have completed their feedback submissions.`
+      });
+      return;
+    }
+
+    // Create anonymous faculty feedback report with only aggregate data
+    let csvContent = '';
+    
+    // Header section with subject information only
+    csvContent += 'ANONYMOUS FACULTY FEEDBACK REPORT\n';
+    csvContent += `Subject: ${subject.name} (${subject.code})\n`;
+    csvContent += `Instructor: ${subject.instructor}\n`;
+    csvContent += `Department: ${subject.department || 'N/A'}\n`;
+    csvContent += `Academic Year: ${subject.year || 'N/A'} - Term ${subject.term || 'N/A'}\n`;
+    csvContent += `Feedback Type: ${feedbackType}\n`;
+    csvContent += `Total Responses: ${feedbacks.length}\n`;
+    csvContent += `Report Generated: ${new Date().toLocaleDateString()}\n\n`;
+    
+    // Calculate overall average rating across all feedback
+    const allRatings = feedbacks.map(f => f.averageRating || 0).filter(r => r > 0);
+    const overallAverage = allRatings.length > 0 ? 
+      (allRatings.reduce((sum, rating) => sum + rating, 0) / allRatings.length).toFixed(2) : '0.00';
+    
+    csvContent += 'OVERALL PERFORMANCE SUMMARY\n';
+    csvContent += `Overall Average Rating: ${overallAverage}/5.0\n`;
+    csvContent += `Response Rate: ${feedbacks.length} students participated\n\n`;
+    
+    // Rating Questions Analysis (aggregate data only)
+    csvContent += 'QUESTION-WISE ANALYSIS\n';
+    csvContent += 'Question,Average Rating,Response Count,Performance Level\n';
+    
+    // Calculate averages for rating questions
+    const questionStats: { [question: string]: { total: number; count: number; } } = {};
+    
+    feedbacks.forEach(feedback => {
+      feedback.answers.forEach((answer: any) => {
+        if (answer.type === 'rating' && answer.answer > 0) {
+          const question = answer.question || 'Unknown Question';
+          if (!questionStats[question]) {
+            questionStats[question] = { total: 0, count: 0 };
+          }
+          questionStats[question].total += answer.answer || 0;
+          questionStats[question].count += 1;
+        }
+      });
+    });
+    
+    // Add rating summary to CSV
+    Object.entries(questionStats).forEach(([question, stats]) => {
+      const average = stats.count > 0 ? (stats.total / stats.count).toFixed(2) : '0.00';
+      const performance = parseFloat(average) >= 4.0 ? 'Excellent' : 
+                         parseFloat(average) >= 3.5 ? 'Good' : 
+                         parseFloat(average) >= 3.0 ? 'Satisfactory' : 'Needs Improvement';
+      
+      // Escape CSV special characters
+      const escapedQuestion = question.includes(',') ? `"${question.replace(/"/g, '""')}"` : question;
+      csvContent += `${escapedQuestion},${average}/5,${stats.count},${performance}\n`;
+    });
+    
+    csvContent += '\n';
+    
+    // Comments Section (completely anonymous)
+    csvContent += 'ANONYMOUS STUDENT COMMENTS\n';
+    csvContent += 'Comment Category,Student Feedback\n';
+    
+    // Collect all comments without any student identification
+    let hasComments = false;
+    feedbacks.forEach(feedback => {
+      feedback.answers.forEach((answer: any) => {
+        if (answer.type === 'comment' && answer.comment && answer.comment.trim()) {
+          const category = answer.category || 'General Feedback';
+          const comment = answer.comment.trim();
+          
+          // Escape CSV special characters
+          const escapeCSV = (text: string) => {
+            if (text.includes(',') || text.includes('"') || text.includes('\n') || text.includes('\r')) {
+              return `"${text.replace(/"/g, '""')}"`;
+            }
+            return text;
+          };
+          
+          csvContent += `${escapeCSV(category)},${escapeCSV(comment)}\n`;
+          hasComments = true;
+        }
+      });
+    });
+    
+    // If no comments found
+    if (!hasComments) {
+      csvContent += 'General Feedback,No written feedback provided by students\n';
+    }
+    
+    csvContent += '\n';
+    
+    // Summary statistics
+    csvContent += 'RATING DISTRIBUTION SUMMARY\n';
+    csvContent += 'Rating Range,Number of Responses,Percentage\n';
+    
+    const ratingRanges = [
+      { range: '4.5 - 5.0 (Excellent)', min: 4.5, max: 5.0 },
+      { range: '3.5 - 4.4 (Good)', min: 3.5, max: 4.4 },
+      { range: '2.5 - 3.4 (Satisfactory)', min: 2.5, max: 3.4 },
+      { range: '1.5 - 2.4 (Poor)', min: 1.5, max: 2.4 },
+      { range: '1.0 - 1.4 (Very Poor)', min: 1.0, max: 1.4 }
+    ];
+    
+    ratingRanges.forEach(({ range, min, max }) => {
+      const count = allRatings.filter(rating => rating >= min && rating <= max).length;
+      const percentage = allRatings.length > 0 ? ((count / allRatings.length) * 100).toFixed(1) : '0.0';
+      csvContent += `${range},${count},${percentage}%\n`;
+    });
+    
+    csvContent += '\n';
+    csvContent += 'NOTE: This report contains only aggregated data to maintain student anonymity.\n';
+    csvContent += 'Individual student responses and identities are not included in this report.\n';
+
+    // Set response headers for CSV download
+    const safeName = subject.name ? subject.name.replace(/[^a-z0-9]/gi, '_') : 'Unknown_Subject';
+    const filename = `${subject.code}_${safeName}_Anonymous_Faculty_Report_${feedbackType}_${new Date().toISOString().split('T')[0]}.csv`;
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    
+    // Send CSV content
+    res.send(csvContent);
+    
+  } catch (err: any) {
+    console.error('Error exporting anonymous faculty report:', err);
+    res.status(500).json({ message: 'Error exporting faculty report', error: err.message });
+  }
+};
+
+// Batch check feedback availability for multiple subjects
+export const batchCheckFeedbackAvailability = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { subjectIds } = req.body;
+    const { feedbackType = 'midterm' } = req.query;
+
+    if (!Array.isArray(subjectIds) || subjectIds.length === 0) {
+      res.status(400).json({ message: 'subjectIds array is required' });
+      return;
+    }
+
+    // Get all subjects in one query
+    const subjects = await Subject.find({ _id: { $in: subjectIds } });
+    const subjectMap = new Map(subjects.map(s => [s._id.toString(), s]));
+
+    // Get feedback counts for all subjects in one aggregation
+    const feedbackCounts = await Feedback.aggregate([
+      {
+        $match: {
+          subject: { $in: subjectIds.map((id: string) => id) },
+          feedbackType: feedbackType
+        }
+      },
+      {
+        $group: {
+          _id: '$subject',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    // Build response map
+    const result: { [key: string]: any } = {};
+    
+    for (const subjectId of subjectIds) {
+      const subject = subjectMap.get(subjectId);
+      const feedbackData = feedbackCounts.find(fc => fc._id.toString() === subjectId);
+      const count = feedbackData ? feedbackData.count : 0;
+
+      result[subjectId] = {
+        subjectName: subject?.name || 'Unknown Subject',
+        subjectCode: subject?.code || 'N/A',
+        instructor: subject?.instructor || 'N/A',
+        feedbackType: feedbackType,
+        feedbackCount: count,
+        available: count > 0
+      };
+    }
+
+    res.json(result);
+  } catch (err: any) {
+    console.error('Error batch checking feedback availability:', err);
+    res.status(500).json({ message: 'Error checking feedback availability', error: err.message });
+  }
+};
+
+// Check if feedback exists for a subject without downloading
+export const checkFeedbackAvailability = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { subjectId } = req.params;
+    const { feedbackType = 'midterm' } = req.query;
+
+    // Get subject details
+    const subject = await Subject.findById(subjectId);
+    if (!subject) {
+      res.status(404).json({ message: 'Subject not found' });
+      return;
+    }
+
+    // Count feedback for this subject
+    const feedbackCount = await Feedback.countDocuments({ 
+      subject: subjectId,
+      feedbackType: feedbackType 
+    });
+
+    if (feedbackCount === 0) {
+      res.status(404).json({ 
+        message: `No ${feedbackType} feedback found for this subject`,
+        subjectName: subject.name,
+        subjectCode: subject.code,
+        instructor: subject.instructor,
+        feedbackType: feedbackType,
+        feedbackCount: 0,
+        suggestion: `${feedbackType} feedback has not been submitted yet by any student for this subject. Please check back after students have completed their feedback submissions.`
+      });
+      return;
+    }
+
+    res.json({
+      message: `${feedbackType} feedback is available`,
+      subjectName: subject.name,
+      subjectCode: subject.code,
+      instructor: subject.instructor,
+      feedbackType: feedbackType,
+      feedbackCount: feedbackCount,
+      available: true
+    });
+  } catch (err: any) {
+    console.error('Error checking feedback availability:', err);
+    res.status(500).json({ message: 'Error checking feedback availability', error: err.message });
+  }
+};
+
+// Debug endpoint to check feedback structure
+export const debugFeedbackStructure = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { subjectId } = req.params;
+    const { feedbackType = 'midterm' } = req.query;
+
+    const feedbacks = await Feedback.find({ 
+      subject: subjectId,
+      feedbackType: feedbackType 
+    }).populate('student', 'name rollNumber');
+
+    const debugData = feedbacks.map(feedback => ({
+      id: feedback._id,
+      studentName: (feedback.student as any)?.name || 'Unknown',
+      totalAnswers: feedback.answers?.length || 0,
+      ratingAnswers: feedback.answers?.filter((ans: any) => ans.type === 'rating')?.length || 0,
+      commentAnswers: feedback.answers?.filter((ans: any) => ans.type === 'comment')?.length || 0,
+      answers: feedback.answers?.map((ans: any) => ({
+        question: ans.question,
+        type: ans.type,
+        answer: ans.answer,
+        comment: ans.comment,
+        hasComment: !!ans.comment
+      })) || []
+    }));
+
+    res.json({
+      message: 'Debug feedback structure',
+      subjectId,
+      feedbackType,
+      totalFeedbacks: feedbacks.length,
+      feedbacks: debugData
+    });
+  } catch (err: any) {
+    console.error('Error debugging feedback:', err);
+    res.status(500).json({ message: 'Error debugging feedback', error: err.message });
   }
 };
