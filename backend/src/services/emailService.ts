@@ -39,22 +39,24 @@ class EmailService {
         },
       };
 
-      // Check if using SendGrid
-      if (process.env.EMAIL_SERVICE === 'sendgrid') {
+      // Check if using SendGrid - this takes priority
+      if (process.env.EMAIL_SERVICE === 'sendgrid' && process.env.SENDGRID_API_KEY) {
         emailConfig.host = 'smtp.sendgrid.net';
         emailConfig.port = 587;
         emailConfig.secure = false;
         emailConfig.auth = {
           user: 'apikey', // SendGrid uses 'apikey' as username
-          pass: process.env.SENDGRID_API_KEY || '',
+          pass: process.env.SENDGRID_API_KEY,
         };
+        console.log('🔧 Using SendGrid SMTP configuration');
       }
       // Use explicit SMTP configuration for better reliability on hosting platforms
-      else if (process.env.EMAIL_SERVICE === 'gmail' || (!process.env.SMTP_HOST && process.env.EMAIL_USER?.includes('@gmail.com'))) {
+      else if (process.env.EMAIL_SERVICE === 'gmail' || (!process.env.SMTP_HOST && !process.env.EMAIL_SERVICE && process.env.EMAIL_USER?.includes('@gmail.com'))) {
         // Gmail with explicit SMTP settings for better compatibility
         emailConfig.host = 'smtp.gmail.com';
         emailConfig.port = 587;
         emailConfig.secure = false; // Use STARTTLS
+        console.log('🔧 Using Gmail SMTP configuration');
       } else if (process.env.SMTP_HOST) {
         // Custom SMTP configuration
         emailConfig.host = process.env.SMTP_HOST;
@@ -85,11 +87,12 @@ class EmailService {
       } as any);
 
       console.log('🔧 Email transporter initialized with config:', {
-        service: emailConfig.service || 'Custom SMTP',
+        service: process.env.EMAIL_SERVICE || 'Auto-detected',
         host: emailConfig.host,
         port: emailConfig.port,
         secure: emailConfig.secure,
-        user: process.env.EMAIL_USER?.replace(/(.{3})(.*)(@.*)/, '$1***$3') // Mask email for security
+        user: emailConfig.auth.user === 'apikey' ? 'SendGrid API' : process.env.EMAIL_USER?.replace(/(.{3})(.*)(@.*)/, '$1***$3'),
+        authType: emailConfig.auth.user === 'apikey' ? 'API Key' : 'Password'
       });
     } catch (error) {
       console.error('❌ Error initializing email transporter:', error);
@@ -102,19 +105,39 @@ class EmailService {
     const issues: string[] = [];
     const suggestions: string[] = [];
 
+    // SendGrid-specific checks
+    if (process.env.EMAIL_SERVICE === 'sendgrid') {
+      if (!process.env.SENDGRID_API_KEY) {
+        issues.push('SENDGRID_API_KEY is not set');
+        suggestions.push('Set SENDGRID_API_KEY to your SendGrid API key in .env file');
+      }
+      
+      if (!process.env.EMAIL_USER) {
+        issues.push('EMAIL_USER is not set');
+        suggestions.push('Set EMAIL_USER to your sender email address for SendGrid');
+      }
+      
+      return {
+        isConfigured: issues.length === 0,
+        issues,
+        suggestions
+      };
+    }
+
+    // Gmail and other SMTP checks
     if (!process.env.EMAIL_USER) {
       issues.push('EMAIL_USER is not set');
       suggestions.push('Set EMAIL_USER to your email address in .env file');
     }
 
-    if (!process.env.EMAIL_PASSWORD) {
+    if (!process.env.EMAIL_PASSWORD && process.env.EMAIL_SERVICE !== 'sendgrid') {
       issues.push('EMAIL_PASSWORD is not set');
       suggestions.push('Set EMAIL_PASSWORD to your app password in .env file');
     }
 
     if (!process.env.EMAIL_SERVICE && !process.env.SMTP_HOST) {
       issues.push('Neither EMAIL_SERVICE nor SMTP_HOST is configured');
-      suggestions.push('Set EMAIL_SERVICE=gmail or configure custom SMTP settings');
+      suggestions.push('Set EMAIL_SERVICE=sendgrid or EMAIL_SERVICE=gmail, or configure custom SMTP settings');
     }
 
     // Gmail-specific checks
