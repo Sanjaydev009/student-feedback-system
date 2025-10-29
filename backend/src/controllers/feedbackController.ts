@@ -1454,3 +1454,209 @@ export const debugFeedbackStructure = async (req: Request, res: Response): Promi
     res.status(500).json({ message: 'Error debugging feedback', error: err.message });
   }
 };
+
+// Export detailed student responses for a specific subject with timestamps
+export const exportDetailedStudentResponses = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { subjectId } = req.params;
+    const feedbackTypeParam = req.query.feedbackType;
+    const feedbackType = (typeof feedbackTypeParam === 'string' ? feedbackTypeParam : 'midterm') as 'midterm' | 'endterm';
+
+    console.log(`🔍 Generating detailed student responses report for subject: ${subjectId}, type: ${feedbackType}`);
+
+    // Validate subject exists
+    const subject = await Subject.findById(subjectId);
+    if (!subject) {
+      res.status(404).json({ 
+        message: 'Subject not found',
+        subjectId 
+      });
+      return;
+    }
+
+    // Get all feedback for this subject and feedback type with student details
+    const feedbacks = await Feedback.find({ 
+      subject: subjectId, 
+      feedbackType 
+    })
+    .populate('student', 'name email rollNumber branch section year')
+    .populate('subject', 'name code instructor')
+    .sort({ createdAt: -1 }); // Most recent first
+
+    if (!feedbacks || feedbacks.length === 0) {
+      res.status(404).json({ 
+        message: `No ${feedbackType} feedback available for subject: ${subject.name}`,
+        subjectName: subject.name,
+        subjectCode: subject.code,
+        instructor: subject.instructor,
+        feedbackType,
+        totalResponses: 0
+      });
+      return;
+    }
+
+    console.log(`📊 Found ${feedbacks.length} feedback responses for detailed report`);
+
+    // Prepare CSV content with detailed student responses
+    let csvContent = '';
+    
+    // Header information
+    csvContent += `DETAILED STUDENT FEEDBACK RESPONSES REPORT\n`;
+    csvContent += `Subject: ${subject.name} (${subject.code})\n`;
+    csvContent += `Instructor: ${subject.instructor}\n`;
+    csvContent += `Feedback Type: ${feedbackType.toUpperCase()}\n`;
+    csvContent += `Total Responses: ${feedbacks.length}\n`;
+    csvContent += `Generated On: ${new Date().toLocaleString()}\n`;
+    csvContent += `\n`;
+
+    // Warning about data sensitivity
+    csvContent += `⚠️  CONFIDENTIAL DATA - HANDLE WITH CARE\n`;
+    csvContent += `This report contains individual student responses and should be handled according to privacy policies.\n`;
+    csvContent += `\n`;
+
+    // CSV Headers
+    const headers = [
+      'Response #',
+      'Student Name',
+      'Roll Number',
+      'Email',
+      'Branch',
+      'Section', 
+      'Year',
+      'Submission Date',
+      'Submission Time',
+      'Time Since Submission',
+      'Question #',
+      'Question Category',
+      'Question Text',
+      'Question Type',
+      'Rating (1-5)',
+      'Comment/Response',
+      'Average Rating (All Questions)'
+    ];
+    
+    csvContent += headers.join(',') + '\n';
+
+    // Process each feedback response
+    feedbacks.forEach((feedback: any, responseIndex: number) => {
+      const student = feedback.student;
+      const submissionDate = new Date(feedback.createdAt);
+      const timeSinceSubmission = getTimeSinceSubmission(submissionDate);
+      
+      // Process each answer in the feedback
+      feedback.answers.forEach((answer: any, questionIndex: number) => {
+        const row = [
+          responseIndex + 1,
+          `"${student?.name || 'Anonymous'}"`,
+          `"${student?.rollNumber || 'N/A'}"`,
+          `"${student?.email || 'N/A'}"`,
+          `"${student?.branch || 'N/A'}"`,
+          `"${student?.section || 'N/A'}"`,
+          student?.year || 'N/A',
+          submissionDate.toLocaleDateString(),
+          submissionDate.toLocaleTimeString(),
+          `"${timeSinceSubmission}"`,
+          questionIndex + 1,
+          `"${answer.category || 'General'}"`,
+          `"${answer.question?.replace(/"/g, '""') || 'N/A'}"`,
+          answer.type || 'rating',
+          answer.type === 'rating' ? (answer.answer || 0) : 'N/A',
+          `"${answer.type === 'comment' ? (answer.comment?.replace(/"/g, '""') || 'No comment') : (answer.answer ? `${answer.answer}/5` : 'No rating')}"`,
+          feedback.averageRating?.toFixed(2) || 'N/A'
+        ];
+        
+        csvContent += row.join(',') + '\n';
+      });
+      
+      // Add empty row between different students for better readability
+      csvContent += '\n';
+    });
+
+    // Summary statistics
+    csvContent += '\n';
+    csvContent += 'SUMMARY STATISTICS\n';
+    csvContent += `Total Students Responded: ${feedbacks.length}\n`;
+    
+    // Calculate overall statistics
+    const allRatings = feedbacks.flatMap((f: any) => 
+      f.answers.filter((a: any) => a.type === 'rating' && a.answer > 0).map((a: any) => a.answer)
+    );
+    
+    if (allRatings.length > 0) {
+      const overallAverage = allRatings.reduce((sum: number, rating: number) => sum + rating, 0) / allRatings.length;
+      csvContent += `Overall Average Rating: ${overallAverage.toFixed(2)}/5\n`;
+      csvContent += `Total Rating Responses: ${allRatings.length}\n`;
+      csvContent += `Highest Rating Given: ${Math.max(...allRatings)}\n`;
+      csvContent += `Lowest Rating Given: ${Math.min(...allRatings)}\n`;
+    }
+
+    // Count comments
+    const totalComments = feedbacks.reduce((count: number, f: any) => 
+      count + f.answers.filter((a: any) => a.type === 'comment' && a.comment?.trim()).length, 0
+    );
+    csvContent += `Total Comments Provided: ${totalComments}\n`;
+
+    // Response time analysis
+    const submissionTimes = feedbacks.map((f: any) => new Date(f.createdAt));
+    const firstSubmission = new Date(Math.min(...submissionTimes.map(t => t.getTime())));
+    const lastSubmission = new Date(Math.max(...submissionTimes.map(t => t.getTime())));
+    
+    csvContent += `First Response: ${firstSubmission.toLocaleString()}\n`;
+    csvContent += `Last Response: ${lastSubmission.toLocaleString()}\n`;
+    csvContent += `Response Period: ${getTimeBetween(firstSubmission, lastSubmission)}\n`;
+
+    csvContent += '\n';
+    csvContent += 'NOTE: This report contains sensitive student data and should be handled according to institutional privacy policies.\n';
+    csvContent += 'Individual student responses are provided for detailed analysis and should remain confidential.\n';
+
+    // Set response headers for CSV download
+    const safeName = subject.name ? subject.name.replace(/[^a-z0-9]/gi, '_') : 'Unknown_Subject';
+    const filename = `${subject.code}_${safeName}_Detailed_Student_Responses_${feedbackType}_${new Date().toISOString().split('T')[0]}.csv`;
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    
+    // Send CSV content
+    res.send(csvContent);
+    
+  } catch (err: any) {
+    console.error('Error generating detailed student responses report:', err);
+    res.status(500).json({ 
+      message: 'Error generating detailed student responses report', 
+      error: err.message 
+    });
+  }
+};
+
+// Helper function to calculate time since submission
+function getTimeSinceSubmission(submissionDate: Date): string {
+  const now = new Date();
+  const diffMs = now.getTime() - submissionDate.getTime();
+  
+  const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+  const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+  
+  if (days > 0) {
+    return `${days} day(s), ${hours} hour(s) ago`;
+  } else if (hours > 0) {
+    return `${hours} hour(s), ${minutes} minute(s) ago`;
+  } else {
+    return `${minutes} minute(s) ago`;
+  }
+}
+
+// Helper function to calculate time between two dates
+function getTimeBetween(startDate: Date, endDate: Date): string {
+  const diffMs = endDate.getTime() - startDate.getTime();
+  const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+  
+  if (days > 0) {
+    return `${days} day(s), ${hours} hour(s)`;
+  } else if (hours > 0) {
+    return `${hours} hour(s)`;
+  } else {
+    const minutes = Math.floor(diffMs / (1000 * 60));
+    return `${minutes} minute(s)`;
+  }
+};

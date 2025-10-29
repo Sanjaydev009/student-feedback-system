@@ -13,7 +13,7 @@
 // export default router;
 
 import express from 'express';
-import { submitFeedback, getAllFeedback, getMyFeedback, getStudentFeedback, getDashboardStats, getRecentFeedback, getFeedbackSummary, getRecentActivities, getReports, getSectionStats, getCumulativeSubjectData, getCumulativeQuestionData, getFeedbackCSVData, exportFeedbackAsCSV, exportAnonymousFacultyReport, batchCheckFeedbackAvailability, checkFeedbackAvailability, debugFeedbackStructure } from '../controllers/feedbackController';
+import { submitFeedback, getAllFeedback, getMyFeedback, getStudentFeedback, getDashboardStats, getRecentFeedback, getFeedbackSummary, getRecentActivities, getReports, getSectionStats, getCumulativeSubjectData, getCumulativeQuestionData, getFeedbackCSVData, exportFeedbackAsCSV, exportAnonymousFacultyReport, batchCheckFeedbackAvailability, checkFeedbackAvailability, debugFeedbackStructure, exportDetailedStudentResponses } from '../controllers/feedbackController';
 import { protect, isAdmin } from '../middleware/authMiddleware';
 
 const router = express.Router();
@@ -38,6 +38,7 @@ router.post('/batch-check', protect, isAdmin, batchCheckFeedbackAvailability);
 router.get('/check/:subjectId', protect, isAdmin, checkFeedbackAvailability);
 router.get('/export-csv/:subjectId', protect, isAdmin, exportFeedbackAsCSV);
 router.get('/faculty-report/:subjectId', protect, isAdmin, exportAnonymousFacultyReport);
+router.get('/detailed-responses/:subjectId', protect, isAdmin, exportDetailedStudentResponses);
 router.get('/debug/:subjectId', protect, isAdmin, debugFeedbackStructure);
 
 // Student feedback routes

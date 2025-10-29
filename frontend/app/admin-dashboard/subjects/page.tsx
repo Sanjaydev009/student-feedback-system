@@ -572,6 +572,56 @@ export default function EnhancedSubjectsPage() {
     }
   };
 
+  // New function for detailed student responses report
+  const handleDownloadDetailedResponses = async (subjectId: string, subjectName: string, feedbackType: 'midterm' | 'endterm' = 'midterm') => {
+    try {
+      showWarning('Checking feedback availability...');
+      
+      // First check if feedback exists
+      const checkResponse = await api.get(`/api/feedback/check/${subjectId}?feedbackType=${feedbackType}`);
+      
+      showWarning(`Generating detailed student responses report... (${checkResponse.data.feedbackCount} responses found)`);
+      
+      // If check passed, download the actual report
+      const response = await api.get(`/api/feedback/detailed-responses/${subjectId}?feedbackType=${feedbackType}`, {
+        responseType: 'blob'
+      });
+      
+      // Create and download the file
+      const blob = new Blob([response.data], { type: 'text/csv;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${subjectName.replace(/[^a-z0-9]/gi, '_')}_Detailed_Student_Responses_${feedbackType}_${new Date().toISOString().split('T')[0]}.csv`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+      
+      showSuccess(`✅ Detailed student responses downloaded successfully (${checkResponse.data.feedbackCount} responses with timestamps)`);
+    } catch (error: any) {
+      console.error('Detailed responses download error:', error);
+      
+      if (error.response?.status === 404) {
+        const errorData = error.response?.data;
+        if (errorData && errorData.subjectName) {
+          // Show detailed notification with subject information
+          showError(
+            `📊 No ${feedbackType} feedback available for Detailed Student Responses!\n\n` +
+            `Subject: "${errorData.subjectName}" (${errorData.subjectCode})\n` +
+            `Instructor: ${errorData.instructor}\n\n` +
+            `❌ ${feedbackType.charAt(0).toUpperCase() + feedbackType.slice(1)} feedback has not been submitted yet by any student for this subject.\n\n` +
+            `💡 Detailed responses include individual student feedback with timestamps. Please check back after students have completed their feedback submissions.`
+          );
+        } else {
+          showError(`❌ No ${feedbackType} feedback available for Detailed Student Responses!\n\nStudents have not yet submitted feedback for "${subjectName}". Please try again later.`);
+        }
+      } else if (error.response?.status === 500) {
+        showError('❌ Server error while generating detailed responses report. Please contact system administrator.');
+      } else {
+        showError('❌ Failed to download detailed responses report. Please try again or contact support.');
+      }
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -1279,6 +1329,47 @@ export default function EnhancedSubjectsPage() {
                                   }
                                 </span>
                               </button>
+                              <hr className="my-1 border-gray-200" />
+                              <button
+                                onClick={() => {
+                                  handleDownloadDetailedResponses(subject._id, subject.name, 'midterm');
+                                  const dropdown = document.getElementById(`dropdown-${subject._id}`);
+                                  if (dropdown) dropdown.classList.add('hidden');
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-purple-700 hover:bg-purple-50 font-medium flex items-center justify-between"
+                              >
+                                <span>🔍 Midterm Detailed Responses</span>
+                                <span className={`text-xs px-2 py-1 rounded-full ${
+                                  feedbackStatus[subject._id]?.midterm > 0 
+                                    ? 'bg-purple-100 text-purple-800' 
+                                    : 'bg-red-100 text-red-800'
+                                }`}>
+                                  {feedbackStatus[subject._id]?.midterm > 0 
+                                    ? `${feedbackStatus[subject._id].midterm} responses` 
+                                    : 'No data'
+                                  }
+                                </span>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  handleDownloadDetailedResponses(subject._id, subject.name, 'endterm');
+                                  const dropdown = document.getElementById(`dropdown-${subject._id}`);
+                                  if (dropdown) dropdown.classList.add('hidden');
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-purple-700 hover:bg-purple-50 font-medium flex items-center justify-between"
+                              >
+                                <span>🔍 Endterm Detailed Responses</span>
+                                <span className={`text-xs px-2 py-1 rounded-full ${
+                                  feedbackStatus[subject._id]?.endterm > 0 
+                                    ? 'bg-purple-100 text-purple-800' 
+                                    : 'bg-red-100 text-red-800'
+                                }`}>
+                                  {feedbackStatus[subject._id]?.endterm > 0 
+                                    ? `${feedbackStatus[subject._id].endterm} responses` 
+                                    : 'No data'
+                                  }
+                                </span>
+                              </button>
                             </div>
                           </div>
                           <button
@@ -1411,6 +1502,27 @@ export default function EnhancedSubjectsPage() {
                               className="block w-full text-left px-3 py-2 text-xs text-blue-700 hover:bg-blue-50 font-medium"
                             >
                               📊 Endterm Faculty
+                            </button>
+                            <hr className="my-1 border-gray-200" />
+                            <button
+                              onClick={() => {
+                                handleDownloadDetailedResponses(subject._id, subject.name, 'midterm');
+                                const dropdown = document.getElementById(`grid-dropdown-${subject._id}`);
+                                if (dropdown) dropdown.classList.add('hidden');
+                              }}
+                              className="block w-full text-left px-3 py-2 text-xs text-purple-700 hover:bg-purple-50 font-medium"
+                            >
+                              🔍 Midterm Detailed
+                            </button>
+                            <button
+                              onClick={() => {
+                                handleDownloadDetailedResponses(subject._id, subject.name, 'endterm');
+                                const dropdown = document.getElementById(`grid-dropdown-${subject._id}`);
+                                if (dropdown) dropdown.classList.add('hidden');
+                              }}
+                              className="block w-full text-left px-3 py-2 text-xs text-purple-700 hover:bg-purple-50 font-medium"
+                            >
+                              🔍 Endterm Detailed
                             </button>
                           </div>
                         </div>
