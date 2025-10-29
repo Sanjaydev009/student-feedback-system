@@ -1497,121 +1497,186 @@ export const exportDetailedStudentResponses = async (req: Request, res: Response
 
     console.log(`📊 Found ${feedbacks.length} feedback responses for detailed report`);
 
-    // Prepare CSV content with detailed student responses
+    // Prepare CSV content in Excel-like format matching the image structure
     let csvContent = '';
     
-    // Header information
-    csvContent += `DETAILED STUDENT FEEDBACK RESPONSES REPORT\n`;
-    csvContent += `Subject: ${subject.name} (${subject.code})\n`;
-    csvContent += `Instructor: ${subject.instructor}\n`;
-    csvContent += `Feedback Type: ${feedbackType.toUpperCase()}\n`;
-    csvContent += `Total Responses: ${feedbacks.length}\n`;
-    csvContent += `Generated On: ${new Date().toLocaleString()}\n`;
-    csvContent += `\n`;
-
-    // Warning about data sensitivity
-    csvContent += `⚠️  CONFIDENTIAL DATA - HANDLE WITH CARE\n`;
-    csvContent += `This report contains individual student responses and should be handled according to privacy policies.\n`;
-    csvContent += `\n`;
-
-    // CSV Headers
-    const headers = [
-      'Response #',
-      'Student Name',
-      'Roll Number',
-      'Email',
-      'Branch',
-      'Section', 
-      'Year',
-      'Submission Date',
-      'Submission Time',
-      'Time Since Submission',
-      'Question #',
-      'Question Category',
-      'Question Text',
-      'Question Type',
-      'Rating (1-5)',
-      'Comment/Response',
-      'Average Rating (All Questions)'
-    ];
+    // Title row - centered
+    csvContent += `,,,,Student Feedback Form,,,,\n`;
+    csvContent += `\n`; // Empty row
     
-    csvContent += headers.join(',') + '\n';
+    // Faculty Information section - structured like the image
+    csvContent += `,,Student Feedback Responses,,,,,,\n`;
+    csvContent += `,,Faculty Information,,,,,,\n`;
+    csvContent += `,Subject,${subject.name},,,,,\n`;
+    csvContent += `,Course Code,${subject.code},,,,,\n`;
+    csvContent += `,Feedback Type,${feedbackType.toUpperCase()},,,,,\n`;
+    csvContent += `,Academic Year/Term,2025-26 / Term ${feedbackType === 'midterm' ? '1' : '2'},,,,,\n`;
+    csvContent += `,Total Responses,${feedbacks.length},,,,,\n`;
+    csvContent += `,Report Generated,${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST,,,,,\n`;
+    csvContent += `\n`; // Empty row for spacing
 
-    // Process each feedback response
-    feedbacks.forEach((feedback: any, responseIndex: number) => {
-      const student = feedback.student;
+    // PAGE 1: RATINGS TABLE with actual question text as headers
+    // Extract the actual questions from the first feedback response
+    const ratingQuestions = feedbacks.length > 0 ? 
+      feedbacks[0].answers.filter((ans: any) => ans.type === 'rating').slice(0, 8) : [];
+
+    // Create headers using actual question text with proper Excel formatting
+    const ratingHeaders = ['Submission Time'];
+    ratingQuestions.forEach((q: any) => {
+      // Clean question text for CSV header and make it Excel-friendly
+      const questionText = q.question ? q.question.replace(/"/g, '').replace(/,/g, ';') : `Question ${ratingHeaders.length}`;
+      ratingHeaders.push(`"${questionText}"`);
+    });
+    csvContent += ratingHeaders.join(',') + '\n';
+
+    // Data rows for ratings with clean timestamp formatting
+    feedbacks.forEach((feedback: any) => {
       const submissionDate = new Date(feedback.createdAt);
-      const timeSinceSubmission = getTimeSinceSubmission(submissionDate);
-      
-      // Process each answer in the feedback
-      feedback.answers.forEach((answer: any, questionIndex: number) => {
-        const row = [
-          responseIndex + 1,
-          `"${student?.name || 'Anonymous'}"`,
-          `"${student?.rollNumber || 'N/A'}"`,
-          `"${student?.email || 'N/A'}"`,
-          `"${student?.branch || 'N/A'}"`,
-          `"${student?.section || 'N/A'}"`,
-          student?.year || 'N/A',
-          submissionDate.toLocaleDateString(),
-          submissionDate.toLocaleTimeString(),
-          `"${timeSinceSubmission}"`,
-          questionIndex + 1,
-          `"${answer.category || 'General'}"`,
-          `"${answer.question?.replace(/"/g, '""') || 'N/A'}"`,
-          answer.type || 'rating',
-          answer.type === 'rating' ? (answer.answer || 0) : 'N/A',
-          `"${answer.type === 'comment' ? (answer.comment?.replace(/"/g, '""') || 'No comment') : (answer.answer ? `${answer.answer}/5` : 'No rating')}"`,
-          feedback.averageRating?.toFixed(2) || 'N/A'
-        ];
-        
-        csvContent += row.join(',') + '\n';
+      const istTime = submissionDate.toLocaleString('en-IN', { 
+        timeZone: 'Asia/Kolkata',
+        day: '2-digit',
+        month: '2-digit', 
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
       });
+
+      const ratingAnswers = feedback.answers.filter((ans: any) => ans.type === 'rating').slice(0, 8);
       
-      // Add empty row between different students for better readability
-      csvContent += '\n';
+      const row = [`"${istTime}"`]; // Wrap timestamp in quotes for Excel
+      // Ensure we have exactly 8 rating columns
+      for (let i = 0; i < 8; i++) {
+        row.push(ratingAnswers[i]?.answer || '');
+      }
+      
+      csvContent += row.join(',') + '\n';
     });
 
-    // Summary statistics
-    csvContent += '\n';
-    csvContent += 'SUMMARY STATISTICS\n';
-    csvContent += `Total Students Responded: ${feedbacks.length}\n`;
+    // Add some empty rows for separation
+    csvContent += `\n\n`;
+
+    // PAGE 2: COMMENTS TABLE with actual comment question text
+    // Extract the actual comment questions from the first feedback response
+    const commentQuestions = feedbacks.length > 0 ? 
+      feedbacks[0].answers.filter((ans: any) => ans.type === 'comment') : [];
+
+    // Create headers using actual comment question text
+    const commentHeaders = ['Submission Time'];
+    commentQuestions.forEach((q: any) => {
+      const questionText = q.question ? q.question.replace(/"/g, '').replace(/,/g, ';') : `Comment ${commentHeaders.length}`;
+      commentHeaders.push(`"${questionText}"`);
+    });
+    csvContent += commentHeaders.join(',') + '\n';
+
+    // Data rows for comments with clean timestamp formatting
+    feedbacks.forEach((feedback: any) => {
+      const submissionDate = new Date(feedback.createdAt);
+      const istTime = submissionDate.toLocaleString('en-IN', { 
+        timeZone: 'Asia/Kolkata',
+        day: '2-digit',
+        month: '2-digit', 
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+
+      const commentAnswers = feedback.answers.filter((ans: any) => ans.type === 'comment');
+      
+      const row = [`"${istTime}"`]; // Wrap timestamp in quotes for Excel
+      // Ensure we have exactly 2 comment columns
+      for (let i = 0; i < 2; i++) {
+        const comment = commentAnswers[i]?.comment?.replace(/"/g, '""') || '';
+        row.push(`"${comment}"`);
+      }
+      
+      csvContent += row.join(',') + '\n';
+    });
+
+    // Add empty rows for better Excel formatting
+    csvContent += `\n\n`;
+
+    // PAGE 3: SUBJECT AND FACULTY SUMMARY with clean formatting
+    csvContent += `"SUBJECT AND FACULTY SUMMARY"\n\n`;
+    csvContent += `"Subject Name:","${subject.name || 'N/A'}"\n`;
+    csvContent += `"Faculty Name:","${(subject as any).faculty || 'N/A'}"\n`;
+    csvContent += `"Total Responses:","${feedbacks.length}"\n`;
+    csvContent += `"Report Generated:","${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}"\n\n`;
     
-    // Calculate overall statistics
+    // PAGE 4: QUESTION-WISE AVERAGE RATINGS with clean Excel formatting
+    csvContent += `"QUESTION-WISE AVERAGE RATINGS"\n\n`;
+    csvContent += `"Question","Average Rating"\n`;
+    
+    // Calculate averages for each rating question with actual question text
+    for (let i = 0; i < 8; i++) {
+      const questionRatings = feedbacks.map((f: any) => {
+        const ratingAnswers = f.answers.filter((a: any) => a.type === 'rating');
+        return ratingAnswers[i]?.answer || 0;
+      }).filter(rating => rating > 0);
+      
+      if (questionRatings.length > 0) {
+        const qAverage = questionRatings.reduce((sum, rating) => sum + rating, 0) / questionRatings.length;
+        // Get the actual question text for this index
+        const question = ratingQuestions[i]?.question;
+        const questionText = question ? 
+          question.replace(/"/g, '""').substring(0, 80) + (question.length > 80 ? '...' : '') : 
+          `Question ${i + 1}`;
+        csvContent += `"${questionText}","${qAverage.toFixed(2)}"\n`;
+      }
+    }
+
+    csvContent += `\n\n`;
+
+    // PAGE 5: OVERALL STATISTICS with clean Excel formatting
+    csvContent += `"OVERALL STATISTICS"\n\n`;
+    
+    // Calculate overall statistics for ratings only
     const allRatings = feedbacks.flatMap((f: any) => 
       f.answers.filter((a: any) => a.type === 'rating' && a.answer > 0).map((a: any) => a.answer)
     );
     
     if (allRatings.length > 0) {
       const overallAverage = allRatings.reduce((sum: number, rating: number) => sum + rating, 0) / allRatings.length;
-      csvContent += `Overall Average Rating: ${overallAverage.toFixed(2)}/5\n`;
-      csvContent += `Total Rating Responses: ${allRatings.length}\n`;
-      csvContent += `Highest Rating Given: ${Math.max(...allRatings)}\n`;
-      csvContent += `Lowest Rating Given: ${Math.min(...allRatings)}\n`;
+      csvContent += `"Overall Average Rating","${overallAverage.toFixed(2)}/5"\n`;
+      csvContent += `"Total Rating Responses","${allRatings.length}"\n`;
+      csvContent += `"Highest Rating","${Math.max(...allRatings)}"\n`;
+      csvContent += `"Lowest Rating","${Math.min(...allRatings)}"\n`;
     }
 
     // Count comments
     const totalComments = feedbacks.reduce((count: number, f: any) => 
       count + f.answers.filter((a: any) => a.type === 'comment' && a.comment?.trim()).length, 0
     );
-    csvContent += `Total Comments Provided: ${totalComments}\n`;
+    csvContent += `"Total Comments Provided","${totalComments}"\n`;
 
     // Response time analysis
-    const submissionTimes = feedbacks.map((f: any) => new Date(f.createdAt));
-    const firstSubmission = new Date(Math.min(...submissionTimes.map(t => t.getTime())));
-    const lastSubmission = new Date(Math.max(...submissionTimes.map(t => t.getTime())));
-    
-    csvContent += `First Response: ${firstSubmission.toLocaleString()}\n`;
-    csvContent += `Last Response: ${lastSubmission.toLocaleString()}\n`;
-    csvContent += `Response Period: ${getTimeBetween(firstSubmission, lastSubmission)}\n`;
+    if (feedbacks.length > 0) {
+      const submissionTimes = feedbacks.map((f: any) => new Date(f.createdAt));
+      const firstSubmission = new Date(Math.min(...submissionTimes.map(t => t.getTime())));
+      const lastSubmission = new Date(Math.max(...submissionTimes.map(t => t.getTime())));
+      
+      csvContent += `"First Response","${firstSubmission.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST"\n`;
+      csvContent += `"Last Response","${lastSubmission.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST"\n`;
+      
+      // Calculate response collection period
+      const getTimeBetween = (start: Date, end: Date): string => {
+        const diffMs = end.getTime() - start.getTime();
+        const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        return days > 0 ? `${days} days, ${hours} hours` : `${hours} hours`;
+      };
+      
+      csvContent += `"Response Collection Period","${getTimeBetween(firstSubmission, lastSubmission)}"\n`;
+    }
 
-    csvContent += '\n';
-    csvContent += 'NOTE: This report contains sensitive student data and should be handled according to institutional privacy policies.\n';
-    csvContent += 'Individual student responses are provided for detailed analysis and should remain confidential.\n';
+    csvContent += `\n`;
+    csvContent += `"NOTE:","Student identities are anonymized for privacy"\n`;
+    csvContent += `"INFO:","Responses are shown in submission order with IST timestamps"\n`;
 
-    // Set response headers for CSV download
+    // Set response headers for Excel-formatted CSV download
     const safeName = subject.name ? subject.name.replace(/[^a-z0-9]/gi, '_') : 'Unknown_Subject';
-    const filename = `${subject.code}_${safeName}_Detailed_Student_Responses_${feedbackType}_${new Date().toISOString().split('T')[0]}.csv`;
+    const filename = `${subject.code}_${safeName}_Student_Feedback_Excel_${new Date().toISOString().split('T')[0]}.csv`;
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     

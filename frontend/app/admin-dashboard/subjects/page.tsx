@@ -572,7 +572,7 @@ export default function EnhancedSubjectsPage() {
     }
   };
 
-  // New function for detailed student responses report
+  // New function for Excel-formatted student responses report
   const handleDownloadDetailedResponses = async (subjectId: string, subjectName: string, feedbackType: 'midterm' | 'endterm' = 'midterm') => {
     try {
       showWarning('Checking feedback availability...');
@@ -580,7 +580,7 @@ export default function EnhancedSubjectsPage() {
       // First check if feedback exists
       const checkResponse = await api.get(`/api/feedback/check/${subjectId}?feedbackType=${feedbackType}`);
       
-      showWarning(`Generating detailed student responses report... (${checkResponse.data.feedbackCount} responses found)`);
+      showWarning(`Generating Excel-formatted feedback report... (${checkResponse.data.feedbackCount} responses found)`);
       
       // If check passed, download the actual report
       const response = await api.get(`/api/feedback/detailed-responses/${subjectId}?feedbackType=${feedbackType}`, {
@@ -592,32 +592,32 @@ export default function EnhancedSubjectsPage() {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${subjectName.replace(/[^a-z0-9]/gi, '_')}_Detailed_Student_Responses_${feedbackType}_${new Date().toISOString().split('T')[0]}.csv`;
+      link.download = `${subjectName.replace(/[^a-z0-9]/gi, '_')}_Student_Feedback_${feedbackType}_${new Date().toISOString().split('T')[0]}.csv`;
       link.click();
       window.URL.revokeObjectURL(url);
       
-      showSuccess(`✅ Detailed student responses downloaded successfully (${checkResponse.data.feedbackCount} responses with timestamps)`);
+      showSuccess(`✅ Excel-formatted feedback report downloaded successfully (${checkResponse.data.feedbackCount} responses)`);
     } catch (error: any) {
-      console.error('Detailed responses download error:', error);
+      console.error('Excel report download error:', error);
       
       if (error.response?.status === 404) {
         const errorData = error.response?.data;
         if (errorData && errorData.subjectName) {
           // Show detailed notification with subject information
           showError(
-            `📊 No ${feedbackType} feedback available for Detailed Student Responses!\n\n` +
+            `📊 No ${feedbackType} feedback available for Excel Report!\n\n` +
             `Subject: "${errorData.subjectName}" (${errorData.subjectCode})\n` +
             `Instructor: ${errorData.instructor}\n\n` +
             `❌ ${feedbackType.charAt(0).toUpperCase() + feedbackType.slice(1)} feedback has not been submitted yet by any student for this subject.\n\n` +
-            `💡 Detailed responses include individual student feedback with timestamps. Please check back after students have completed their feedback submissions.`
+            `💡 Excel reports include structured student feedback with proper table formatting. Please check back after students have completed their feedback submissions.`
           );
         } else {
-          showError(`❌ No ${feedbackType} feedback available for Detailed Student Responses!\n\nStudents have not yet submitted feedback for "${subjectName}". Please try again later.`);
+          showError(`❌ No ${feedbackType} feedback available for Excel Report!\n\nStudents have not yet submitted feedback for "${subjectName}". Please try again later.`);
         }
       } else if (error.response?.status === 500) {
-        showError('❌ Server error while generating detailed responses report. Please contact system administrator.');
+        showError('❌ Server error while generating Excel report. Please contact system administrator.');
       } else {
-        showError('❌ Failed to download detailed responses report. Please try again or contact support.');
+        showError('❌ Failed to download Excel report. Please try again or contact support.');
       }
     }
   };
@@ -1338,7 +1338,7 @@ export default function EnhancedSubjectsPage() {
                                 }}
                                 className="w-full text-left px-4 py-2 text-sm text-purple-700 hover:bg-purple-50 font-medium flex items-center justify-between"
                               >
-                                <span>🔍 Midterm Detailed Responses</span>
+                                <span>� Midterm Excel Format</span>
                                 <span className={`text-xs px-2 py-1 rounded-full ${
                                   feedbackStatus[subject._id]?.midterm > 0 
                                     ? 'bg-purple-100 text-purple-800' 
@@ -1358,7 +1358,7 @@ export default function EnhancedSubjectsPage() {
                                 }}
                                 className="w-full text-left px-4 py-2 text-sm text-purple-700 hover:bg-purple-50 font-medium flex items-center justify-between"
                               >
-                                <span>🔍 Endterm Detailed Responses</span>
+                                <span>� Endterm Excel Format</span>
                                 <span className={`text-xs px-2 py-1 rounded-full ${
                                   feedbackStatus[subject._id]?.endterm > 0 
                                     ? 'bg-purple-100 text-purple-800' 
@@ -1512,7 +1512,7 @@ export default function EnhancedSubjectsPage() {
                               }}
                               className="block w-full text-left px-3 py-2 text-xs text-purple-700 hover:bg-purple-50 font-medium"
                             >
-                              🔍 Midterm Detailed
+                              � Midterm Excel
                             </button>
                             <button
                               onClick={() => {
@@ -1522,7 +1522,7 @@ export default function EnhancedSubjectsPage() {
                               }}
                               className="block w-full text-left px-3 py-2 text-xs text-purple-700 hover:bg-purple-50 font-medium"
                             >
-                              🔍 Endterm Detailed
+                              � Endterm Excel
                             </button>
                           </div>
                         </div>
