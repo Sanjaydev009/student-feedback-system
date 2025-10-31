@@ -70,7 +70,7 @@ export default function FeedbackPeriodsPage() {
       title: '',
       description: '',
       feedbackType: 'midterm' as 'midterm' | 'endterm',
-      academicYear: '2024-25',
+      academicYear: '',
       term: 1,
       startDate,
       endDate,
