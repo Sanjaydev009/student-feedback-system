@@ -4,10 +4,12 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/components/ToastProvider';
 import api, { checkServerHealth } from '@/utils/api';
+import { Eye, EyeOff } from "lucide-react";
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const [serverStatus, setServerStatus] = useState<'checking' | 'online' | 'offline'>('checking');
   const router = useRouter();
@@ -170,7 +172,7 @@ export default function LoginPage() {
             ) : serverStatus === 'online' ? (
               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                 <span className="flex-shrink-0 h-2 w-2 bg-green-500 rounded-full mr-1.5"></span>
-                Server online
+                online
               </span>
             ) : (
               <div className="flex flex-col items-center space-y-1">
@@ -220,19 +222,6 @@ export default function LoginPage() {
           )}
         </div>
 
-        {/* Development Test Credentials
-        {process.env.NODE_ENV === 'development' && (
-          <div className="bg-blue-50 border border-blue-200 rounded-md p-4 mb-6">
-            <h3 className="text-sm font-medium text-blue-800 mb-2">Test Credentials</h3>
-            <div className="space-y-1 text-xs text-blue-700">
-              <div><strong>Admin:</strong> sanju.admin@gmail.com / admin123</div>
-              <div><strong>Student:</strong> student@test.com / student123</div>
-              <div><strong>HOD:</strong> hod@university.com / hod123</div>
-              <div><strong>DEAN:</strong> dean@university.com / dean123</div>
-            </div>
-          </div>
-        )} */}
-        
         <div className="space-y-5">
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
@@ -250,17 +239,26 @@ export default function LoginPage() {
           <div>
             <div className="flex items-center justify-between mb-1">
               <label htmlFor="password" className="block text-sm font-medium text-gray-700">Password</label>
-              <a href="#" className="text-sm text-blue-600 hover:text-blue-800">Forgot password?</a>
+              {/**<a href="#" className="text-sm text-blue-600 hover:text-blue-800">Forgot password?</a>*/}
             </div>
-            <input
-              id="password"
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-medium"
-              required
-            />
+            <div className="relative">
+              <input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full p-3 pr-12 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-medium"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
+              >
+                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
+            </div>
           </div>
           
           <button

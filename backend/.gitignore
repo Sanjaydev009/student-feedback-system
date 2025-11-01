@@ -16,7 +16,7 @@ yarn-error.log*
 .env.email
 .env*.local
 # Allow .env.example to be committed
-!.env.example
+.env.example
 
 # Build artifacts
 dist/
