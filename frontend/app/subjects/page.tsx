@@ -235,28 +235,6 @@ export default function SubjectsPage() {
       <StudentNavbar />
 
       <div className="container mx-auto p-4 md:p-6">
-        {/* New Dashboard Notice */}
-        {/* <div className="bg-gradient-to-r from-green-500 to-blue-600 text-white rounded-lg shadow-lg p-6 md:p-8 mb-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="bg-white bg-opacity-20 rounded-full p-3">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-              </div>
-              <div>
-                <h2 className="text-xl font-bold">🎉 New Enhanced Dashboard Available!</h2>
-                <p className="text-green-100 mt-1">Experience our new dashboard with advanced filtering by year and term</p>
-              </div>
-            </div>
-            <Link 
-              href="/student-dashboard"
-              className="bg-white text-green-600 px-6 py-3 rounded-lg font-semibold hover:bg-gray-50 transition-colors duration-200 shadow-lg"
-            >
-              Try New Dashboard
-            </Link>
-          </div>
-        </div> */}
 
         {/* Welcome Banner */}
         <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg shadow-lg p-6 md:p-8 mb-8">
