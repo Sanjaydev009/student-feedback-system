@@ -44,16 +44,11 @@ export default function UserFormModal({ user, isOpen, onClose, onSubmit, isLoadi
   const departmentConfig = {
     "Engineering": {
       branches: {
-        "Computer Science": { years: [1, 2, 3, 4], sections: ['A'] },
+        "CSE": { years: [1, 2, 3, 4], sections: ['A','B','C'] },
         "AIML": { years: [1, 2, 3, 4], sections: ['A', 'B', 'C'] },
+        "DS": { years: [1, 2, 3, 4], sections: ['A', 'B', 'C'] },
         "Electronics": { years: [1, 2, 3, 4], sections: ['A', 'B'] },
         "Mechanical": { years: [1, 2, 3, 4], sections: ['A', 'B'] },
-        "Civil": { years: [1, 2, 3, 4], sections: ['A'] },
-        "Electrical": { years: [1, 2, 3, 4], sections: ['A'] },
-        "Information Technology": { years: [1, 2, 3, 4], sections: ['A', 'B'] },
-        "Chemical": { years: [1, 2, 3, 4], sections: ['A'] },
-        "Aerospace": { years: [1, 2, 3, 4], sections: ['A'] },
-        "Biotechnology": { years: [1, 2, 3, 4], sections: ['A'] }
       }
     },
     "MCA": {
@@ -265,7 +260,7 @@ export default function UserFormModal({ user, isOpen, onClose, onSubmit, isLoadi
 
                 <div className="mb-4">
                   <label htmlFor="term" className="block text-sm font-medium text-gray-700 mb-1">
-                    Semester/Term
+                    Term
                   </label>
                   <select
                     id="term"
@@ -275,8 +270,8 @@ export default function UserFormModal({ user, isOpen, onClose, onSubmit, isLoadi
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Select Term</option>
-                    {[1, 2, 3, 4, 5, 6, 7, 8].map(term => (
-                      <option key={term} value={term}>Semester {term}</option>
+                    {[1, 2, 3, 4].map(term => (
+                      <option key={term} value={term}>Term {term}</option>
                     ))}
                   </select>
                 </div>

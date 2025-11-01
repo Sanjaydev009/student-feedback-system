@@ -67,7 +67,7 @@ const UserSchema = new Schema({
   },
   department: {
     type: String,
-    enum: ['Engineering', 'MCA', 'MBA']
+    enum: ['CSE', 'MCA', 'AIML','DS']
   },
   branch: {
     type: String,
@@ -75,20 +75,8 @@ const UserSchema = new Schema({
       'CSE',
       'AIML', 
       'DS',
-      'Computer Science', 
-      'Electronics', 
-      'Mechanical', 
-      'Civil', 
-      'Electrical',
-      'Information Technology',
-      'Chemical',
-      'Aerospace',
-      'Biotechnology',
-      'MCA Regular', 
-      'MCA DS',
-      'MBA Finance',
-      'MBA Marketing',
-      'MBA HR'
+      'MCA Regular',
+      'MCA DS'
     ]
   },
   year: {
@@ -97,7 +85,7 @@ const UserSchema = new Schema({
   },
   section: {
     type: String,
-    enum: ['A', 'B', 'C', 'D', 'E', 'F'],
+    enum: ['A', 'B', 'C', 'D'],
     default: 'A' // Default section
   },
   passwordResetRequired: {
