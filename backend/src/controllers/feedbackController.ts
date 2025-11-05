@@ -108,7 +108,37 @@ export const submitFeedback = async (req: Request, res: Response): Promise<void>
 
 export const getAllFeedback = async (req: Request, res: Response) => {
   try {
-    const feedbacks = await Feedback.find().populate('subject');
+    const { year, term, branch, section, feedbackType } = req.query;
+    
+    // Build query filter
+    const query: any = {};
+    
+    if (year && year !== 'all') {
+      query.year = parseInt(year as string);
+    }
+    
+    if (term && term !== 'all') {
+      query.term = parseInt(term as string);
+    }
+    
+    if (branch && branch !== 'all') {
+      query.branch = branch;
+    }
+    
+    if (section && section !== 'all') {
+      query.section = section;
+    }
+    
+    if (feedbackType && feedbackType !== 'all') {
+      query.feedbackType = feedbackType;
+    }
+    
+    console.log(`📊 [ALL FEEDBACK] Query filters:`, query);
+    
+    const feedbacks = await Feedback.find(query).populate('subject');
+    
+    console.log(`📊 [ALL FEEDBACK] Found ${feedbacks.length} feedback records`);
+    
     res.json(feedbacks);
   } catch (error: any) {
     res.status(500).json({ message: error.message });
@@ -118,7 +148,21 @@ export const getAllFeedback = async (req: Request, res: Response) => {
 // GET /api/feedback/me
 export const getMyFeedback = async (req: Request, res: Response): Promise<void> => {
   try {
-    const feedbacks = await Feedback.find({ student: req.user?.id }).populate('subject', 'name instructor code');
+    const { feedbackType } = req.query;
+    
+    // Build query filter
+    const query: any = { student: req.user?.id };
+    
+    if (feedbackType && feedbackType !== 'all') {
+      query.feedbackType = feedbackType;
+    }
+    
+    console.log(`📊 [MY FEEDBACK] Query filters:`, query);
+    
+    const feedbacks = await Feedback.find(query).populate('subject', 'name instructor code');
+    
+    console.log(`📊 [MY FEEDBACK] Found ${feedbacks.length} feedback records for user ${req.user?.id}`);
+    
     res.json(feedbacks);
   } catch (err: any) {
     res.status(500).json({ message: err.message });
@@ -152,10 +196,15 @@ export const getStudentFeedback = async (req: Request, res: Response): Promise<v
 
 export const getDashboardStats = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { year, term, branch, section } = req.query;
+    const { year, term, branch, section, feedbackType } = req.query;
     
     // Build match conditions for filtering
     const matchConditions: any = {};
+    
+    // Add feedbackType filter
+    if (feedbackType && feedbackType !== 'all') {
+      matchConditions.feedbackType = feedbackType;
+    }
     
     // Build aggregation pipeline to filter by student and subject criteria
     const pipeline: any[] = [
@@ -277,9 +326,35 @@ export const getDashboardStats = async (req: Request, res: Response): Promise<vo
 export const getRecentFeedback = async (req: Request, res: Response): Promise<void> => {
   try {
     const limit = parseInt(req.query.limit as string) || 5;
+    const { year, term, branch, section, feedbackType } = req.query;
+    
+    // Build query filter
+    const query: any = {};
+    
+    if (year && year !== 'all') {
+      query.year = parseInt(year as string);
+    }
+    
+    if (term && term !== 'all') {
+      query.term = parseInt(term as string);
+    }
+    
+    if (branch && branch !== 'all') {
+      query.branch = branch;
+    }
+    
+    if (section && section !== 'all') {
+      query.section = section;
+    }
+    
+    if (feedbackType && feedbackType !== 'all') {
+      query.feedbackType = feedbackType;
+    }
+    
+    console.log(`📊 [RECENT FEEDBACK] Query filters:`, query);
     
     // Get recent feedback with populated fields
-    const recentFeedback = await Feedback.find()
+    const recentFeedback = await Feedback.find(query)
       .populate('student', 'name email')
       .populate('subject', 'name instructor code')
       .sort({ createdAt: -1 })
@@ -294,6 +369,8 @@ export const getRecentFeedback = async (req: Request, res: Response): Promise<vo
       comments: feedback.comments,
       createdAt: feedback.createdAt
     }));
+    
+    console.log(`📊 [RECENT FEEDBACK] Found ${transformedFeedback.length} recent feedback items`);
     
     res.json(transformedFeedback);
   } catch (err: any) {
@@ -424,9 +501,9 @@ export const getFeedbackCSVData = async (req: Request, res: Response): Promise<v
 export const getFeedbackSummary = async (req: Request, res: Response): Promise<void> => {
   try {
     const { subjectId } = req.params;
+    const { feedbackType } = req.query;
     
-    console.log(`🔍 [FEEDBACK SUMMARY] Querying feedback for subject ID: ${subjectId}`);
-    // Fixed variable naming conflict
+    console.log(`🔍 [FEEDBACK SUMMARY] Querying feedback for subject ID: ${subjectId}, feedbackType: ${feedbackType}`);
     
     // First check if the subject exists
     const subjectDoc = await Subject.findById(subjectId);
@@ -437,15 +514,21 @@ export const getFeedbackSummary = async (req: Request, res: Response): Promise<v
       return;
     }
     
-    // Get all feedback for the specific subject
-    const feedbacks = await Feedback.find({ subject: subjectId })
+    // Build query filter
+    const query: any = { subject: subjectId };
+    if (feedbackType && feedbackType !== 'all') {
+      query.feedbackType = feedbackType;
+    }
+    
+    // Get feedback for the specific subject and feedback type
+    const feedbacks = await Feedback.find(query)
       .populate('student', 'name rollNumber branch')
       .populate('subject', 'name code instructor branch');
     
-    console.log(`🔍 [FEEDBACK SUMMARY] Found ${feedbacks.length} feedback records for subject ${subjectId}`);
+    console.log(`🔍 [FEEDBACK SUMMARY] Found ${feedbacks.length} feedback records for subject ${subjectId} with feedbackType: ${feedbackType || 'all'}`);
     
     if (feedbacks.length === 0) {
-      console.log(`❌ [FEEDBACK SUMMARY] No feedback found for subject ${subjectId}`);
+      console.log(`❌ [FEEDBACK SUMMARY] No feedback found for subject ${subjectId} with feedbackType: ${feedbackType || 'all'}`);
       // Return empty data structure with actual subject info for consistency
       res.status(200).json({
         subject: {
@@ -630,7 +713,35 @@ export const getRecentActivities = async (req: Request, res: Response): Promise<
 // Get feedback reports for all subjects
 export const getReports = async (req: Request, res: Response): Promise<void> => {
   try {
+    const { year, term, branch, section, feedbackType } = req.query;
+    
+    // Build match conditions for filtering
+    const matchConditions: any = {};
+    
+    if (year && year !== 'all') {
+      matchConditions.year = parseInt(year as string);
+    }
+    
+    if (term && term !== 'all') {
+      matchConditions.term = parseInt(term as string);
+    }
+    
+    if (branch && branch !== 'all') {
+      matchConditions.branch = branch;
+    }
+    
+    if (section && section !== 'all') {
+      matchConditions.section = section;
+    }
+    
+    if (feedbackType && feedbackType !== 'all') {
+      matchConditions.feedbackType = feedbackType;
+    }
+    
+    console.log(`📊 [REPORTS] Query filters:`, matchConditions);
+    
     const reports = await Feedback.aggregate([
+      ...(Object.keys(matchConditions).length > 0 ? [{ $match: matchConditions }] : []),
       {
         $lookup: {
           from: 'subjects',
@@ -691,6 +802,8 @@ export const getReports = async (req: Request, res: Response): Promise<void> => 
       }
     ]);
 
+    console.log(`📊 [REPORTS] Found ${reports.length} subject reports`);
+
     res.json(reports);
   } catch (err: any) {
     console.error('Error getting reports:', err);
@@ -701,13 +814,14 @@ export const getReports = async (req: Request, res: Response): Promise<void> => 
 // Get section-wise statistics
 export const getSectionStats = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { year, term, branch } = req.query;
+    const { year, term, branch, feedbackType } = req.query;
     
     // Build match conditions
     const matchConditions: any = {};
     if (year && year !== 'all') matchConditions['student.year'] = parseInt(year as string);
     if (term && term !== 'all') matchConditions.term = parseInt(term as string);
     if (branch && branch !== 'all') matchConditions['student.branch'] = branch;
+    if (feedbackType && feedbackType !== 'all') matchConditions.feedbackType = feedbackType;
     
     // Aggregate feedback data by student sections
     const sectionStats = await Feedback.aggregate([
@@ -769,7 +883,7 @@ export const getSectionStats = async (req: Request, res: Response): Promise<void
 // Get cumulative subject performance data
 export const getCumulativeSubjectData = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { year, term, branch, section } = req.query;
+    const { year, term, branch, section, feedbackType } = req.query;
     
     // Build match conditions for filtering
     const matchConditions: any = {};
@@ -788,6 +902,10 @@ export const getCumulativeSubjectData = async (req: Request, res: Response): Pro
     
     if (section && section !== 'all') {
       matchConditions['student.section'] = section;
+    }
+    
+    if (feedbackType && feedbackType !== 'all') {
+      matchConditions.feedbackType = feedbackType;
     }
 
     const cumulativeData = await Feedback.aggregate([
@@ -859,7 +977,7 @@ export const getCumulativeSubjectData = async (req: Request, res: Response): Pro
 // Get cumulative question-wise analysis across all subjects
 export const getCumulativeQuestionData = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { year, term, branch, section } = req.query;
+    const { year, term, branch, section, feedbackType } = req.query;
     
     // Build match conditions for filtering
     const matchConditions: any = {};
@@ -878,6 +996,10 @@ export const getCumulativeQuestionData = async (req: Request, res: Response): Pr
     
     if (section && section !== 'all') {
       matchConditions['student.section'] = section;
+    }
+    
+    if (feedbackType && feedbackType !== 'all') {
+      matchConditions.feedbackType = feedbackType;
     }
 
     const questionData = await Feedback.aggregate([

@@ -7,7 +7,32 @@ import Feedback from '../models/Feedback';
 // controllers/subjectController.ts
 export const getSubjects = async (req: Request, res: Response): Promise<void> => {
   try {
-    const subjects = await Subject.find(); // Returns all subjects
+    const { year, term, branch, section, feedbackType } = req.query;
+    
+    // Build query filter for subjects
+    const query: any = {};
+    
+    if (year && year !== 'all') {
+      query.year = parseInt(year as string);
+    }
+    
+    if (term && term !== 'all') {
+      query.term = parseInt(term as string);
+    }
+    
+    if (branch && branch !== 'all') {
+      query.branch = { $in: [branch] };
+    }
+    
+    // Note: section and feedbackType filters would be applied to feedback data, not subjects
+    // For now, we'll still return subjects and let the frontend filter feedback accordingly
+    
+    const subjects = await Subject.find(query);
+    
+    console.log(`📚 [SUBJECTS] Found ${subjects.length} subjects with filters:`, {
+      year, term, branch, section, feedbackType
+    });
+    
     res.json(subjects);
   } catch (err: any) {
     res.status(500).json({ message: err.message });

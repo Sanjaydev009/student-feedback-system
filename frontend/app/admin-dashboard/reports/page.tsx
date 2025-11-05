@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, RefObject } from 'react';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title, LineElement, PointElement } from 'chart.js';
+import ChartDataLabels from 'chartjs-plugin-datalabels';
 import { Pie, Bar, Line } from 'react-chartjs-2';
 import api from '@/utils/api';
 import { useToast } from '@/components/ToastProvider';
@@ -10,7 +11,7 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
 // Register ChartJS components
-ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title, LineElement, PointElement);
+ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title, LineElement, PointElement, ChartDataLabels);
 
 interface Subject {
   _id: string;
@@ -100,6 +101,7 @@ export default function ReportsPage() {
   const [yearFilter, setYearFilter] = useState<string>('all');
   const [termFilter, setTermFilter] = useState<string>('all');
   const [sectionFilter, setSectionFilter] = useState<string>('all'); // Added section filter
+  const [feedbackTypeFilter, setFeedbackTypeFilter] = useState<string>('all'); // Added feedback type filter
   const [viewMode, setViewMode] = useState<'single' | 'comparison' | 'questions' | 'cumulative' | 'questionAnalysis'>('cumulative'); // Added questionAnalysis view as new option
   const [comparisonSubjects, setComparisonSubjects] = useState<string[]>([]); // Added for subject comparison
   const [facultyRatings, setFacultyRatings] = useState<{ [key: string]: number }>({});
@@ -140,6 +142,13 @@ export default function ReportsPage() {
     'MCA DS'
   ];
   const sections = availableSections.length > 0 ? availableSections : ['A', 'B', 'C', 'D'];
+  
+  // Feedback type options
+  const feedbackTypes = [
+    { value: 'all', label: 'All Feedback' },
+    { value: 'midterm', label: 'Mid Term Feedback' },
+    { value: 'endterm', label: 'End Term Feedback' }
+  ];
 
   // Color palette for subjects
   const subjectColors = [
@@ -186,7 +195,7 @@ export default function ReportsPage() {
       fetchCumulativeData(),
       fetchQuestionAnalysisData()
     ]).finally(() => setLoading(false));
-  }, [yearFilter, termFilter, branchFilter, sectionFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [yearFilter, termFilter, branchFilter, sectionFilter, feedbackTypeFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Update comparison data when subjects are selected
   useEffect(() => {
@@ -208,6 +217,7 @@ export default function ReportsPage() {
       if (termFilter !== 'all') params.append('term', termFilter);
       if (branchFilter !== 'all') params.append('branch', branchFilter);
       if (sectionFilter !== 'all') params.append('section', sectionFilter);
+      if (feedbackTypeFilter !== 'all') params.append('feedbackType', feedbackTypeFilter);
       
       const response = await api.get(`/api/subjects?${params.toString()}`);
       setSubjects(response.data);
@@ -221,7 +231,7 @@ export default function ReportsPage() {
       setSelectedSubjects(prev => prev.filter(id => filteredSubjectIds.includes(id)));
       
       console.log(`📚 Loaded ${response.data.length} subjects with filters:`, {
-        year: yearFilter, term: termFilter, branch: branchFilter, section: sectionFilter
+        year: yearFilter, term: termFilter, branch: branchFilter, section: sectionFilter, feedbackType: feedbackTypeFilter
       });
     } catch (err: any) {
       console.error('Failed to fetch subjects:', err);
@@ -236,6 +246,7 @@ export default function ReportsPage() {
       if (termFilter !== 'all') params.append('term', termFilter);
       if (branchFilter !== 'all') params.append('branch', branchFilter);
       if (sectionFilter !== 'all') params.append('section', sectionFilter);
+      if (feedbackTypeFilter !== 'all') params.append('feedbackType', feedbackTypeFilter);
       
       const response = await api.get(`/api/feedback/section-stats?${params.toString()}`);
       setSectionStats(response.data || []);
@@ -252,6 +263,7 @@ export default function ReportsPage() {
       if (termFilter !== 'all') params.append('term', termFilter);
       if (branchFilter !== 'all') params.append('branch', branchFilter);
       if (sectionFilter !== 'all') params.append('section', sectionFilter);
+      if (feedbackTypeFilter !== 'all') params.append('feedbackType', feedbackTypeFilter);
       
       const response = await api.get(`/api/feedback/stats?${params.toString()}`);
       
@@ -288,6 +300,7 @@ export default function ReportsPage() {
       if (termFilter !== 'all') params.append('term', termFilter);
       if (branchFilter !== 'all') params.append('branch', branchFilter);
       if (sectionFilter !== 'all') params.append('section', sectionFilter);
+      if (feedbackTypeFilter !== 'all') params.append('feedbackType', feedbackTypeFilter);
       
       const response = await api.get(`/api/feedback/cumulative?${params.toString()}`);
       setCumulativeData(response.data || []);
@@ -304,6 +317,7 @@ export default function ReportsPage() {
       if (termFilter !== 'all') params.append('term', termFilter);
       if (branchFilter !== 'all') params.append('branch', branchFilter);
       if (sectionFilter !== 'all') params.append('section', sectionFilter);
+      if (feedbackTypeFilter !== 'all') params.append('feedbackType', feedbackTypeFilter);
       
       const response = await api.get(`/api/feedback/cumulative-questions?${params.toString()}`);
       setQuestionAnalysisData(response.data || []);
@@ -350,7 +364,11 @@ export default function ReportsPage() {
   const fetchFeedbackSummary = async (subjectId: string) => {
     setLoading(true);
     try {
-      const response = await api.get(`/api/feedback/summary/${subjectId}`);
+      const params = new URLSearchParams();
+      if (feedbackTypeFilter !== 'all') params.append('feedbackType', feedbackTypeFilter);
+      
+      const url = `/api/feedback/summary/${subjectId}${params.toString() ? `?${params.toString()}` : ''}`;
+      const response = await api.get(url);
       setFeedbackSummary(response.data);
       
       if (response.data && response.data.feedbackCount > 0) {
@@ -529,6 +547,28 @@ export default function ReportsPage() {
 
   const barChartOptions = {
     responsive: true,
+    plugins: {
+      title: {
+        display: true,
+        text: selectedSubject ? `${subjects.find(s => s._id === selectedSubject)?.name} (${subjects.find(s => s._id === selectedSubject)?.code})${subjects.find(s => s._id === selectedSubject)?.section ? ` - Section ${subjects.find(s => s._id === selectedSubject)?.section}` : ''} - ${subjects.find(s => s._id === selectedSubject)?.instructor}` : 'Subject Performance',
+        font: {
+          size: 14,
+          weight: 'bold' as const,
+        }
+      },
+      datalabels: {
+        anchor: 'end' as const,
+        align: 'top' as const,
+        color: '#374151',
+        font: {
+          weight: 'bold' as const,
+          size: 12
+        },
+        formatter: function(value: number) {
+          return value.toFixed(1);
+        }
+      }
+    },
     scales: {
       y: {
         beginAtZero: true,
@@ -555,7 +595,10 @@ export default function ReportsPage() {
     const sortedData = [...cumulativeData].sort((a, b) => b.averageRating - a.averageRating);
     
     return {
-      labels: sortedData.map(item => `${item.subjectName} (${item.subjectCode})`),
+      labels: sortedData.map(item => {
+        const sectionInfo = item.section ? ` - Section ${item.section}` : '';
+        return `${item.subjectName} (${item.subjectCode})${sectionInfo}\nInstructor: ${item.instructor}`;
+      }),
       datasets: [
         {
           label: 'Average Rating',
@@ -635,7 +678,7 @@ export default function ReportsPage() {
       },
       title: {
         display: true,
-        text: 'Subject Performance Overview',
+        text: `Subject Performance Overview${sectionFilter !== 'all' ? ` - Section ${sectionFilter}` : ' - All Sections'}${feedbackTypeFilter !== 'all' ? ` (${feedbackTypes.find(type => type.value === feedbackTypeFilter)?.label})` : ''}`,
         font: {
           size: 16,
           weight: 'bold' as const,
@@ -643,19 +686,36 @@ export default function ReportsPage() {
       },
       tooltip: {
         callbacks: {
+          title: function(context: any) {
+            const dataIndex = context[0].dataIndex;
+            const subject = [...cumulativeData].sort((a, b) => b.averageRating - a.averageRating)[dataIndex];
+            return subject ? `${subject.subjectName} (${subject.subjectCode})` : '';
+          },
           label: function(context: any) {
             const dataIndex = context.dataIndex;
             const subject = [...cumulativeData].sort((a, b) => b.averageRating - a.averageRating)[dataIndex];
             if (subject) {
               return [
-                `${subject.subjectName} (${subject.subjectCode})`,
                 `Rating: ${subject.averageRating.toFixed(2)}/5.0`,
+                `Instructor: ${subject.instructor}`,
                 `Responses: ${subject.feedbackCount}`,
-                `Instructor: ${subject.instructor}`
+                `Section: ${subject.section || 'General'}`
               ];
             }
             return context.formattedValue;
           }
+        }
+      },
+      datalabels: {
+        anchor: 'end' as const,
+        align: 'top' as const,
+        color: '#374151',
+        font: {
+          weight: 'bold' as const,
+          size: 12
+        },
+        formatter: function(value: number) {
+          return value.toFixed(1);
         }
       }
     },
@@ -673,7 +733,14 @@ export default function ReportsPage() {
           maxRotation: 45,
           minRotation: 45,
           font: {
-            size: 10
+            size: 9
+          },
+          callback: function(value: any, index: number) {
+            const subject = [...cumulativeData].sort((a, b) => b.averageRating - a.averageRating)[index];
+            if (subject) {
+              return [`${subject.subjectName}`, `(${subject.subjectCode})`, `${subject.instructor}`];
+            }
+            return value;
           }
         }
       }
@@ -684,11 +751,15 @@ export default function ReportsPage() {
   const getQuestionComparisonChartData = () => {
     if (!questionAnalysisData.length) return null;
 
-    // Get all unique subjects across all questions
+    // Get all unique subjects across all questions with instructor info
     const allSubjects = new Set<string>();
+    const subjectInstructorMap = new Map<string, string>();
+    
     questionAnalysisData.forEach(question => {
       question.subjectBreakdown.forEach(subject => {
-        allSubjects.add(`${subject.subjectName} (${subject.subjectCode})`);
+        const subjectKey = `${subject.subjectName} (${subject.subjectCode})`;
+        allSubjects.add(subjectKey);
+        subjectInstructorMap.set(subjectKey, subject.instructor);
       });
     });
 
@@ -699,8 +770,9 @@ export default function ReportsPage() {
       q.question.length > 30 ? q.question.substring(0, 30) + '...' : q.question
     );
 
-    // Create datasets for each subject
+    // Create datasets for each subject with instructor names
     const datasets = uniqueSubjects.map((subjectLabel, index) => {
+      const instructor = subjectInstructorMap.get(subjectLabel) || '';
       const data = questionAnalysisData.map(question => {
         const subjectData = question.subjectBreakdown.find(s => 
           `${s.subjectName} (${s.subjectCode})` === subjectLabel
@@ -709,7 +781,7 @@ export default function ReportsPage() {
       });
 
       return {
-        label: subjectLabel,
+        label: `${subjectLabel} - ${instructor}`,
         data,
         backgroundColor: subjectColors[index % subjectColors.length],
         borderColor: subjectBorderColors[index % subjectBorderColors.length],
@@ -740,7 +812,7 @@ export default function ReportsPage() {
       },
       title: {
         display: true,
-        text: 'Subject-wise Question Performance Comparison',
+        text: `Subject-wise Question Performance Comparison${sectionFilter !== 'all' ? ` - Section ${sectionFilter}` : ' - All Sections'}${feedbackTypeFilter !== 'all' ? ` (${feedbackTypes.find(type => type.value === feedbackTypeFilter)?.label})` : ''}`,
         font: {
           size: 16,
           weight: 'bold' as const,
@@ -769,6 +841,18 @@ export default function ReportsPage() {
             }
             return [];
           }
+        }
+      },
+      datalabels: {
+        anchor: 'end' as const,
+        align: 'top' as const,
+        color: '#374151',
+        font: {
+          weight: 'bold' as const,
+          size: 10
+        },
+        formatter: function(value: number) {
+          return value ? value.toFixed(1) : '';
         }
       }
     },
@@ -844,14 +928,14 @@ export default function ReportsPage() {
 
     const categories = Array.from(allCategories);
     
-    // Create datasets for each subject
+    // Create datasets for each subject with instructor names
     const datasets = comparisonData.map((subject, index) => {
       const data = categories.map(category => {
         return subject.categories?.[category]?.average || 0;
       });
 
       return {
-        label: `${subject.subjectName} (${subject.subjectCode})`,
+        label: `${subject.subjectName} (${subject.subjectCode}) - ${subject.instructor}`,
         data,
         backgroundColor: subjectColors[index % subjectColors.length],
         borderColor: subjectBorderColors[index % subjectBorderColors.length],
@@ -875,13 +959,13 @@ export default function ReportsPage() {
         labels: {
           boxWidth: 12,
           font: {
-            size: 11
+            size: 10
           }
         }
       },
       title: {
         display: true,
-        text: 'Subject Performance Comparison by Category',
+        text: `Subject Performance Comparison by Category${sectionFilter !== 'all' ? ` - Section ${sectionFilter}` : ' - All Sections'} (with Instructors)`,
         font: {
           size: 16,
           weight: 'bold' as const,
@@ -889,9 +973,26 @@ export default function ReportsPage() {
       },
       tooltip: {
         callbacks: {
+          title: function(context: any) {
+            return `Category: ${context[0].label}`;
+          },
           label: function(context: any) {
-            return `${context.dataset.label}: ${context.parsed.y.toFixed(2)}/5.0`;
+            const dataset = context.dataset;
+            const value = context.parsed.y;
+            return `${dataset.label}: ${value.toFixed(2)}/5.0`;
           }
+        }
+      },
+      datalabels: {
+        anchor: 'end' as const,
+        align: 'top' as const,
+        color: '#374151',
+        font: {
+          weight: 'bold' as const,
+          size: 10
+        },
+        formatter: function(value: number) {
+          return value.toFixed(1);
         }
       }
     },
@@ -1139,6 +1240,23 @@ export default function ReportsPage() {
           </div>
           
           <div>
+            <label htmlFor="feedbackType" className="block text-sm font-medium text-gray-700 mb-1">
+              Filter by Feedback Type
+            </label>
+            <select
+              id="feedbackType"
+              name="feedbackType"
+              className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-3 pr-10 py-2 sm:text-sm border-gray-300 rounded-md"
+              value={feedbackTypeFilter}
+              onChange={(e) => setFeedbackTypeFilter(e.target.value)}
+            >
+              {feedbackTypes.map(type => (
+                <option key={type.value} value={type.value}>{type.label}</option>
+              ))}
+            </select>
+          </div>
+          
+          <div>
             <label htmlFor="subject" className="block text-sm font-medium text-gray-700 mb-1">
               Select Subject for Detailed Report
             </label>
@@ -1162,7 +1280,7 @@ export default function ReportsPage() {
         {/* Filter Actions and Active Filters */}
         <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-2">
-            {(yearFilter !== 'all' || termFilter !== 'all' || branchFilter !== 'all' || sectionFilter !== 'all') && (
+            {(yearFilter !== 'all' || termFilter !== 'all' || branchFilter !== 'all' || sectionFilter !== 'all' || feedbackTypeFilter !== 'all') && (
               <>
                 <span className="text-sm font-medium text-gray-600">Active Filters:</span>
                 {yearFilter !== 'all' && (
@@ -1209,17 +1327,29 @@ export default function ReportsPage() {
                     </button>
                   </span>
                 )}
+                {feedbackTypeFilter !== 'all' && (
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                    {feedbackTypes.find(type => type.value === feedbackTypeFilter)?.label}
+                    <button
+                      onClick={() => setFeedbackTypeFilter('all')}
+                      className="ml-1 inline-flex items-center justify-center w-4 h-4 rounded-full hover:bg-purple-200"
+                    >
+                      ×
+                    </button>
+                  </span>
+                )}
               </>
             )}
           </div>
           
-          {(yearFilter !== 'all' || termFilter !== 'all' || branchFilter !== 'all' || sectionFilter !== 'all') && (
+          {(yearFilter !== 'all' || termFilter !== 'all' || branchFilter !== 'all' || sectionFilter !== 'all' || feedbackTypeFilter !== 'all') && (
             <button
               onClick={() => {
                 setYearFilter('all');
                 setTermFilter('all');
                 setBranchFilter('all');
                 setSectionFilter('all');
+                setFeedbackTypeFilter('all');
               }}
               className="px-4 py-2 text-sm font-medium text-red-600 hover:text-red-700 border border-red-300 hover:border-red-400 rounded-md transition-colors"
             >
@@ -1982,7 +2112,7 @@ export default function ReportsPage() {
                     const allSubjects = new Set<string>();
                     questionAnalysisData.forEach(question => {
                       question.subjectBreakdown.forEach(subject => {
-                        allSubjects.add(`${subject.subjectName} (${subject.subjectCode})`);
+                        allSubjects.add(`${subject.instructor} (${subject.subjectCode})`);
                       });
                     });
                     return Array.from(allSubjects).map((subjectLabel, index) => (
@@ -2304,8 +2434,8 @@ export default function ReportsPage() {
           <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl shadow-lg text-white p-6">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-2xl font-bold mb-2">Subject Performance Overview</h2>
-                <p className="text-blue-100">Comprehensive analysis of all subjects with ratings like Python 3.5, Fundamentals 4.0, etc.</p>
+                <h2 className="text-2xl font-bold mb-2">Subject Performance Overview{sectionFilter !== 'all' ? ` - Section ${sectionFilter}` : ' - All Sections'}</h2>
+                <p className="text-blue-100">Comprehensive analysis of all subjects with ratings like Python 3.5, Fundamentals 4.0, etc.{sectionFilter !== 'all' ? ` (Section ${sectionFilter} only)` : ''}</p>
               </div>
               <div className="bg-white bg-opacity-20 rounded-lg p-4 text-center">
                 <div className="text-2xl font-bold">{cumulativeData.length}</div>
@@ -2387,8 +2517,8 @@ export default function ReportsPage() {
             <div className="bg-white rounded-xl shadow-lg p-6">
               <div className="flex items-center justify-between mb-6">
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900">Subject Ratings Comparison</h3>
-                  <p className="text-sm text-gray-600">All subjects ranked by average rating</p>
+                  <h3 className="text-lg font-semibold text-gray-900">Subject Ratings Comparison{sectionFilter !== 'all' ? ` - Section ${sectionFilter}` : ' - All Sections'}</h3>
+                  <p className="text-sm text-gray-600">All subjects ranked by average rating{sectionFilter !== 'all' ? ` (Section ${sectionFilter})` : ' (All sections)'}</p>
                 </div>
                 <button
                   onClick={() => downloadChartAsPNG(barChartRef, 'cumulative-subject-ratings')}
@@ -2415,8 +2545,8 @@ export default function ReportsPage() {
             <div className="bg-white rounded-xl shadow-lg p-6">
               <div className="flex items-center justify-between mb-6">
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900">Performance Distribution</h3>
-                  <p className="text-sm text-gray-600">Subjects grouped by rating ranges</p>
+                  <h3 className="text-lg font-semibold text-gray-900">Performance Distribution{sectionFilter !== 'all' ? ` - Section ${sectionFilter}` : ' - All Sections'}</h3>
+                  <p className="text-sm text-gray-600">Subjects grouped by rating ranges{sectionFilter !== 'all' ? ` (Section ${sectionFilter})` : ' (All sections)'}</p>
                 </div>
                 <button
                   onClick={() => downloadChartAsPNG(pieChartRef, 'performance-distribution')}
@@ -2430,7 +2560,35 @@ export default function ReportsPage() {
               </div>
               <div ref={pieChartRef} className="h-96">
                 {getCumulativePieChartData() ? (
-                  <Pie data={getCumulativePieChartData()!} options={{ maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }} />
+                  <Pie data={getCumulativePieChartData()!} options={{ 
+                    maintainAspectRatio: false, 
+                    plugins: { 
+                      legend: { 
+                        position: 'bottom' 
+                      },
+                      title: {
+                        display: true,
+                        text: `Performance Distribution${sectionFilter !== 'all' ? ` - Section ${sectionFilter}` : ' - All Sections'} - All Subjects & Instructors`,
+                        font: {
+                          size: 14,
+                          weight: 'bold' as const,
+                        }
+                      },
+                      datalabels: {
+                        color: '#ffffff',
+                        font: {
+                          weight: 'bold' as const,
+                          size: 14
+                        },
+                        formatter: function(value: number, context: any) {
+                          const dataset = context.chart.data.datasets[0];
+                          const total = dataset.data.reduce((sum: number, val: number) => sum + val, 0);
+                          const percentage = ((value / total) * 100).toFixed(1);
+                          return value > 0 ? `${value}\n(${percentage}%)` : '';
+                        }
+                      }
+                    } 
+                  }} />
                 ) : (
                   <div className="flex items-center justify-center h-full text-gray-500">
                     No data available
@@ -2443,8 +2601,8 @@ export default function ReportsPage() {
           {/* Detailed Subject List */}
           <div className="bg-white rounded-xl shadow-lg overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">Detailed Subject Performance</h3>
-              <p className="text-sm text-gray-600">Complete list of subjects with ratings and feedback counts</p>
+              <h3 className="text-lg font-semibold text-gray-900">Detailed Subject Performance{sectionFilter !== 'all' ? ` - Section ${sectionFilter}` : ' - All Sections'}</h3>
+              <p className="text-sm text-gray-600">Complete list of subjects with ratings and feedback counts{sectionFilter !== 'all' ? ` (Section ${sectionFilter})` : ' (All sections)'}</p>
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
@@ -2557,7 +2715,7 @@ export default function ReportsPage() {
             <div className="px-6 py-5 border-b border-gray-200">
               <div className="flex justify-between items-center">
                 <h2 className="text-xl font-semibold text-gray-800">
-                  {feedbackSummary.subjectName} ({feedbackSummary.subjectCode})
+                  {feedbackSummary.subjectName} ({feedbackSummary.subjectCode}){feedbackSummary.section ? ` - Section ${feedbackSummary.section}` : ''}
                 </h2>
                 <button
                   onClick={handleExportCSV}
@@ -2571,10 +2729,14 @@ export default function ReportsPage() {
               </div>
             </div>
             <div className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="bg-gray-50 rounded p-4 text-center">
                   <p className="text-sm text-gray-500">Instructor</p>
                   <p className="text-lg font-medium text-gray-800">{feedbackSummary.instructor}</p>
+                </div>
+                <div className="bg-gray-50 rounded p-4 text-center">
+                  <p className="text-sm text-gray-500">Section</p>
+                  <p className="text-lg font-medium text-gray-800">{feedbackSummary.section || 'General'}</p>
                 </div>
                 <div className="bg-gray-50 rounded p-4 text-center">
                   <p className="text-sm text-gray-500">Total Feedback</p>
@@ -2592,42 +2754,81 @@ export default function ReportsPage() {
           </div>
 
           {/* Charts */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Category Chart - Bar */}
+          <div className="grid grid-cols-1 gap-6">
+            {/* Question-wise Chart - Bar */}
             <div className="bg-white shadow rounded-lg p-6">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-medium text-gray-800">Category Ratings - Bar Chart</h3>
+                <div>
+                  <h3 className="text-lg font-medium text-gray-800">Question-wise Performance Analysis</h3>
+                  <p className="text-sm text-gray-600 mt-1">Individual ratings for each feedback question</p>
+                </div>
                 <button
-                  onClick={() => downloadChartAsPNG(barChartRef, 'category-ratings-bar')}
+                  onClick={() => downloadChartAsPNG(barChartRef, 'question-wise-ratings')}
                   className="flex items-center px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
-                  PNG
+                  Download PNG
                 </button>
               </div>
-              <div ref={barChartRef}>
-                <FeedbackReportChart feedbackSummary={feedbackSummary} chartType="bar" />
+              
+              {/* Category Color Legend */}
+              <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                <h4 className="text-sm font-medium text-gray-700 mb-2">Category Color Guide:</h4>
+                <div className="flex flex-wrap gap-4 text-xs">
+                  {Object.entries(feedbackSummary.categories).map(([category], index) => {
+                    const colors = [
+                      { bg: 'bg-blue-500', name: 'Teaching Quality' },
+                      { bg: 'bg-green-500', name: 'Course Content' },
+                      { bg: 'bg-yellow-500', name: 'Communication' },
+                      { bg: 'bg-red-500', name: 'Assessment' },
+                      { bg: 'bg-purple-500', name: 'Overall' },
+                      { bg: 'bg-pink-500', name: 'Engagement' },
+                    ];
+                    const colorClass = colors.find(c => c.name === category)?.bg || `bg-gray-500`;
+                    return (
+                      <div key={category} className="flex items-center">
+                        <div className={`w-3 h-3 rounded-full ${colorClass} mr-2`}></div>
+                        <span className="text-gray-700">{category}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              
+              <div ref={barChartRef} className="h-[500px]">
+                <FeedbackReportChart 
+                  feedbackSummary={feedbackSummary} 
+                  chartType="bar" 
+                  showQuestionWise={true} 
+                />
               </div>
             </div>
             
-            {/* Category Chart - Pie */}
+            {/* Category Summary Chart - Pie */}
             <div className="bg-white shadow rounded-lg p-6">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-medium text-gray-800">Category Ratings - Pie Chart</h3>
+                <div>
+                  <h3 className="text-lg font-medium text-gray-800">Category Summary - Overview</h3>
+                  <p className="text-sm text-gray-600 mt-1">Overall performance by category</p>
+                </div>
                 <button
-                  onClick={() => downloadChartAsPNG(pieChartRef, 'category-ratings-pie')}
+                  onClick={() => downloadChartAsPNG(pieChartRef, 'category-summary-pie')}
                   className="flex items-center px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
-                  PNG
+                  Download PNG
                 </button>
               </div>
-              <div ref={pieChartRef}>
-                <FeedbackReportChart feedbackSummary={feedbackSummary} chartType="pie" />
+              <div ref={pieChartRef} className="h-80">
+                <FeedbackReportChart 
+                  feedbackSummary={feedbackSummary} 
+                  chartType="pie" 
+                  showQuestionWise={false} 
+                />
               </div>
             </div>
           </div>
