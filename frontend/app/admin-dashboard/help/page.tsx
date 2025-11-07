@@ -137,15 +137,6 @@ export default function HelpPage() {
                       <li>• Student feedback summaries</li>
                     </ul>
                   </div>
-                  <div>
-                    <h3 className="font-medium mb-2 text-red-700">Dean</h3>
-                    <ul className="text-sm text-gray-600 space-y-1">
-                      <li>• Institution-wide analytics</li>
-                      <li>• Cross-department reports</li>
-                      <li>• Performance comparisons</li>
-                      <li>• Strategic insights</li>
-                    </ul>
-                  </div>
                 </div>
               </div>
 

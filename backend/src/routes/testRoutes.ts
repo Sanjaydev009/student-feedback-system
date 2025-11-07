@@ -97,7 +97,6 @@ router.post('/password-email', async (req, res) => {
     const defaultPassword = role === 'student' ? 'student@123' : 
                            role === 'faculty' ? 'faculty@123' : 
                            role === 'hod' ? 'hod@123' : 
-                           role === 'dean' ? 'dean@123' : 
                            'default@123';
     
     // Send the password email

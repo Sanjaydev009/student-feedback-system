@@ -18,13 +18,12 @@ if (process.env.NODE_ENV !== 'production') {
   router.get('/setup-test-accounts', async (req, res) => {
     try {
       // First, remove any existing test accounts to start fresh
-      await User.deleteMany({ email: { $in: ['admin@test.com', 'student@test.com', 'hod@test.com', 'dean@test.com'] } });
+      await User.deleteMany({ email: { $in: ['admin@test.com', 'student@test.com', 'hod@test.com'] } });
       
       // Create the accounts normally (let mongoose middleware handle hashing)
       const adminPassword = 'admin123';
       const studentPassword = 'student123';
       const hodPassword = 'hod123';
-      const deanPassword = 'dean123';
       
       const admin = await User.create({
         name: 'Test Admin',
@@ -53,13 +52,7 @@ if (process.env.NODE_ENV !== 'production') {
         passwordResetRequired: false
       });
 
-      const dean = await User.create({
-        name: 'Test DEAN',
-        email: 'dean@test.com',
-        password: deanPassword, // Mongoose will hash this
-        role: 'dean',
-        passwordResetRequired: false
-      });
+
       
       const results = {
         admin: { 
@@ -76,11 +69,6 @@ if (process.env.NODE_ENV !== 'production') {
           email: 'hod@test.com', 
           password: hodPassword,
           role: 'hod'
-        },
-        dean: { 
-          email: 'dean@test.com', 
-          password: deanPassword,
-          role: 'dean'
         }
       };
       

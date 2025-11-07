@@ -69,7 +69,7 @@ const SystemSettingsSchema = new Schema<ISystemSettings>({
   }
 });
 
-// User-specific settings (for HODs and DEANs)
+// User-specific settings (for HODs)
 const UserSettingsSchema = new Schema<IUserSettings>({
   userId: {
     type: Schema.Types.ObjectId,

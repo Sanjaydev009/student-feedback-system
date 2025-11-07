@@ -103,8 +103,8 @@ export const updateSystemSettings = async (req: AuthRequest, res: Response): Pro
 // GET /api/settings/user
 export const getUserSettings = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    // Ensure user is a valid role (dean or hod)
-    if (!req.user || !['dean', 'hod'].includes(req.user.role)) {
+    // Ensure user is a valid role (hod)
+    if (!req.user || !['hod'].includes(req.user.role)) {
       res.status(403).json({ message: 'Access denied. Invalid user role.' });
       return;
     }
@@ -151,8 +151,8 @@ export const getUserSettings = async (req: AuthRequest, res: Response): Promise<
 // PUT /api/settings/user
 export const updateUserSettings = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    // Ensure user is a valid role (dean or hod)
-    if (!req.user || !['dean', 'hod'].includes(req.user.role)) {
+    // Ensure user is a valid role (hod)
+    if (!req.user || !['hod'].includes(req.user.role)) {
       res.status(403).json({ message: 'Access denied. Invalid user role.' });
       return;
     }

@@ -8,7 +8,7 @@ const router = express.Router();
 router.get('/system', protect, getSystemSettings);
 router.put('/system', protect, updateSystemSettings);
 
-// User settings (for DEANs and HODs)
+// User settings (for HODs)
 router.get('/user', protect, getUserSettings);
 router.put('/user', protect, updateUserSettings);
 

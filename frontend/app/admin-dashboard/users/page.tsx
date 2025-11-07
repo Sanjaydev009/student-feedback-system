@@ -10,7 +10,7 @@ interface UserFormData {
   _id?: string;
   name: string;
   email: string;
-  role: 'student' | 'faculty' | 'hod' | 'dean' | 'admin';
+  role: 'student' | 'faculty' | 'hod' | 'admin';
   rollNumber?: string;
   department?: string;
   branch?: string;
@@ -168,7 +168,6 @@ export default function UserManagement() {
   const getRoleBadgeColor = (role: string) => {
     switch (role) {
       case 'admin': return 'bg-red-100 text-red-800 border-red-200';
-      case 'dean': return 'bg-purple-100 text-purple-800 border-purple-200';
       case 'hod': return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'faculty': return 'bg-green-100 text-green-800 border-green-200';
       case 'student': return 'bg-gray-100 text-gray-800 border-gray-200';
@@ -236,7 +235,6 @@ export default function UserManagement() {
             <option value="student">Students</option>
             <option value="faculty">Faculty</option>
             <option value="hod">HOD</option>
-            <option value="dean">Dean</option>
             <option value="admin">Admin</option>
           </select>
           <select
@@ -319,7 +317,7 @@ export default function UserManagement() {
       <div className="space-y-4">
         {/* Role Statistics */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          {['all', 'student', 'faculty', 'hod', 'dean', 'admin'].map((role) => {
+          {['all', 'student', 'faculty', 'hod', 'admin'].map((role) => {
             const count = role === 'all' ? users.length : users.filter(u => u.role === role).length;
             return (
               <div key={role} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">

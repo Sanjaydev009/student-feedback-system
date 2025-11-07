@@ -1,46 +1,3 @@
-// import { model, Schema } from 'mongoose';
-// import bcrypt from 'bcryptjs';
-
-// const UserSchema = new Schema({
-//   name: {
-//     type: String,
-//     required: true
-//   },
-//   email: {
-//     type: String,
-//     unique: true,
-//     required: true
-//   },
-//   rollNumber: String,
-//   password: {
-//     type: String,
-//     required: true
-//   },
-//   role: {
-//     type: String,
-//     enum: ['student', 'faculty', 'hod', 'dean', 'admin'],
-//     default: 'student'
-//   },
-//   branch: {
-//     type: String,
-//     enum: ['MCA Regular', 'MCA DS']
-//   },
-//   passwordResetRequired: {
-//     type: Boolean,
-//     default: true // Default to true for new users
-//   }
-// });
-
-// // Hash password before saving
-// UserSchema.pre('save', async function (next) {
-//   if (!this.isModified('password')) return next();
-//   const salt = await bcrypt.genSalt(10);
-//   this.password = await bcrypt.hash(this.password, salt);
-//   next();
-// });
-
-// export default model('User', UserSchema);
-
 import { model, Schema } from 'mongoose';
 import bcrypt from 'bcryptjs';
 
@@ -62,7 +19,7 @@ const UserSchema = new Schema({
   },
   role: {
     type: String,
-    enum: ['student', 'faculty', 'hod', 'dean', 'admin'],
+    enum: ['student', 'hod', 'admin'],
     default: 'student'
   },
   department: {

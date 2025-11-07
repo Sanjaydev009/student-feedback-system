@@ -16,8 +16,6 @@ const getDefaultPassword = (role: string): string => {
       return 'hod@123';
     case 'admin':
       return 'admin@123';
-    case 'dean':
-      return 'dean@123';
     default:
       return 'default@123';
   }

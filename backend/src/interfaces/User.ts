@@ -5,7 +5,7 @@ export interface IUser extends Document {
   rollNumber?: string; // only for students
   email: string;
   password: string;
-  role: 'student' | 'faculty' | 'hod' | 'dean' | 'admin';
+  role: 'student' | 'faculty' | 'hod' | 'admin';
   department?: string;
   branch?: string;
   year?: number; // for students

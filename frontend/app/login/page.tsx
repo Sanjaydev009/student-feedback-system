@@ -104,8 +104,6 @@ export default function LoginPage() {
         router.push('/subjects');
       } else if (decoded.role === 'hod') {
         router.push('/hod-dashboard');
-      } else if (decoded.role === 'dean') {
-        router.push('/dean-dashboard');
       } else {
         router.push('/');
       }

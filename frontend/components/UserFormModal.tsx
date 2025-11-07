@@ -7,7 +7,7 @@ interface UserFormData {
   _id?: string;
   name: string;
   email: string;
-  role: 'student' | 'faculty' | 'hod' | 'dean' | 'admin';
+  role: 'student' | 'faculty' | 'hod' | 'admin';
   rollNumber?: string;
   department?: string;
   branch?: string;
@@ -389,7 +389,6 @@ export default function UserFormModal({ user, isOpen, onClose, onSubmit, isLoadi
                 <option value="student">Student</option>
                 <option value="faculty">Faculty</option>
                 <option value="hod">HOD</option>
-                <option value="dean">Dean</option>
                 <option value="admin">Admin</option>
               </select>
             </div>

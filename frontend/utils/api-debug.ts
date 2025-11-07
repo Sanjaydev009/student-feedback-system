@@ -8,15 +8,6 @@ const api = axios.create({
 // Add request interceptor to add auth token
 api.interceptors.request.use(
   (config) => {
-    // Add detailed logging for dean routes
-    if (config.url?.includes('/api/dean')) {
-      console.log('Dean API Request:', {
-        url: config.url,
-        method: config.method,
-        headers: config.headers
-      });
-    }
-    
     // Get token from localStorage
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     
@@ -36,14 +27,6 @@ api.interceptors.request.use(
 // Add response interceptor for better error logging
 api.interceptors.response.use(
   (response) => {
-    // Add detailed logging for dean routes
-    if (response.config.url?.includes('/api/dean')) {
-      console.log('Dean API Response:', {
-        url: response.config.url,
-        status: response.status,
-        data: response.data
-      });
-    }
     return response;
   },
   (error) => {

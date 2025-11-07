@@ -6,7 +6,7 @@ A comprehensive real-time feedback collection and analysis system designed for c
 
 ### 🎯 **Core Functionality**
 
-- **Multi-role Authentication** (Students, Faculty, HOD, Dean, Admin)
+- **Multi-role Authentication** (Students, Faculty, HOD, Admin)
 - **Real-time Feedback Collection** with dynamic forms
 - **Advanced Analytics & Reporting** with interactive charts
 - **Bulk Data Management** (CSV upload/download)
@@ -172,7 +172,6 @@ Password: student123
 - **Students**: Submit feedback, view personal submissions
 - **Faculty**: View subject-specific feedback and reports
 - **HOD**: Department-wide analytics and management
-- **Dean**: University-level reporting and insights
 - **Admin**: Complete system management and configuration
 
 ### **Data Collection**
@@ -322,7 +321,7 @@ GET  /api/admin/analytics     # System analytics
   name: String,
   email: String,
   password: String,
-  role: ['student', 'faculty', 'hod', 'dean', 'admin'],
+  role: ['student', 'faculty', 'hod', 'admin'],
   branch: String,
   year: Number,
   section: String

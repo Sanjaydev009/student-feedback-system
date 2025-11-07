@@ -85,9 +85,6 @@ export default function Home() {
       case 'admin':
         router.push('/admin-dashboard');
         break;
-      case 'dean':
-        router.push('/dean-dashboard');
-        break;
       case 'hod':
         router.push('/hod-dashboard');
         break;

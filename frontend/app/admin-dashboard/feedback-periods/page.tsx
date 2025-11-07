@@ -35,6 +35,8 @@ export default function FeedbackPeriodsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [editingPeriod, setEditingPeriod] = useState<FeedbackPeriod | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const router = useRouter();
 
@@ -166,6 +168,80 @@ export default function FeedbackPeriodsPage() {
     } catch (error: any) {
       console.error('Error creating feedback period:', error);
       setError(error.response?.data?.message || 'Failed to create feedback period');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const openEditForm = (period: FeedbackPeriod) => {
+    setEditingPeriod(period);
+    setFormData({
+      title: period.title,
+      description: period.description || '',
+      feedbackType: period.feedbackType,
+      academicYear: period.academicYear,
+      term: period.term,
+      startDate: formatDateForInput(new Date(period.startDate)),
+      endDate: formatDateForInput(new Date(period.endDate)),
+      allowedBranches: period.branches || [],
+      allowedYears: period.years || []
+    });
+    setShowEditForm(true);
+  };
+
+  const handleUpdatePeriod = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!editingPeriod) return;
+    
+    if (!formData.title || !formData.startDate || !formData.endDate) {
+      setError('Please fill in all required fields');
+      return;
+    }
+
+    if (new Date(formData.startDate) >= new Date(formData.endDate)) {
+      setError('End date must be after start date');
+      return;
+    }
+
+    if (formData.allowedBranches.length === 0 || formData.allowedYears.length === 0) {
+      setError('Please select at least one branch and year');
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      setError('');
+      const token = localStorage.getItem('token');
+
+      // Convert local datetime-local values to proper ISO strings
+      const startDate = new Date(formData.startDate);
+      const endDate = new Date(formData.endDate);
+      
+      const requestData = {
+        title: formData.title,
+        description: formData.description,
+        feedbackType: formData.feedbackType,
+        academicYear: formData.academicYear,
+        term: formData.term,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        branches: formData.allowedBranches,
+        years: formData.allowedYears
+      };
+
+      await api.put(`/api/feedback-periods/${editingPeriod._id}`, requestData, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      setShowEditForm(false);
+      setEditingPeriod(null);
+      setFormData(getInitialFormData());
+      
+      await fetchFeedbackPeriods();
+    } catch (error: any) {
+      console.error('Error updating feedback period:', error);
+      setError(error.response?.data?.message || 'Failed to update feedback period');
     } finally {
       setSubmitting(false);
     }
@@ -548,6 +624,246 @@ export default function FeedbackPeriodsPage() {
           </div>
         )}
 
+        {/* Edit Form Modal */}
+        {showEditForm && editingPeriod && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-6">
+                <div className="flex justify-between items-center mb-6">
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">Edit Feedback Period</h2>
+                    <p className="text-sm text-gray-600 mt-1">Extend deadline or modify period details</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowEditForm(false);
+                      setEditingPeriod(null);
+                      setFormData(getInitialFormData());
+                    }}
+                    className="text-gray-400 hover:text-gray-600 text-2xl"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <form onSubmit={handleUpdatePeriod} className="space-y-6">
+                  {/* Show warning for active periods */}
+                  {editingPeriod.status === 'active' && (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                      <div className="flex">
+                        <svg className="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
+                        <div className="ml-3">
+                          <p className="text-sm text-yellow-800">
+                            <strong>Active Period:</strong> You can extend the deadline but cannot change feedback type or term for active periods.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Basic Information */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Title *
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.title}
+                        onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="e.g., Mid-Term Feedback 2024"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Feedback Type *
+                      </label>
+                      <select
+                        value={formData.feedbackType}
+                        onChange={(e) => setFormData(prev => ({ ...prev, feedbackType: e.target.value as 'midterm' | 'endterm' }))}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        disabled={editingPeriod.status === 'active'}
+                      >
+                        <option value="midterm">Mid-Term</option>
+                        <option value="endterm">End-Term</option>
+                      </select>
+                      {editingPeriod.status === 'active' && (
+                        <p className="text-xs text-gray-500 mt-1">Cannot be changed for active periods</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Academic Year *
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.academicYear}
+                        onChange={(e) => setFormData(prev => ({ ...prev, academicYear: e.target.value }))}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="e.g., 2024-25"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Term *
+                      </label>
+                      <select
+                        value={formData.term}
+                        onChange={(e) => setFormData(prev => ({ ...prev, term: parseInt(e.target.value) }))}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        disabled={editingPeriod.status === 'active'}
+                      >
+                        <option value={1}>Term 1</option>
+                        <option value={2}>Term 2</option>
+                        <option value={3}>Term 3</option>
+                        <option value={4}>Term 4</option>
+                      </select>
+                      {editingPeriod.status === 'active' && (
+                        <p className="text-xs text-gray-500 mt-1">Cannot be changed for active periods</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Description
+                    </label>
+                    <textarea
+                      value={formData.description}
+                      onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      rows={3}
+                      placeholder="Brief description of this feedback period..."
+                    />
+                  </div>
+
+                  {/* Date Range - Highlight end date for extension */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Start Date & Time *
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={formData.startDate}
+                        onChange={(e) => setFormData(prev => ({ ...prev, startDate: e.target.value }))}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <span className="flex items-center">
+                          End Date & Time *
+                          <span className="ml-2 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
+                            Extend Here
+                          </span>
+                        </span>
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={formData.endDate}
+                        onChange={(e) => setFormData(prev => ({ ...prev, endDate: e.target.value }))}
+                        className="w-full p-3 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        required
+                      />
+                      <p className="text-xs text-blue-600 mt-1">
+                        💡 You can extend the deadline to give students more time
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Allowed Branches */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Allowed Branches *
+                    </label>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                      {branches.map(branch => (
+                        <label key={branch} className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            checked={formData.allowedBranches.includes(branch)}
+                            onChange={() => handleBranchChange(branch)}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="text-sm text-gray-700">{branch}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Allowed Years */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Allowed Years *
+                    </label>
+                    <div className="flex space-x-4">
+                      {years.map(year => (
+                        <label key={year} className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            checked={formData.allowedYears.includes(year)}
+                            onChange={() => handleYearChange(year)}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="text-sm text-gray-700">Year {year}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Submit Buttons */}
+                  <div className="flex justify-end space-x-3 pt-6 border-t">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowEditForm(false);
+                        setEditingPeriod(null);
+                        setFormData(getInitialFormData());
+                      }}
+                      className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={submitting}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center"
+                    >
+                      {submitting ? (
+                        <>
+                          <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Updating...
+                        </>
+                      ) : (
+                        <>
+                          <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                          Update Period
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Feedback Periods List */}
         <div className="bg-white rounded-lg shadow">
           {feedbackPeriods.length === 0 ? (
@@ -635,6 +951,15 @@ export default function FeedbackPeriodsPage() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex flex-wrap gap-1">
+                          {/* Edit Button */}
+                          <button
+                            onClick={() => openEditForm(period)}
+                            className="px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded-md hover:bg-indigo-200 font-medium transition-colors"
+                            title="Edit feedback period"
+                          >
+                            Edit
+                          </button>
+                          
                           {/* Toggle Active Status */}
                           {period.status !== 'completed' && period.status !== 'cancelled' && (
                             <button
