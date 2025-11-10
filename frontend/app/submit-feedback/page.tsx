@@ -209,13 +209,13 @@ export default function SubmitFeedbackPage() {
       });
 
       // Show success message
-      showSuccess('Midterm feedback submitted successfully!');
+      showSuccess(`${feedbackType.charAt(0).toUpperCase() + feedbackType.slice(1)} feedback submitted successfully!`);
       
       // Set submitted state to true to update UI
       setSubmitted(true);
       
-      // Redirect to student dashboard
-      setTimeout(() => router.push('/subjects'), 1500);
+      // Redirect to my feedback page to show the submitted feedback
+      setTimeout(() => router.push('/my-feedback'), 1500);
       
     } catch (err: any) {
       console.error('Failed to submit feedback:', err);
@@ -223,9 +223,9 @@ export default function SubmitFeedbackPage() {
       // Handle specific error cases
       if (err.response?.status === 409) {
         // Conflict - already submitted
-        showWarning('You have already submitted midterm feedback for this subject');
+        showWarning(`You have already submitted ${feedbackType} feedback for this subject`);
         setSubmitted(true);
-        setTimeout(() => router.push('/subjects'), 1500);
+        setTimeout(() => router.push('/my-feedback'), 1500);
       } else if (err.response?.data?.message) {
         showError(`Error: ${err.response.data.message}`);
       } else {
@@ -603,7 +603,7 @@ export default function SubmitFeedbackPage() {
                   {/* Submit Section */}
                   <div className="mt-6 sm:mt-8 p-4 sm:p-6 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
                     <div className="text-center mb-3 sm:mb-4">
-                      <h4 className="text-base sm:text-lg font-semibold text-gray-800 mb-2">🚀 Ready to Submit?</h4>
+                      <h4 className="text-base sm:text-lg font-semibold text-gray-800 mb-2">Ready to Submit?</h4>
                       <p className="text-xs sm:text-sm text-gray-600 px-2">
                         Please review your responses before submitting. Your feedback is valuable and will remain anonymous.
                       </p>
@@ -625,10 +625,10 @@ export default function SubmitFeedbackPage() {
                         </div>
                       ) : (
                         <div className="flex items-center justify-center">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6 mr-2 sm:mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          {/* <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6 mr-2 sm:mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                          </svg>
-                          <span>🎯 Submit Midterm Feedback</span>
+                          </svg> */}
+                          <span> Submit Midterm Feedback</span>
                         </div>
                       )}
                     </button>

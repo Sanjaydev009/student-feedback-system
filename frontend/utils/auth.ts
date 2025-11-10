@@ -9,6 +9,7 @@ interface DecodedToken {
   exp?: number;
   branch?: string;
   name?: string;
+  rollNumber?: string;
   defaultPasswordUsed?: boolean;
 }
 

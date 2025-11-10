@@ -15,10 +15,15 @@ interface Feedback {
     name: string;
     code: string;
     instructor: string;
+    year?: number;
+    term?: number;
   } | null;
   answers: Array<{
     question: string;
     answer: number;
+    type?: 'rating' | 'comment';
+    comment?: string;
+    category?: string;
   }>;
   averageRating: number;
   feedbackType: 'midterm' | 'endterm';
@@ -43,6 +48,7 @@ export default function MyFeedbackPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedSubject, setSelectedSubject] = useState<string | null>(null);
+  const [expandedSections, setExpandedSections] = useState<{ [key: string]: boolean }>({});
 
   // Load feedback data and active periods
   useEffect(() => {
@@ -98,10 +104,68 @@ export default function MyFeedbackPage() {
     fetchData();
   }, [router, selectedSubject]);
 
+  // Group feedback by year and term
+  const groupFeedbackByYearTerm = (feedbacks: Feedback[]) => {
+    const grouped: { [key: string]: Feedback[] } = {};
+    
+    feedbacks.forEach(feedback => {
+      if (feedback.subject?.year && feedback.subject?.term) {
+        const key = `Year ${feedback.subject.year} - Term ${feedback.subject.term}`;
+        if (!grouped[key]) {
+          grouped[key] = [];
+        }
+        grouped[key].push(feedback);
+      } else {
+        // Handle feedback without year/term info
+        const key = 'Other';
+        if (!grouped[key]) {
+          grouped[key] = [];
+        }
+        grouped[key].push(feedback);
+      }
+    });
+    
+    return grouped;
+  };
+
   // Group feedback by type
   const midtermFeedbacks = feedbacks.filter(f => f.feedbackType === 'midterm');
   const endtermFeedbacks = feedbacks.filter(f => f.feedbackType === 'endterm');
   const legacyFeedbacks = feedbacks.filter(f => !f.feedbackType);
+
+  // Group each type by year and term
+  const midtermGrouped = groupFeedbackByYearTerm(midtermFeedbacks);
+  const endtermGrouped = groupFeedbackByYearTerm(endtermFeedbacks);
+  const legacyGrouped = groupFeedbackByYearTerm(legacyFeedbacks);
+
+  // Toggle section expansion
+  const toggleSection = (sectionKey: string) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [sectionKey]: !prev[sectionKey]
+    }));
+  };
+
+  // Initialize expanded sections (expand first section of each type by default)
+  useEffect(() => {
+    const initialExpanded: { [key: string]: boolean } = {};
+    
+    // Expand first section of each type
+    if (Object.keys(midtermGrouped).length > 0) {
+      const firstMidterm = Object.keys(midtermGrouped).sort()[0];
+      initialExpanded[`midterm-${firstMidterm}`] = true;
+    }
+    if (Object.keys(endtermGrouped).length > 0) {
+      const firstEndterm = Object.keys(endtermGrouped).sort()[0];
+      initialExpanded[`endterm-${firstEndterm}`] = true;
+    }
+    if (Object.keys(legacyGrouped).length > 0) {
+      const firstLegacy = Object.keys(legacyGrouped).sort()[0];
+      initialExpanded[`legacy-${firstLegacy}`] = true;
+    }
+    
+    setExpandedSections(initialExpanded);
+  }, [feedbacks]);
 
   // Check if specific feedback types are currently available  
   const isMidtermActive = activePeriods.some(p => p.feedbackType === 'midterm' && p.isActive);
@@ -276,13 +340,67 @@ export default function MyFeedbackPage() {
             {/* Mid-Term Feedback */}
             {midtermFeedbacks.length > 0 && (
               <div>
-                <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
-                  <span className="w-4 h-4 bg-blue-500 rounded-full mr-2"></span>
+                <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                  <span className="w-5 h-5 bg-blue-500 rounded-full mr-3"></span>
                   Mid-Term Feedback Submissions ({midtermFeedbacks.length})
                 </h2>
-                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                  {midtermFeedbacks.map((feedback, index) => (
-                    <FeedbackCard key={`midterm-${index}`} feedback={feedback} />
+                <div className="space-y-6">
+                  {Object.entries(midtermGrouped)
+                    .sort(([a], [b]) => {
+                      // Sort by Year and Term (Year 1 Term 1, Year 1 Term 2, etc.)
+                      if (a === 'Other') return 1;
+                      if (b === 'Other') return -1;
+                      
+                      // Extract year and term numbers for proper sorting
+                      const parseYearTerm = (str: string) => {
+                        const match = str.match(/Year (\d+) - Term (\d+)/);
+                        if (match) {
+                          return { year: parseInt(match[1]), term: parseInt(match[2]) };
+                        }
+                        return { year: 999, term: 999 }; // Put non-matching items at the end
+                      };
+                      
+                      const aData = parseYearTerm(a);
+                      const bData = parseYearTerm(b);
+                      
+                      if (aData.year !== bData.year) {
+                        return aData.year - bData.year;
+                      }
+                      return aData.term - bData.term;
+                    })
+                    .map(([yearTerm, feedbackList]) => (
+                    <div key={`midterm-${yearTerm}`} className="bg-white rounded-lg shadow-sm border border-gray-200">
+                      <button
+                        onClick={() => toggleSection(`midterm-${yearTerm}`)}
+                        className="w-full p-6 text-left hover:bg-gray-50 transition-colors duration-200"
+                      >
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-lg font-semibold text-gray-700 flex items-center">
+                            <span className="text-blue-500 mr-2">📚</span>
+                            {yearTerm} ({feedbackList.length} {feedbackList.length === 1 ? 'subject' : 'subjects'})
+                          </h3>
+                          <svg
+                            className={`w-5 h-5 text-gray-500 transition-transform duration-200 ${
+                              expandedSections[`midterm-${yearTerm}`] ? 'rotate-180' : ''
+                            }`}
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
+                      </button>
+                      {expandedSections[`midterm-${yearTerm}`] && (
+                        <div className="px-6 pb-6">
+                          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                            {feedbackList.map((feedback, index) => (
+                              <FeedbackCard key={`midterm-${yearTerm}-${index}`} feedback={feedback} />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   ))}
                 </div>
               </div>
@@ -291,13 +409,67 @@ export default function MyFeedbackPage() {
             {/* End-Term Feedback */}
             {endtermFeedbacks.length > 0 && (
               <div>
-                <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
-                  <span className="w-4 h-4 bg-purple-500 rounded-full mr-2"></span>
+                <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                  <span className="w-5 h-5 bg-purple-500 rounded-full mr-3"></span>
                   End-Term Feedback Submissions ({endtermFeedbacks.length})
                 </h2>
-                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                  {endtermFeedbacks.map((feedback, index) => (
-                    <FeedbackCard key={`endterm-${index}`} feedback={feedback} />
+                <div className="space-y-6">
+                  {Object.entries(endtermGrouped)
+                    .sort(([a], [b]) => {
+                      // Sort by Year and Term (Year 1 Term 1, Year 1 Term 2, etc.)
+                      if (a === 'Other') return 1;
+                      if (b === 'Other') return -1;
+                      
+                      // Extract year and term numbers for proper sorting
+                      const parseYearTerm = (str: string) => {
+                        const match = str.match(/Year (\d+) - Term (\d+)/);
+                        if (match) {
+                          return { year: parseInt(match[1]), term: parseInt(match[2]) };
+                        }
+                        return { year: 999, term: 999 }; // Put non-matching items at the end
+                      };
+                      
+                      const aData = parseYearTerm(a);
+                      const bData = parseYearTerm(b);
+                      
+                      if (aData.year !== bData.year) {
+                        return aData.year - bData.year;
+                      }
+                      return aData.term - bData.term;
+                    })
+                    .map(([yearTerm, feedbackList]) => (
+                    <div key={`endterm-${yearTerm}`} className="bg-white rounded-lg shadow-sm border border-gray-200">
+                      <button
+                        onClick={() => toggleSection(`endterm-${yearTerm}`)}
+                        className="w-full p-6 text-left hover:bg-gray-50 transition-colors duration-200"
+                      >
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-lg font-semibold text-gray-700 flex items-center">
+                            <span className="text-purple-500 mr-2">📈</span>
+                            {yearTerm} ({feedbackList.length} {feedbackList.length === 1 ? 'subject' : 'subjects'})
+                          </h3>
+                          <svg
+                            className={`w-5 h-5 text-gray-500 transition-transform duration-200 ${
+                              expandedSections[`endterm-${yearTerm}`] ? 'rotate-180' : ''
+                            }`}
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
+                      </button>
+                      {expandedSections[`endterm-${yearTerm}`] && (
+                        <div className="px-6 pb-6">
+                          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                            {feedbackList.map((feedback, index) => (
+                              <FeedbackCard key={`endterm-${yearTerm}-${index}`} feedback={feedback} />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   ))}
                 </div>
               </div>
@@ -306,13 +478,67 @@ export default function MyFeedbackPage() {
             {/* Legacy Feedback (if any) */}
             {legacyFeedbacks.length > 0 && (
               <div>
-                <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
-                  <span className="w-4 h-4 bg-gray-500 rounded-full mr-2"></span>
+                <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                  <span className="w-5 h-5 bg-gray-500 rounded-full mr-3"></span>
                   Previous Feedback Submissions ({legacyFeedbacks.length})
                 </h2>
-                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                  {legacyFeedbacks.map((feedback, index) => (
-                    <FeedbackCard key={`legacy-${index}`} feedback={feedback} />
+                <div className="space-y-6">
+                  {Object.entries(legacyGrouped)
+                    .sort(([a], [b]) => {
+                      // Sort by Year and Term (Year 1 Term 1, Year 1 Term 2, etc.)
+                      if (a === 'Other') return 1;
+                      if (b === 'Other') return -1;
+                      
+                      // Extract year and term numbers for proper sorting
+                      const parseYearTerm = (str: string) => {
+                        const match = str.match(/Year (\d+) - Term (\d+)/);
+                        if (match) {
+                          return { year: parseInt(match[1]), term: parseInt(match[2]) };
+                        }
+                        return { year: 999, term: 999 }; // Put non-matching items at the end
+                      };
+                      
+                      const aData = parseYearTerm(a);
+                      const bData = parseYearTerm(b);
+                      
+                      if (aData.year !== bData.year) {
+                        return aData.year - bData.year;
+                      }
+                      return aData.term - bData.term;
+                    })
+                    .map(([yearTerm, feedbackList]) => (
+                    <div key={`legacy-${yearTerm}`} className="bg-white rounded-lg shadow-sm border border-gray-200">
+                      <button
+                        onClick={() => toggleSection(`legacy-${yearTerm}`)}
+                        className="w-full p-6 text-left hover:bg-gray-50 transition-colors duration-200"
+                      >
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-lg font-semibold text-gray-700 flex items-center">
+                            <span className="text-gray-500 mr-2">📋</span>
+                            {yearTerm} ({feedbackList.length} {feedbackList.length === 1 ? 'subject' : 'subjects'})
+                          </h3>
+                          <svg
+                            className={`w-5 h-5 text-gray-500 transition-transform duration-200 ${
+                              expandedSections[`legacy-${yearTerm}`] ? 'rotate-180' : ''
+                            }`}
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
+                      </button>
+                      {expandedSections[`legacy-${yearTerm}`] && (
+                        <div className="px-6 pb-6">
+                          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                            {feedbackList.map((feedback, index) => (
+                              <FeedbackCard key={`legacy-${yearTerm}-${index}`} feedback={feedback} />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   ))}
                 </div>
               </div>

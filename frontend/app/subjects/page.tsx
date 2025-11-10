@@ -30,8 +30,11 @@ interface FeedbackPeriod {
 
 export default function SubjectsPage() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [completedFeedbackCount, setCompletedFeedbackCount] = useState<number>(0);
+  const [totalSubjectsCount, setTotalSubjectsCount] = useState<number>(0);
   const [studentBranch, setStudentBranch] = useState<string | null>(null);
   const [studentName, setStudentName] = useState<string | null>(null);
+  const [studentRollNumber, setStudentRollNumber] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeFeedbackPeriods, setActiveFeedbackPeriods] = useState<FeedbackPeriod[]>([]);
   const [activeFeedbackPeriod, setActiveFeedbackPeriod] = useState<FeedbackPeriod | null>(null);
@@ -74,8 +77,8 @@ export default function SubjectsPage() {
         setStudentBranch(userBranch);
         
         // Fetch student name and subjects (token is automatically included by our api utility)
-        console.log('📞 Calling fetchStudentName, fetchActiveFeedbackPeriod and fetchSubjects');
-        fetchStudentName(storedToken);
+        console.log('📞 Calling fetchStudentProfile, fetchActiveFeedbackPeriod and fetchSubjects');
+        fetchStudentProfile(storedToken);
         fetchActiveFeedbackPeriod();
         fetchSubjects(storedToken, userBranch);
         
@@ -118,26 +121,35 @@ export default function SubjectsPage() {
     }
   };
 
-  // Get student name
-  const fetchStudentName = async (token: string) => {
+  // Get student profile (name and roll number)
+  const fetchStudentProfile = async (token: string) => {
     try {
-      // First try to get the name from the token (faster, no API call needed)
+      // First try to get the info from the token (faster, no API call needed)
       try {
         const decoded = decodeToken(token);
         if (decoded?.name) {
           setStudentName(decoded.name);
-          return; // We got the name, no need for API call
+        }
+        if (decoded?.rollNumber) {
+          setStudentRollNumber(decoded.rollNumber);
+        }
+        // If we have both name and rollNumber from token, we're done
+        if (decoded?.name && decoded?.rollNumber) {
+          return;
         }
       } catch (decodeErr) {
-        console.warn('Could not decode token for name:', decodeErr);
+        console.warn('Could not decode token for profile info:', decodeErr);
         // Continue to API call if token decoding fails
       }
       
-      // If no name in token or decoding failed, fetch from API
+      // If missing info in token or decoding failed, fetch from API
       try {
         const response = await api.get('/api/auth/me');
         if (response?.data?.name) {
           setStudentName(response.data.name);
+        }
+        if (response?.data?.rollNumber) {
+          setStudentRollNumber(response.data.rollNumber);
         }
       } catch (apiErr: any) {
         console.error('Failed to load student profile via API:', apiErr);
@@ -149,7 +161,7 @@ export default function SubjectsPage() {
       }
     } catch (err: any) {
       console.error('Failed to load student profile (outer try/catch):', err);
-      // Set a default name as fallback
+      // Set defaults as fallback
       setStudentName('Student');
     }
   };
@@ -199,8 +211,21 @@ export default function SubjectsPage() {
         };
       });
       
+      // Calculate counts for summary cards
+      const totalCount = subjectsWithFeedbackStatus.length;
+      const completedCount = subjectsWithFeedbackStatus.filter(s => s.hasSubmittedFeedback).length;
+      
+      // Set the counts for summary cards
+      setTotalSubjectsCount(totalCount);
+      setCompletedFeedbackCount(completedCount);
+      
+      // Filter out subjects where feedback has already been submitted (for display)
+      const availableSubjects = subjectsWithFeedbackStatus.filter((subject: Subject) => 
+        !subject.hasSubmittedFeedback
+      );
+      
       // Sort subjects by term numerically (with safe access)
-      const sortedSubjects = subjectsWithFeedbackStatus.sort((a: Subject, b: Subject) => {
+      const sortedSubjects = availableSubjects.sort((a: Subject, b: Subject) => {
         const termA = typeof a.term === 'number' ? a.term : 0;
         const termB = typeof b.term === 'number' ? b.term : 0;
         return termA - termB;
@@ -237,15 +262,89 @@ export default function SubjectsPage() {
       <div className="container mx-auto p-4 md:p-6">
 
         {/* Welcome Banner */}
-        <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg shadow-lg p-6 md:p-8 mb-8">
-          <h1 className="text-2xl md:text-3xl font-bold mb-2">Welcome back, {studentName || 'Student'}!</h1>
-          <div className="flex items-center space-x-2">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-200" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 10.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z" />
-            </svg>
-            <p className="text-blue-100">
-              Your branch: <span className="font-semibold">{studentBranch || 'MCA Regular'}</span>
-            </p>
+        <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg shadow-lg p-4 md:p-6 mb-6">
+          <h1 className="text-xl md:text-2xl font-bold mb-2">Welcome back, {studentName || 'Student'}!</h1>
+          {studentRollNumber && (
+            <div className="flex items-center space-x-2">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-200" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2H4zm3 5a2 2 0 114 0 2 2 0 01-4 0zm4.5 3a3.5 3.5 0 11-7 0h7z" clipRule="evenodd" />
+              </svg>
+              <p className="text-blue-100 text-sm">
+                Roll Number: <span className="font-semibold">{studentRollNumber}</span>
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Feedback Summary Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+          <div className="bg-white rounded-lg shadow-md p-4 border-l-4 border-green-500 hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <h3 className="text-sm font-medium text-gray-600 uppercase tracking-wide">Completed</h3>
+                <p className="text-2xl font-bold text-green-600 mt-1">
+                  {completedFeedbackCount}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {totalSubjectsCount > 0 
+                    ? `${Math.round((completedFeedbackCount / totalSubjectsCount) * 100)}% complete`
+                    : '0% complete'
+                  }
+                </p>
+                {completedFeedbackCount > 0 && (
+                  <Link 
+                    href="/my-feedback" 
+                    className="text-xs text-green-600 hover:text-green-800 font-medium mt-2 inline-flex items-center"
+                  >
+                    View feedback
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </Link>
+                )}
+              </div>
+              <div className="bg-green-100 rounded-full p-3">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-green-600" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-md p-4 border-l-4 border-yellow-500 hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-medium text-gray-600 uppercase tracking-wide">Pending</h3>
+                <p className="text-2xl font-bold text-yellow-600 mt-1">
+                  {activeFeedbackPeriods.length > 0 
+                    ? subjects.length 
+                    : 0}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {activeFeedbackPeriods.length > 0 ? 'Awaiting your feedback' : 'No active feedback period'}
+                </p>
+              </div>
+              <div className="bg-yellow-100 rounded-full p-3">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-yellow-600" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-md p-4 border-l-4 border-blue-500 hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-medium text-gray-600 uppercase tracking-wide">Total Subjects</h3>
+                <p className="text-2xl font-bold text-blue-600 mt-1">{totalSubjectsCount}</p>
+                <p className="text-xs text-gray-500 mt-1">Enrolled this Term </p>
+              </div>
+              <div className="bg-blue-100 rounded-full p-3">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-600" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838l-2.727 1.168 1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z" />
+                </svg>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -320,35 +419,53 @@ export default function SubjectsPage() {
         </div>
 
         {subjects.length > 0 ? (
-          // Group subjects by term
+          // Group subjects by year and term
           Object.entries(
             subjects.reduce((acc: {[key: string]: Subject[]}, subject) => {
-              // Ensure term is a properly formatted string
-              const termKey = subject.term ? String(subject.term) : 'Unassigned';
-              if (!acc[termKey]) {
-                acc[termKey] = [];
+              // Create a key combining year and term
+              const year = subject.year || 'Unknown';
+              const term = subject.term || 'Unassigned';
+              const groupKey = `${year}-${term}`;
+              if (!acc[groupKey]) {
+                acc[groupKey] = [];
               }
-              acc[termKey].push(subject);
+              acc[groupKey].push(subject);
               return acc;
             }, {})
           ).sort((a, b) => {
-            // Sort terms numerically
-            if (a[0] === 'Unassigned') return 1;
-            if (b[0] === 'Unassigned') return -1;
-            return parseInt(a[0]) - parseInt(b[0]);
-          }).map(([term, termSubjects]) => (
-            <div key={term} className="mb-10">
-              {/* Term Header */}
+            // Sort by year first, then by term
+            const [yearA, termA] = a[0].split('-');
+            const [yearB, termB] = b[0].split('-');
+            
+            if (yearA === 'Unknown') return 1;
+            if (yearB === 'Unknown') return -1;
+            if (termA === 'Unassigned') return 1;
+            if (termB === 'Unassigned') return -1;
+            
+            const yearDiff = parseInt(yearA) - parseInt(yearB);
+            if (yearDiff !== 0) return yearDiff;
+            return parseInt(termA) - parseInt(termB);
+          }).map(([groupKey, groupSubjects]) => {
+            const [year, term] = groupKey.split('-');
+            return (
+            <div key={groupKey} className="mb-10">
+              {/* Year-Term Header */}
               <div className="flex items-center mb-4">
                 <div className="bg-gradient-to-r from-blue-500 to-blue-700 text-white px-4 py-2 rounded-lg shadow-sm">
-                  <h2 className="text-lg font-semibold">Term {term}</h2>
+                  <h2 className="text-lg font-semibold">
+                    {year === 'Unknown' ? 'Unknown Year' : `Year ${year}`}
+                    {term !== 'Unassigned' && ` - Term ${term}`}
+                  </h2>
                 </div>
                 <div className="h-0.5 flex-grow bg-gray-200 ml-4"></div>
+                <span className="text-sm text-gray-500 ml-4">
+                  {groupSubjects.length} subject{groupSubjects.length !== 1 ? 's' : ''}
+                </span>
               </div>
               
               {/* Subjects Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {termSubjects.map((subject: Subject) => (
+                {groupSubjects.map((subject: Subject) => (
                   <div 
                     key={subject._id} 
                     className="group bg-white rounded-lg shadow-md hover:shadow-lg transition-all duration-200 overflow-hidden"
@@ -390,44 +507,9 @@ export default function SubjectsPage() {
                         </div>
                       </div>
                       
-                      {/* Feedback Status & Action */}
-                      <div className="mt-6 flex justify-between items-center">
-                        {/* Status Badge */}
-                        {subject.hasSubmittedFeedback ? (
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                            </svg>
-                            Feedback Submitted
-                          </span>
-                        ) : activeFeedbackPeriods.length > 0 ? (
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm-7-8a1 1 0 011-1h3.586l-1.793-1.793a1 1 0 011.414-1.414l3.5 3.5a1 1 0 010 1.414l-3.5 3.5a1 1 0 01-1.414-1.414L6.586 11H4a1 1 0 01-1-1z" clipRule="evenodd" />
-                            </svg>
-                            {activeFeedbackPeriods.length === 1 
-                              ? `${activeFeedbackPeriods[0].feedbackType.charAt(0).toUpperCase() + activeFeedbackPeriods[0].feedbackType.slice(1)} Open`
-                              : 'Multiple Periods Open'
-                            }
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                              <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-                            </svg>
-                            Closed
-                          </span>
-                        )}
-                        
-                        {/* Action Button(s) */}
-                        {subject.hasSubmittedFeedback ? (
-                          <Link href={`/my-feedback?subjectId=${subject._id}`} className="text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors">
-                            View Feedback
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1 inline" viewBox="0 0 20 20" fill="currentColor">
-                              <path fillRule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
-                            </svg>
-                          </Link>
-                        ) : activeFeedbackPeriods.length > 0 ? (
+                      {/* Action Buttons */}
+                      <div className="mt-6">
+                        {activeFeedbackPeriods.length > 0 ? (
                           <div className="flex flex-col space-y-2">
                             {activeFeedbackPeriods.map((period) => (
                               <Link 
@@ -442,16 +524,16 @@ export default function SubjectsPage() {
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                 </svg>
-                                {period.feedbackType === 'midterm' ? '📝 Midterm Feedback' : '📝 Endterm Feedback'}
+                                {period.feedbackType === 'midterm' ? '📝 Submit Midterm Feedback' : '📝 Submit Endterm Feedback'}
                               </Link>
                             ))}
                           </div>
                         ) : (
-                          <div className="inline-flex items-center px-4 py-2 bg-gray-200 text-gray-500 text-sm font-medium rounded-lg cursor-not-allowed">
+                          <div className="inline-flex items-center justify-center w-full px-4 py-2 bg-gray-200 text-gray-500 text-sm font-medium rounded-lg cursor-not-allowed">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 0h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                             </svg>
-                            Feedback Closed
+                            Feedback Period Not Active
                           </div>
                         )}
                       </div>
@@ -460,14 +542,38 @@ export default function SubjectsPage() {
                 ))}
               </div>
             </div>
-          ))
+            );
+          })
         ) : (
           <div className="flex flex-col justify-center items-center py-16 bg-white rounded-lg shadow-md">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-gray-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-            <p className="text-gray-500 text-lg font-medium mb-1">No subjects found</p>
-            <p className="text-gray-400 text-sm">There are no subjects available for your branch at the moment.</p>
+            {totalSubjectsCount > 0 ? (
+              // All feedback completed
+              <>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-green-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="text-green-600 text-lg font-medium mb-1">All Feedback Completed! 🎉</p>
+                <p className="text-gray-500 text-sm mb-4">You have successfully submitted feedback for all your subjects.</p>
+                <Link 
+                  href="/my-feedback" 
+                  className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                  View My Feedback
+                </Link>
+              </>
+            ) : (
+              // No subjects available
+              <>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-gray-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <p className="text-gray-500 text-lg font-medium mb-1">No subjects found</p>
+                <p className="text-gray-400 text-sm">There are no subjects available for your branch at the moment.</p>
+              </>
+            )}
           </div>
         )}
       </div>
