@@ -378,7 +378,7 @@ export default function SubjectsPage() {
                     </div>
                     <div>
                       <h3 className="text-lg font-semibold">
-                        {period.feedbackType.charAt(0).toUpperCase() + period.feedbackType.slice(1)} Feedback Period Active
+                        {period.feedbackType.charAt(0).toUpperCase() + period.feedbackType.slice(1)} Feedback Period Window opened kindly submit your valuable feedback on time.
                       </h3>
                       <p className={`${
                         period.feedbackType === 'midterm' ? 'text-blue-100' : 'text-purple-100'
@@ -404,7 +404,7 @@ export default function SubjectsPage() {
               </div>
               <div>
                 <h3 className="text-lg font-semibold">No Active Feedback Period</h3>
-                <p className="text-gray-200 text-sm">Feedback submission is currently closed. Please wait for the next feedback period.</p>
+                <p className="text-gray-200 text-sm">Mid-Term / End-Term Feedback Window will open shortly. Please stay tuned</p>
               </div>
             </div>
           </div>
