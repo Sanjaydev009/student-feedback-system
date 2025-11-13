@@ -27,7 +27,11 @@ interface Feedback {
   }>;
   averageRating: number;
   feedbackType: 'midterm' | 'endterm';
-  term?: string;
+  submittedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  term?: number;
+  academicYear?: string;
 }
 
 interface FeedbackPeriod {
@@ -48,7 +52,7 @@ export default function MyFeedbackPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedSubject, setSelectedSubject] = useState<string | null>(null);
-  const [expandedSections, setExpandedSections] = useState<{ [key: string]: boolean }>({});
+  const [retryCount, setRetryCount] = useState(0);
 
   // Load feedback data and active periods
   useEffect(() => {
@@ -69,6 +73,9 @@ export default function MyFeedbackPage() {
 
     const fetchData = async () => {
       try {
+        setLoading(true);
+        setError(null);
+        
         // Fetch user's feedback submissions
         const feedbackResponse = await api.get('/api/feedback/student/me');
         const allFeedbacks = feedbackResponse.data;
@@ -93,6 +100,8 @@ export default function MyFeedbackPage() {
           console.error('Failed to load active periods:', periodsError);
           // Don't set error here as this is non-critical
         }
+        
+        setRetryCount(0); // Reset retry count on success
       } catch (err: any) {
         console.error('Failed to load feedback:', err);
         setError('Failed to load your feedback submissions');
@@ -102,70 +111,64 @@ export default function MyFeedbackPage() {
     };
 
     fetchData();
-  }, [router, selectedSubject]);
+  }, [router, selectedSubject, retryCount]);
 
-  // Group feedback by year and term
-  const groupFeedbackByYearTerm = (feedbacks: Feedback[]) => {
-    const grouped: { [key: string]: Feedback[] } = {};
-    
-    feedbacks.forEach(feedback => {
-      if (feedback.subject?.year && feedback.subject?.term) {
-        const key = `Year ${feedback.subject.year} - Term ${feedback.subject.term}`;
-        if (!grouped[key]) {
-          grouped[key] = [];
-        }
-        grouped[key].push(feedback);
-      } else {
-        // Handle feedback without year/term info
-        const key = 'Other';
-        if (!grouped[key]) {
-          grouped[key] = [];
-        }
-        grouped[key].push(feedback);
-      }
-    });
-    
-    return grouped;
+  const handleRetry = () => {
+    setRetryCount(prev => prev + 1);
   };
 
-  // Group feedback by type
+  // Organize feedbacks by academic year and term
+  const feedbacksByYearAndTerm = feedbacks.reduce((acc, feedback) => {
+    const academicYear = feedback.academicYear || '2024-25';
+    const term = feedback.term || 1;
+    const feedbackType = feedback.feedbackType || 'legacy';
+    
+    const key = `${academicYear}-Term${term}`;
+    if (!acc[key]) {
+      acc[key] = {
+        academicYear,
+        term,
+        midterm: [],
+        endterm: [],
+        legacy: []
+      };
+    }
+    
+    if (feedbackType === 'midterm') {
+      acc[key].midterm.push(feedback);
+    } else if (feedbackType === 'endterm') {
+      acc[key].endterm.push(feedback);
+    } else {
+      acc[key].legacy.push(feedback);
+    }
+    
+    return acc;
+  }, {} as Record<string, {
+    academicYear: string;
+    term: number;
+    midterm: Feedback[];
+    endterm: Feedback[];
+    legacy: Feedback[];
+  }>);
+
+  // Sort the years and terms in descending order (newest first)
+  const sortedYearTerms = Object.keys(feedbacksByYearAndTerm).sort((a, b) => {
+    const [yearA, termA] = a.split('-Term');
+    const [yearB, termB] = b.split('-Term');
+    
+    // Compare academic years first (2024-25 vs 2023-24)
+    if (yearA !== yearB) {
+      return yearB.localeCompare(yearA);
+    }
+    
+    // If same year, compare terms (higher term first)
+    return parseInt(termB) - parseInt(termA);
+  });
+
+  // Group feedback by type (legacy - for stats)
   const midtermFeedbacks = feedbacks.filter(f => f.feedbackType === 'midterm');
   const endtermFeedbacks = feedbacks.filter(f => f.feedbackType === 'endterm');
   const legacyFeedbacks = feedbacks.filter(f => !f.feedbackType);
-
-  // Group each type by year and term
-  const midtermGrouped = groupFeedbackByYearTerm(midtermFeedbacks);
-  const endtermGrouped = groupFeedbackByYearTerm(endtermFeedbacks);
-  const legacyGrouped = groupFeedbackByYearTerm(legacyFeedbacks);
-
-  // Toggle section expansion
-  const toggleSection = (sectionKey: string) => {
-    setExpandedSections(prev => ({
-      ...prev,
-      [sectionKey]: !prev[sectionKey]
-    }));
-  };
-
-  // Initialize expanded sections (expand first section of each type by default)
-  useEffect(() => {
-    const initialExpanded: { [key: string]: boolean } = {};
-    
-    // Expand first section of each type
-    if (Object.keys(midtermGrouped).length > 0) {
-      const firstMidterm = Object.keys(midtermGrouped).sort()[0];
-      initialExpanded[`midterm-${firstMidterm}`] = true;
-    }
-    if (Object.keys(endtermGrouped).length > 0) {
-      const firstEndterm = Object.keys(endtermGrouped).sort()[0];
-      initialExpanded[`endterm-${firstEndterm}`] = true;
-    }
-    if (Object.keys(legacyGrouped).length > 0) {
-      const firstLegacy = Object.keys(legacyGrouped).sort()[0];
-      initialExpanded[`legacy-${firstLegacy}`] = true;
-    }
-    
-    setExpandedSections(initialExpanded);
-  }, [feedbacks]);
 
   // Check if specific feedback types are currently available  
   const isMidtermActive = activePeriods.some(p => p.feedbackType === 'midterm' && p.isActive);
@@ -175,32 +178,63 @@ export default function MyFeedbackPage() {
   const midtermPeriod = activePeriods.find(p => p.feedbackType === 'midterm' && p.isActive);
   const endtermPeriod = activePeriods.find(p => p.feedbackType === 'endterm' && p.isActive);
 
+  const hasAnyFeedback = feedbacks.length > 0;
+  const totalFeedbacks = feedbacks.length;
+
+  // Loading State
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="bg-white p-8 rounded-lg shadow-md text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
-          <p className="mt-3 text-gray-600">Loading your feedback...</p>
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+        <StudentNavbar />
+        <div className="p-6">
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center py-16">
+              <div className="relative">
+                <div className="animate-spin rounded-full h-16 w-16 border-4 border-primary-200 border-t-primary-600 mx-auto"></div>
+                <div className="absolute inset-0 rounded-full h-16 w-16 border-4 border-transparent border-t-secondary-400 mx-auto animate-spin" style={{ animationDirection: 'reverse', animationDuration: '1.5s' }}></div>
+              </div>
+              <h3 className="mt-6 text-lg font-medium text-gray-900">Loading Your Feedback</h3>
+              <p className="mt-2 text-gray-600">Please wait while we fetch your submission history...</p>
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
+  // Error State
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
         <StudentNavbar />
-        <div className="container mx-auto py-12 px-4">
-          <div className="bg-white p-8 rounded-lg shadow-md text-center max-w-md mx-auto">
-            <div className="text-red-500 text-5xl mb-4">⚠️</div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">Error</h2>
-            <p className="text-gray-600 mb-6">{error}</p>
-            <button 
-              onClick={() => router.push('/subjects')}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-            >
-              Go to Subjects
-            </button>
+        <div className="p-6">
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center py-16">
+              <div className="bg-white rounded-xl shadow-card border border-gray-200 p-12 max-w-md mx-auto">
+                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-3">Unable to Load Feedback</h3>
+                <p className="text-gray-600 mb-6">{error}</p>
+                <div className="space-y-3">
+                  <button
+                    onClick={handleRetry}
+                    className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
+                  >
+                    Try Again
+                  </button>
+                  <br />
+                  <button
+                    onClick={() => router.push('/subjects')}
+                    className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
+                  >
+                    Go to Subjects
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -208,363 +242,316 @@ export default function MyFeedbackPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <StudentNavbar />
+      <div className="p-6">
+        <div className="max-w-7xl mx-auto">
+          {/* Header Section */}
+          <div className="mb-10 text-center">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-primary-500 to-secondary-500 rounded-full mb-4">
+              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+            <h1 className="text-4xl font-bold text-gray-900 mb-3">My Feedback History</h1>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              Track and review all your submitted feedback across different subjects and periods
+            </p>
+            {totalFeedbacks > 0 && (
+              <div className="mt-4 inline-flex items-center px-4 py-2 bg-white rounded-full shadow-sm border border-gray-200">
+                <svg className="w-4 h-4 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <span className="text-sm font-medium text-gray-700">
+                  {totalFeedbacks} feedback submission{totalFeedbacks === 1 ? '' : 's'} completed
+                </span>
+              </div>
+            )}
+          </div>
 
-      <div className="container mx-auto py-8 px-4 md:px-6">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-800">My Feedback Dashboard</h1>
-          <p className="text-gray-600 mt-1">Manage your feedback submissions for mid-term and end-term evaluations</p>
-        </div>
-
-        {/* Active Feedback Periods */}
-        {activePeriods.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-xl font-semibold text-gray-800 mb-4">Active Feedback Periods</h2>
-            <div className="grid gap-4 md:grid-cols-2">
-              {activePeriods.map(period => (
-                <div key={period._id} className="bg-white rounded-lg p-6 border-l-4 border-blue-500 shadow-sm">
-                  <div className="flex justify-between items-start mb-2">
-                    <h3 className="font-semibold text-gray-900">{period.title}</h3>
-                    <span className={`px-2 py-1 text-xs rounded-full ${
-                      period.feedbackType === 'midterm' 
-                        ? 'bg-blue-100 text-blue-800' 
-                        : 'bg-purple-100 text-purple-800'
-                    }`}>
-                      {period.feedbackType === 'midterm' ? 'Mid-Term' : 'End-Term'}
-                    </span>
-                  </div>
-                  {period.description && (
-                    <p className="text-gray-600 text-sm mb-3">{period.description}</p>
-                  )}
-                  <div className="text-xs text-gray-500 mb-3">
-                    Ends: {new Date(period.endDate).toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
-                  </div>
-                  <Link
-                    href="/subjects"
-                    className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors"
-                  >
-                    Go to Subjects & Submit {period.feedbackType === 'midterm' ? 'Mid-Term' : 'End-Term'} Feedback
-                    <svg className="ml-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </Link>
+          {/* Active Feedback Periods Info */}
+          {activePeriods.length > 0 && (
+            <div className="mb-10">
+              <div className="bg-white rounded-xl shadow-card border border-gray-200 overflow-hidden">
+                <div className="bg-gradient-to-r from-blue-50 to-purple-50 px-6 py-4 border-b border-gray-200">
+                  <h2 className="text-xl font-semibold text-gray-900 flex items-center">
+                    <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center mr-3">
+                      <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    Active Feedback Periods
+                  </h2>
+                  <p className="mt-1 text-sm text-gray-600">Current opportunities to submit feedback</p>
                 </div>
-              ))}
+                <div className="p-6">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {activePeriods.map((period) => (
+                      <div
+                        key={period._id}
+                        className={`relative overflow-hidden rounded-xl border-2 transition-all duration-300 ${
+                          period.isActive 
+                            ? 'border-green-300 bg-gradient-to-r from-green-50 to-emerald-50 hover:shadow-md' 
+                            : 'border-gray-200 bg-gray-50'
+                        }`}
+                      >
+                        <div className="p-5">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center">
+                              <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-3 ${
+                                period.feedbackType === 'midterm' 
+                                  ? 'bg-blue-100 text-blue-600' 
+                                  : 'bg-purple-100 text-purple-600'
+                              }`}>
+                                {period.feedbackType === 'midterm' ? '📊' : '📝'}
+                              </div>
+                              <div>
+                                <h3 className="font-semibold text-gray-900">{period.title}</h3>
+                                <p className="text-sm text-gray-600">
+                                  Ends: {new Date(period.endDate).toLocaleDateString('en-US', {
+                                    year: 'numeric',
+                                    month: 'short',
+                                    day: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}
+                                </p>
+                              </div>
+                            </div>
+                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                              period.isActive 
+                                ? 'bg-green-100 text-green-800 animate-pulse' 
+                                : 'bg-gray-100 text-gray-600'
+                            }`}>
+                              {period.isActive ? 'Active Now' : 'Inactive'}
+                            </span>
+                          </div>
+                          {period.description && (
+                            <p className="text-gray-600 text-sm mb-3">{period.description}</p>
+                          )}
+                          {period.isActive && (
+                            <Link
+                              href="/subjects"
+                              className={`block w-full py-3 px-4 rounded-lg text-sm font-medium text-center transition-all duration-200 ${
+                                period.feedbackType === 'midterm'
+                                  ? 'bg-blue-600 hover:bg-blue-700 text-white hover:shadow-lg'
+                                  : 'bg-purple-600 hover:bg-purple-700 text-white hover:shadow-lg'
+                              }`}
+                            >
+                              Submit {period.feedbackType === 'midterm' ? 'Mid-Term' : 'End-Term'} Feedback →
+                            </Link>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Summary Cards */}
+          <div className="grid gap-6 md:grid-cols-3 mb-10">
+            {/* Mid-Term Summary */}
+            <div className="bg-white rounded-xl shadow-card border border-gray-200 p-6 hover:shadow-card-hover transition-all">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Mid-Term Feedback</h3>
+                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <span className="text-2xl">📊</span>
+                </div>
+              </div>
+              <div className="text-3xl font-bold text-blue-600 mb-2">{midtermFeedbacks.length}</div>
+              <p className="text-gray-600 text-sm mb-3">Submissions completed</p>
+              {isMidtermActive && (
+                <Link
+                  href="/subjects"
+                  className="inline-flex items-center text-sm text-blue-600 hover:text-blue-800 font-medium"
+                >
+                  Submit feedback
+                  <svg className="ml-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </Link>
+              )}
+            </div>
+
+            {/* End-Term Summary */}
+            <div className="bg-white rounded-xl shadow-card border border-gray-200 p-6 hover:shadow-card-hover transition-all">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">End-Term Feedback</h3>
+                <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                  <span className="text-2xl">📝</span>
+                </div>
+              </div>
+              <div className="text-3xl font-bold text-purple-600 mb-2">{endtermFeedbacks.length}</div>
+              <p className="text-gray-600 text-sm mb-3">Submissions completed</p>
+              {isEndtermActive && (
+                <Link
+                  href="/subjects"
+                  className="inline-flex items-center text-sm text-purple-600 hover:text-purple-800 font-medium"
+                >
+                  Submit feedback
+                  <svg className="ml-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </Link>
+              )}
+            </div>
+
+            {/* Total Summary */}
+            <div className="bg-white rounded-xl shadow-card border border-gray-200 p-6 hover:shadow-card-hover transition-all">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Total Feedback</h3>
+                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                  <span className="text-2xl">📋</span>
+                </div>
+              </div>
+              <div className="text-3xl font-bold text-green-600 mb-2">{totalFeedbacks}</div>
+              <p className="text-gray-600 text-sm">All submissions</p>
             </div>
           </div>
-        )}
 
-        {/* No Active Periods Message */}
-        {activePeriods.length === 0 && (
-          <div className="mb-8 bg-yellow-50 border border-yellow-200 rounded-lg p-6">
-            <div className="flex items-center">
-              <svg className="h-6 w-6 text-yellow-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5l-6.928-12c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
-              </svg>
-              <div>
-                <h3 className="text-lg font-medium text-yellow-800">No Active Feedback Periods</h3>
-                <p className="text-yellow-700 mt-1">
-                  There are currently no active feedback collection periods. Please check back later or contact your administrator.
+          {/* Main Content */}
+          {!hasAnyFeedback ? (
+            // Empty State
+            <div className="text-center py-16">
+              <div className="bg-white rounded-xl shadow-card border border-gray-200 p-12 max-w-md mx-auto">
+                <div className="w-20 h-20 bg-gradient-to-r from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-3">No Feedback Submitted Yet</h3>
+                <p className="text-gray-600 mb-6 leading-relaxed">
+                  You haven't submitted any feedback yet. When feedback periods are active, you can submit feedback for your subjects and it will appear here.
+                </p>
+                {activePeriods.some(p => p.isActive) && (
+                  <Link
+                    href="/subjects"
+                    className="inline-block bg-gradient-to-r from-primary-600 to-secondary-600 hover:from-primary-700 hover:to-secondary-700 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-lg"
+                  >
+                    Start Submitting Feedback
+                  </Link>
+                )}
+              </div>
+            </div>
+          ) : (
+            // Feedback Content - Organized by Academic Year and Term
+            <div className="space-y-12">
+              {sortedYearTerms.map(yearTermKey => {
+                const yearTermData = feedbacksByYearAndTerm[yearTermKey];
+                const { academicYear, term, midterm, endterm, legacy } = yearTermData;
+                
+                // Skip if no feedback in this term
+                if (midterm.length === 0 && endterm.length === 0 && legacy.length === 0) {
+                  return null;
+                }
+
+                return (
+                  <div key={yearTermKey} className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+                    {/* Academic Year and Term Header */}
+                    <div className="bg-gradient-to-r from-indigo-600 to-purple-700 text-white px-8 py-6">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center">
+                          <div className="bg-white bg-opacity-20 rounded-full p-3 mr-4">
+                            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z"/>
+                            </svg>
+                          </div>
+                          <div>
+                            <h2 className="text-2xl font-bold">Academic Year {academicYear}</h2>
+                            <p className="text-indigo-100">Term {term} • {midterm.length + endterm.length + legacy.length} submission{(midterm.length + endterm.length + legacy.length) === 1 ? '' : 's'}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          {midterm.length > 0 && (
+                            <div className="bg-blue-500 bg-opacity-20 px-3 py-1 rounded-full text-sm font-medium">
+                              📊 Mid-Term: {midterm.length}
+                            </div>
+                          )}
+                          {endterm.length > 0 && (
+                            <div className="bg-purple-500 bg-opacity-20 px-3 py-1 rounded-full text-sm font-medium">
+                              📝 End-Term: {endterm.length}
+                            </div>
+                          )}
+                          {legacy.length > 0 && (
+                            <div className="bg-gray-500 bg-opacity-20 px-3 py-1 rounded-full text-sm font-medium">
+                              📋 Legacy: {legacy.length}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Feedback Cards */}
+                    <div className="p-8">
+                      <div className="space-y-10">
+                        {/* Mid-Term Section */}
+                        {midterm.length > 0 && (
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                              <span className="w-2 h-2 bg-blue-500 rounded-full mr-3"></span>
+                              Mid-Term Feedback ({midterm.length})
+                            </h3>
+                            <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+                              {midterm.map((feedback) => (
+                                <FeedbackCard key={feedback._id} feedback={feedback} showViewDetails={true} />
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* End-Term Section */}
+                        {endterm.length > 0 && (
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                              <span className="w-2 h-2 bg-purple-500 rounded-full mr-3"></span>
+                              End-Term Feedback ({endterm.length})
+                            </h3>
+                            <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+                              {endterm.map((feedback) => (
+                                <FeedbackCard key={feedback._id} feedback={feedback} showViewDetails={true} />
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Legacy Section */}
+                        {legacy.length > 0 && (
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                              <span className="w-2 h-2 bg-gray-500 rounded-full mr-3"></span>
+                              Previous Feedback ({legacy.length})
+                            </h3>
+                            <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+                              {legacy.map((feedback) => (
+                                <FeedbackCard key={feedback._id} feedback={feedback} showViewDetails={true} />
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Success Summary */}
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200 p-6 text-center">
+                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-green-900 mb-2">Great Job!</h3>
+                <p className="text-green-700">
+                  You've successfully submitted {totalFeedbacks} feedback form{totalFeedbacks === 1 ? '' : 's'}. 
+                  Your input helps improve the quality of education.
                 </p>
               </div>
             </div>
-          </div>
-        )}
-
-        {/* Feedback Summary Cards */}
-        <div className="grid gap-6 md:grid-cols-3 mb-8">
-          {/* Mid-Term Feedback Summary */}
-          <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Mid-Term Feedback</h3>
-              <span className="text-2xl">📊</span>
-            </div>
-            <div className="text-3xl font-bold text-blue-600 mb-2">{midtermFeedbacks.length}</div>
-            <p className="text-gray-600 text-sm">Submissions completed</p>
-            {isMidtermActive && (
-              <Link
-                href="/subjects"
-                className="mt-3 inline-flex items-center text-sm text-blue-600 hover:text-blue-800"
-              >
-                Submit feedback
-                <svg className="ml-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </Link>
-            )}
-          </div>
-
-          {/* End-Term Feedback Summary */}
-          <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">End-Term Feedback</h3>
-              <span className="text-2xl">📈</span>
-            </div>
-            <div className="text-3xl font-bold text-purple-600 mb-2">{endtermFeedbacks.length}</div>
-            <p className="text-gray-600 text-sm">Submissions completed</p>
-            {isEndtermActive && (
-              <Link
-                href="/subjects"
-                className="mt-3 inline-flex items-center text-sm text-purple-600 hover:text-purple-800"
-              >
-                Submit feedback
-                <svg className="ml-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </Link>
-            )}
-          </div>
-
-          {/* Total Feedback Summary */}
-          <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Total Feedback</h3>
-              <span className="text-2xl">📝</span>
-            </div>
-            <div className="text-3xl font-bold text-green-600 mb-2">{feedbacks.length}</div>
-            <p className="text-gray-600 text-sm">All submissions</p>
-          </div>
+          )}
         </div>
-
-        {/* Feedback Submissions */}
-        {feedbacks.length > 0 ? (
-          <div className="space-y-8">
-            {/* Mid-Term Feedback */}
-            {midtermFeedbacks.length > 0 && (
-              <div>
-                <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
-                  <span className="w-5 h-5 bg-blue-500 rounded-full mr-3"></span>
-                  Mid-Term Feedback Submissions ({midtermFeedbacks.length})
-                </h2>
-                <div className="space-y-6">
-                  {Object.entries(midtermGrouped)
-                    .sort(([a], [b]) => {
-                      // Sort by Year and Term (Year 1 Term 1, Year 1 Term 2, etc.)
-                      if (a === 'Other') return 1;
-                      if (b === 'Other') return -1;
-                      
-                      // Extract year and term numbers for proper sorting
-                      const parseYearTerm = (str: string) => {
-                        const match = str.match(/Year (\d+) - Term (\d+)/);
-                        if (match) {
-                          return { year: parseInt(match[1]), term: parseInt(match[2]) };
-                        }
-                        return { year: 999, term: 999 }; // Put non-matching items at the end
-                      };
-                      
-                      const aData = parseYearTerm(a);
-                      const bData = parseYearTerm(b);
-                      
-                      if (aData.year !== bData.year) {
-                        return aData.year - bData.year;
-                      }
-                      return aData.term - bData.term;
-                    })
-                    .map(([yearTerm, feedbackList]) => (
-                    <div key={`midterm-${yearTerm}`} className="bg-white rounded-lg shadow-sm border border-gray-200">
-                      <button
-                        onClick={() => toggleSection(`midterm-${yearTerm}`)}
-                        className="w-full p-6 text-left hover:bg-gray-50 transition-colors duration-200"
-                      >
-                        <div className="flex items-center justify-between">
-                          <h3 className="text-lg font-semibold text-gray-700 flex items-center">
-                            <span className="text-blue-500 mr-2">📚</span>
-                            {yearTerm} ({feedbackList.length} {feedbackList.length === 1 ? 'subject' : 'subjects'})
-                          </h3>
-                          <svg
-                            className={`w-5 h-5 text-gray-500 transition-transform duration-200 ${
-                              expandedSections[`midterm-${yearTerm}`] ? 'rotate-180' : ''
-                            }`}
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                          </svg>
-                        </div>
-                      </button>
-                      {expandedSections[`midterm-${yearTerm}`] && (
-                        <div className="px-6 pb-6">
-                          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                            {feedbackList.map((feedback, index) => (
-                              <FeedbackCard key={`midterm-${yearTerm}-${index}`} feedback={feedback} />
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* End-Term Feedback */}
-            {endtermFeedbacks.length > 0 && (
-              <div>
-                <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
-                  <span className="w-5 h-5 bg-purple-500 rounded-full mr-3"></span>
-                  End-Term Feedback Submissions ({endtermFeedbacks.length})
-                </h2>
-                <div className="space-y-6">
-                  {Object.entries(endtermGrouped)
-                    .sort(([a], [b]) => {
-                      // Sort by Year and Term (Year 1 Term 1, Year 1 Term 2, etc.)
-                      if (a === 'Other') return 1;
-                      if (b === 'Other') return -1;
-                      
-                      // Extract year and term numbers for proper sorting
-                      const parseYearTerm = (str: string) => {
-                        const match = str.match(/Year (\d+) - Term (\d+)/);
-                        if (match) {
-                          return { year: parseInt(match[1]), term: parseInt(match[2]) };
-                        }
-                        return { year: 999, term: 999 }; // Put non-matching items at the end
-                      };
-                      
-                      const aData = parseYearTerm(a);
-                      const bData = parseYearTerm(b);
-                      
-                      if (aData.year !== bData.year) {
-                        return aData.year - bData.year;
-                      }
-                      return aData.term - bData.term;
-                    })
-                    .map(([yearTerm, feedbackList]) => (
-                    <div key={`endterm-${yearTerm}`} className="bg-white rounded-lg shadow-sm border border-gray-200">
-                      <button
-                        onClick={() => toggleSection(`endterm-${yearTerm}`)}
-                        className="w-full p-6 text-left hover:bg-gray-50 transition-colors duration-200"
-                      >
-                        <div className="flex items-center justify-between">
-                          <h3 className="text-lg font-semibold text-gray-700 flex items-center">
-                            <span className="text-purple-500 mr-2">📈</span>
-                            {yearTerm} ({feedbackList.length} {feedbackList.length === 1 ? 'subject' : 'subjects'})
-                          </h3>
-                          <svg
-                            className={`w-5 h-5 text-gray-500 transition-transform duration-200 ${
-                              expandedSections[`endterm-${yearTerm}`] ? 'rotate-180' : ''
-                            }`}
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                          </svg>
-                        </div>
-                      </button>
-                      {expandedSections[`endterm-${yearTerm}`] && (
-                        <div className="px-6 pb-6">
-                          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                            {feedbackList.map((feedback, index) => (
-                              <FeedbackCard key={`endterm-${yearTerm}-${index}`} feedback={feedback} />
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Legacy Feedback (if any) */}
-            {legacyFeedbacks.length > 0 && (
-              <div>
-                <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
-                  <span className="w-5 h-5 bg-gray-500 rounded-full mr-3"></span>
-                  Previous Feedback Submissions ({legacyFeedbacks.length})
-                </h2>
-                <div className="space-y-6">
-                  {Object.entries(legacyGrouped)
-                    .sort(([a], [b]) => {
-                      // Sort by Year and Term (Year 1 Term 1, Year 1 Term 2, etc.)
-                      if (a === 'Other') return 1;
-                      if (b === 'Other') return -1;
-                      
-                      // Extract year and term numbers for proper sorting
-                      const parseYearTerm = (str: string) => {
-                        const match = str.match(/Year (\d+) - Term (\d+)/);
-                        if (match) {
-                          return { year: parseInt(match[1]), term: parseInt(match[2]) };
-                        }
-                        return { year: 999, term: 999 }; // Put non-matching items at the end
-                      };
-                      
-                      const aData = parseYearTerm(a);
-                      const bData = parseYearTerm(b);
-                      
-                      if (aData.year !== bData.year) {
-                        return aData.year - bData.year;
-                      }
-                      return aData.term - bData.term;
-                    })
-                    .map(([yearTerm, feedbackList]) => (
-                    <div key={`legacy-${yearTerm}`} className="bg-white rounded-lg shadow-sm border border-gray-200">
-                      <button
-                        onClick={() => toggleSection(`legacy-${yearTerm}`)}
-                        className="w-full p-6 text-left hover:bg-gray-50 transition-colors duration-200"
-                      >
-                        <div className="flex items-center justify-between">
-                          <h3 className="text-lg font-semibold text-gray-700 flex items-center">
-                            <span className="text-gray-500 mr-2">📋</span>
-                            {yearTerm} ({feedbackList.length} {feedbackList.length === 1 ? 'subject' : 'subjects'})
-                          </h3>
-                          <svg
-                            className={`w-5 h-5 text-gray-500 transition-transform duration-200 ${
-                              expandedSections[`legacy-${yearTerm}`] ? 'rotate-180' : ''
-                            }`}
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                          </svg>
-                        </div>
-                      </button>
-                      {expandedSections[`legacy-${yearTerm}`] && (
-                        <div className="px-6 pb-6">
-                          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                            {feedbackList.map((feedback, index) => (
-                              <FeedbackCard key={`legacy-${yearTerm}-${index}`} feedback={feedback} />
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="bg-white rounded-lg p-8 border border-gray-200 shadow-sm text-center">
-            <div className="text-gray-400 text-5xl mb-4">📋</div>
-            <h2 className="text-xl font-medium text-gray-800 mb-2">No Feedback Submissions Found</h2>
-            <p className="text-gray-600 mb-6">You haven't provided feedback for any subject yet.</p>
-            {(isMidtermActive || isEndtermActive) ? (
-              <div className="space-y-3">
-                <Link 
-                  href="/subjects" 
-                  className="inline-block px-5 py-2.5 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 transition-colors"
-                >
-                  Go to Subjects to Submit Feedback
-                </Link>
-              </div>
-            ) : (
-              <p className="text-gray-500">
-                No feedback periods are currently active. Please check back later.
-              </p>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );

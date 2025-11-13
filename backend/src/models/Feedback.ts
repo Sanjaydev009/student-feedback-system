@@ -50,6 +50,7 @@ const FeedbackSchema = new Schema({
 }, { timestamps: true });
 
 // Add unique constraint to prevent duplicate submission for same type
-FeedbackSchema.index({ student: 1, subject: 1, feedbackType: 1, term: 1 }, { unique: true });
+// Note: Removed 'term' from unique constraint as it was causing conflicts across different subjects
+FeedbackSchema.index({ student: 1, subject: 1, feedbackType: 1 }, { unique: true });
 
 export default model('Feedback', FeedbackSchema);

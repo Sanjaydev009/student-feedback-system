@@ -59,21 +59,65 @@ export const submitFeedback = async (req: Request, res: Response): Promise<void>
   }
   
   try {
+    // Debug: Log the incoming request details
+    console.log('🔍 Backend: Checking for existing feedback with parameters:', {
+      student,
+      subject,
+      feedbackType,
+      term: term || 1,
+      academicYear: academicYear || '2024-25'
+    });
+
     // Check if a feedback already exists for this student, subject, and feedback type
+    // Note: We only check student + subject + feedbackType (removed term to avoid conflicts)
     const existingFeedback = await Feedback.findOne({ 
       student, 
       subject, 
-      feedbackType,
-      term: term || 1
+      feedbackType
+    });
+    
+    // Debug: Log all existing feedback for this student to understand conflicts
+    const allStudentFeedback = await Feedback.find({ student }).populate('subject', 'name code');
+    console.log('📊 Backend: All existing feedback for student:', student);
+    allStudentFeedback.forEach((fb, index) => {
+      console.log(`   ${index + 1}. Subject: ${(fb.subject as any)?.name || 'Unknown'} (${(fb.subject as any)?.code || 'No Code'}), Type: ${fb.feedbackType}, Term: ${fb.term}, ID: ${fb._id}`);
     });
     
     if (existingFeedback) {
+      console.log('🚨 Backend: CONFLICT DETECTED! Existing feedback found:', {
+        id: existingFeedback._id,
+        student: existingFeedback.student,
+        subject: existingFeedback.subject,
+        feedbackType: existingFeedback.feedbackType,
+        term: existingFeedback.term,
+        academicYear: existingFeedback.academicYear,
+        createdAt: existingFeedback.createdAt
+      });
+      console.log('🚨 Backend: Current request trying to create:', {
+        student,
+        subject, 
+        feedbackType,
+        term: term || 1,
+        academicYear: academicYear || '2025-26'
+      });
       res.status(409).json({ 
         message: `You have already submitted ${feedbackType} feedback for this subject`,
-        existingFeedback
+        existingFeedback: {
+          id: existingFeedback._id,
+          feedbackType: existingFeedback.feedbackType,
+          createdAt: existingFeedback.createdAt
+        },
+        requestedData: {
+          student,
+          subject,
+          feedbackType,
+          term: term || 1
+        }
       });
       return;
     }
+    
+    console.log('✅ Backend: No existing feedback found, proceeding with creation');
     
     // Calculate average rating from rating-type questions only
     const ratingAnswers = answers.filter((ans: any) => ans.type === 'rating' && ans.answer > 0);
@@ -86,7 +130,7 @@ export const submitFeedback = async (req: Request, res: Response): Promise<void>
       subject, 
       feedbackType,
       term: term || 1,
-      academicYear: academicYear || '2024-25',
+      academicYear: academicYear || '2025-26',
       answers,
       comments: comments || {},
       averageRating: parseFloat(averageRating.toFixed(1))
@@ -97,11 +141,24 @@ export const submitFeedback = async (req: Request, res: Response): Promise<void>
   } catch (err: any) {
     // Handle duplicate key error from MongoDB (fallback if check above fails)
     if (err.code === 11000) {
-      res.status(409).json({ message: `You have already submitted ${feedbackType} feedback for this subject` });
+      console.log('🚨 Backend: MongoDB unique constraint violation (11000):', {
+        code: err.code,
+        keyPattern: err.keyPattern,
+        keyValue: err.keyValue,
+        message: err.message
+      });
+      res.status(409).json({ 
+        message: `You have already submitted ${feedbackType} feedback for this subject`,
+        error: 'DUPLICATE_KEY_ERROR',
+        details: {
+          keyPattern: err.keyPattern,
+          keyValue: err.keyValue
+        }
+      });
       return;
     }
     
-    console.error('Feedback submission error:', err);
+    console.error('🚨 Backend: Feedback submission error:', err);
     res.status(500).json({ message: err.message });
   }
 };

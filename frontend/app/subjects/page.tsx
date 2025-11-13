@@ -14,7 +14,8 @@ interface Subject {
   branch: string[]; // Array to support multiple branches (common subjects)
   year: number;
   term: number; // Term defined as a number in the backend model
-  hasSubmittedFeedback?: boolean; // Track if user has submitted feedback
+  hasSubmittedFeedback?: boolean; // Track if user has submitted feedback for ALL active types
+  feedbackStatus?: Record<string, boolean>; // Track individual feedback status by type
 }
 
 interface FeedbackPeriod {
@@ -77,10 +78,9 @@ export default function SubjectsPage() {
         setStudentBranch(userBranch);
         
         // Fetch student name and subjects (token is automatically included by our api utility)
-        console.log('📞 Calling fetchStudentProfile, fetchActiveFeedbackPeriod and fetchSubjects');
+        console.log('📞 Calling fetchStudentProfile and fetchActiveFeedbackPeriod');
         fetchStudentProfile(storedToken);
         fetchActiveFeedbackPeriod();
-        fetchSubjects(storedToken, userBranch);
         
       } catch (decodeError) {
         console.error('Error decoding token:', decodeError);
@@ -95,6 +95,15 @@ export default function SubjectsPage() {
       window.location.href = '/login';
     }
   }, []);
+
+  // Fetch subjects when active feedback periods change
+  useEffect(() => {
+    const storedToken = localStorage.getItem('token');
+    if (storedToken && studentBranch && activeFeedbackPeriods.length >= 0) {
+      console.log('📞 Calling fetchSubjects due to activeFeedbackPeriods change');
+      fetchSubjects(storedToken, studentBranch);
+    }
+  }, [activeFeedbackPeriods, studentBranch]);
 
   // Fetch active feedback periods
   const fetchActiveFeedbackPeriod = async () => {
@@ -199,15 +208,33 @@ export default function SubjectsPage() {
         // Continue with empty feedback data
       }
       
-      // Mark subjects where feedback has been submitted (with safe access)
+      // Mark subjects where feedback has been submitted for the ACTIVE feedback types
       const subjectsWithFeedbackStatus = filtered.map((subject: Subject) => {
-        const hasSubmitted = Array.isArray(submittedFeedback) && submittedFeedback.some(
-          (feedback: any) => feedback?.subject?._id === subject._id
+        // Get all active feedback types
+        const activeFeedbackTypes = activeFeedbackPeriods.map(period => period.feedbackType);
+        // Check if feedback has been submitted for ALL of the currently active feedback types
+        // A subject should only be hidden if ALL active feedback types have been completed
+        const hasSubmittedAll = Array.isArray(submittedFeedback) && activeFeedbackTypes.every(activeType => 
+          submittedFeedback.some((feedback: any) => 
+            feedback?.subject?._id === subject._id && feedback?.feedbackType === activeType
+          )
         );
+        
+        // For display purposes, let's also track individual feedback status
+        const feedbackStatus = activeFeedbackTypes.reduce((status, activeType) => {
+          const hasThisType = submittedFeedback.some((feedback: any) => 
+            feedback?.subject?._id === subject._id && feedback?.feedbackType === activeType
+          );
+          status[activeType] = hasThisType;
+          return status;
+        }, {} as Record<string, boolean>);
+        
+        console.log(`📋 ${subject.name}: All completed = ${hasSubmittedAll}, Status:`, feedbackStatus);
         
         return {
           ...subject,
-          hasSubmittedFeedback: hasSubmitted
+          hasSubmittedFeedback: hasSubmittedAll,
+          feedbackStatus // Add individual feedback status for UI display
         };
       });
       
@@ -277,7 +304,7 @@ export default function SubjectsPage() {
         </div>
 
         {/* Feedback Summary Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
           <div className="bg-white rounded-lg shadow-md p-4 border-l-4 border-green-500 hover:shadow-lg transition-shadow">
             <div className="flex items-center justify-between">
               <div className="flex-1">
@@ -327,21 +354,6 @@ export default function SubjectsPage() {
               <div className="bg-yellow-100 rounded-full p-3">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-yellow-600" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-                </svg>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-md p-4 border-l-4 border-blue-500 hover:shadow-lg transition-shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-medium text-gray-600 uppercase tracking-wide">Total Subjects</h3>
-                <p className="text-2xl font-bold text-blue-600 mt-1">{totalSubjectsCount}</p>
-                <p className="text-xs text-gray-500 mt-1">Enrolled this Term </p>
-              </div>
-              <div className="bg-blue-100 rounded-full p-3">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-600" viewBox="0 0 20 20" fill="currentColor">
-                  <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838l-2.727 1.168 1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z" />
                 </svg>
               </div>
             </div>
@@ -511,22 +523,46 @@ export default function SubjectsPage() {
                       <div className="mt-6">
                         {activeFeedbackPeriods.length > 0 ? (
                           <div className="flex flex-col space-y-2">
-                            {activeFeedbackPeriods.map((period) => (
-                              <Link 
-                                key={period._id}
-                                href={`/submit-feedback?subjectId=${subject._id}&type=${period.feedbackType}`} 
-                                className={`inline-flex items-center justify-center px-4 py-2 text-white text-sm font-medium rounded-lg transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 ${
-                                  period.feedbackType === 'midterm'
-                                    ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700'
-                                    : 'bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700'
-                                }`}
-                              >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                </svg>
-                                {period.feedbackType === 'midterm' ? '📝 Submit Midterm Feedback' : '📝 Submit Endterm Feedback'}
-                              </Link>
-                            ))}
+                            {activeFeedbackPeriods.map((period) => {
+                              const feedbackCompleted = subject.feedbackStatus?.[period.feedbackType] || false;
+                              
+                              if (feedbackCompleted) {
+                                // Show completed status
+                                return (
+                                  <div 
+                                    key={period._id}
+                                    className={`inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-lg border-2 ${
+                                      period.feedbackType === 'midterm'
+                                        ? 'bg-blue-50 border-blue-200 text-blue-700'
+                                        : 'bg-purple-50 border-purple-200 text-purple-700'
+                                    }`}
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    ✅ {period.feedbackType === 'midterm' ? 'Midterm' : 'Endterm'} Completed
+                                  </div>
+                                );
+                              } else {
+                                // Show submit button for pending feedback
+                                return (
+                                  <Link 
+                                    key={period._id}
+                                    href={`/submit-feedback?subjectId=${subject._id}&type=${period.feedbackType}`} 
+                                    className={`inline-flex items-center justify-center px-4 py-2 text-white text-sm font-medium rounded-lg transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 ${
+                                      period.feedbackType === 'midterm'
+                                        ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700'
+                                        : 'bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700'
+                                    }`}
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    </svg>
+                                    📝 Submit {period.feedbackType === 'midterm' ? 'Midterm' : 'Endterm'} Feedback
+                                  </Link>
+                                );
+                              }
+                            })}
                           </div>
                         ) : (
                           <div className="inline-flex items-center justify-center w-full px-4 py-2 bg-gray-200 text-gray-500 text-sm font-medium rounded-lg cursor-not-allowed">

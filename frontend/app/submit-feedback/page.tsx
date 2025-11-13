@@ -25,7 +25,7 @@ interface FeedbackQuestion {
   category: string;
 }
 
-// ONLY these 8 questions + 2 comments will be used for midterm feedback
+// Mid-term feedback questions (8 questions + 2 comments)
 const MIDTERM_QUESTIONS: FeedbackQuestion[] = [
   // Teaching Quality (4 questions)
   { id: 1, question: "How clearly does the faculty explain concepts?", type: 'rating', category: 'Teaching Quality' },
@@ -46,18 +46,44 @@ const MIDTERM_QUESTIONS: FeedbackQuestion[] = [
   { id: 10, question: "Any other comments or suggestions?", type: 'comment', category: 'Comments' }
 ];
 
+// End-term feedback questions (11 rating questions + 4 comment questions)
+const ENDTERM_QUESTIONS: FeedbackQuestion[] = [
+  // Course Related (4 rating questions)
+  { id: 1, question: "How well was the course content organized and structured?", type: 'rating', category: 'Course Related' },
+  { id: 2, question: "How relevant and up-to-date was the course material provided?", type: 'rating', category: 'Course Related' },
+  { id: 3, question: "How clearly were the course objectives communicated and achieved?", type: 'rating', category: 'Course Related' },
+  { id: 4, question: "What additional topics or current trends would you like to see included in this course?", type: 'rating', category: 'Course Related' },
+  
+  // Faculty Related (4 rating questions)
+  { id: 5, question: "How effective was the faculty's teaching methodology?", type: 'rating', category: 'Faculty Related' },
+  { id: 6, question: "How well did the faculty communicate complex concepts?", type: 'rating', category: 'Faculty Related' },
+  { id: 7, question: "How responsive was the faculty to student queries and concerns?", type: 'rating', category: 'Faculty Related' },
+  { id: 8, question: "How fair and constructive was the faculty's evaluation and feedback?", type: 'rating', category: 'Faculty Related' },
+  
+  // Infrastructure Related (3 rating questions)
+  { id: 9, question: "How would you rate the classroom environment (lighting, ventilation, seating)?", type: 'rating', category: 'Infrastructure Related' },
+  { id: 10, question: "How effective were the audio-visual facilities (projector, mic, speakers) during lectures?", type: 'rating', category: 'Infrastructure Related' },
+  { id: 11, question: "How reliable were campus resources such as Wi-Fi and digital learning platforms?", type: 'rating', category: 'Infrastructure Related' },
+  
+  // Comments (4 comment questions)
+  { id: 12, question: "What aspects of the faculty's teaching approach worked well for you?", type: 'comment', category: 'Faculty Related' },
+  { id: 13, question: "What aspects of the course content could be improved?", type: 'comment', category: 'Course Related' },
+  { id: 14, question: "Which topics did you find most difficult or unclear?", type: 'comment', category: 'Course Related' },
+  { id: 15, question: "What improvements would you recommend for the classroom or supporting facilities?", type: 'comment', category: 'Infrastructure Related' }
+];
+
 export default function SubmitFeedbackPage() {
   const router = useRouter();
   const { showSuccess, showError, showWarning } = useToast();
   const [subject, setSubject] = useState<Subject | null>(null);
-  const [answers, setAnswers] = useState<number[]>(Array(8).fill(0)); // 8 rating questions
-  const [comments, setComments] = useState<string[]>(Array(2).fill('')); // 2 comment questions
+  const [answers, setAnswers] = useState<number[]>([]);
+  const [comments, setComments] = useState<string[]>([]);
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [studentId, setStudentId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [feedbackType] = useState<'midterm' | 'endterm'>('midterm'); // Default to midterm
+  const [feedbackType, setFeedbackType] = useState<'midterm' | 'endterm'>('midterm');
 
   // Step 1: Check authentication and get user info
   useEffect(() => {
@@ -86,14 +112,32 @@ export default function SubmitFeedbackPage() {
       
       setStudentId(decoded.id);
       
-      // Step 2: Get the subject ID from URL
+      // Step 2: Get the subject ID and feedback type from URL
       const url = new URL(window.location.href);
       const subjectId = url.searchParams.get('subjectId');
+      const typeParam = url.searchParams.get('type') as 'midterm' | 'endterm';
 
       if (!subjectId) {
         setError('No subject selected');
         setTimeout(() => router.push('/subjects'), 2000);
         return;
+      }
+
+      // Set feedback type from URL parameter
+      const currentFeedbackType = typeParam === 'endterm' ? 'endterm' : 'midterm';
+      setFeedbackType(currentFeedbackType);
+
+      // Initialize arrays based on feedback type
+      if (currentFeedbackType === 'endterm') {
+        const ratingQuestions = ENDTERM_QUESTIONS.filter(q => q.type === 'rating');
+        const commentQuestions = ENDTERM_QUESTIONS.filter(q => q.type === 'comment');
+        setAnswers(Array(ratingQuestions.length).fill(0));
+        setComments(Array(commentQuestions.length).fill(''));
+      } else {
+        const ratingQuestions = MIDTERM_QUESTIONS.filter(q => q.type === 'rating');
+        const commentQuestions = MIDTERM_QUESTIONS.filter(q => q.type === 'comment');
+        setAnswers(Array(ratingQuestions.length).fill(0));
+        setComments(Array(commentQuestions.length).fill(''));
       }
 
       // Step 3: Fetch subject details
@@ -131,13 +175,18 @@ export default function SubmitFeedbackPage() {
     if (!studentId) return;
     
     try {
-      // Check for midterm feedback specifically
-      const response = await api.get(`/api/feedback/student/${studentId}?subject=${subjectId}&type=midterm`);
+      console.log('🔍 Frontend: Checking feedback status for:', { studentId, subjectId, type: feedbackType });
+      const response = await api.get(`/api/feedback/student/${studentId}?subject=${subjectId}&type=${feedbackType}`);
       const data = response.data;
+      
+      console.log('📊 Frontend: Feedback status check result:', { 
+        dataLength: Array.isArray(data) ? data.length : 'not array', 
+        data: data 
+      });
       
       setSubmitted(Array.isArray(data) && data.length > 0);
     } catch (err) {
-      console.error('Error checking feedback status:', err);
+      console.error('🚨 Frontend: Error checking feedback status:', err);
     }
   };
 
@@ -153,16 +202,25 @@ export default function SubmitFeedbackPage() {
     setComments(updated);
   };
 
+  // Helper function to get current questions based on feedback type
+  const getCurrentQuestions = () => {
+    return feedbackType === 'endterm' ? ENDTERM_QUESTIONS : MIDTERM_QUESTIONS;
+  };
+
   const handleSubmit = async () => {
+    const currentQuestions = getCurrentQuestions();
+    const ratingQuestions = currentQuestions.filter(q => q.type === 'rating');
+    const commentQuestions = currentQuestions.filter(q => q.type === 'comment');
+
     // Validate rating questions
     if (answers.some(a => a === 0)) {
       showWarning('Please answer all rating questions');
       return;
     }
 
-    // Validate comment questions (check if both comments are provided and not empty)
+    // Validate comment questions
     if (comments.some(c => !c.trim() || c.trim().length < 5)) {
-      showWarning('Please provide detailed responses to both comment questions (minimum 5 characters each)');
+      showWarning(`Please provide detailed responses to all comment questions (minimum 5 characters each)`);
       return;
     }
 
@@ -172,7 +230,7 @@ export default function SubmitFeedbackPage() {
     }
     
     if (submitted) {
-      showWarning('You have already submitted midterm feedback for this subject');
+      showWarning(`You have already submitted ${feedbackType} feedback for this subject`);
       router.push('/subjects');
       return;
     }
@@ -182,15 +240,15 @@ export default function SubmitFeedbackPage() {
     try {
       // Prepare answers array with both ratings and comments including category info
       const allAnswers = [
-        // Rating questions (first 8)
-        ...MIDTERM_QUESTIONS.slice(0, 8).map((q, i) => ({
+        // Rating questions
+        ...ratingQuestions.map((q, i) => ({
           question: q.question,
           answer: answers[i],
           type: 'rating',
           category: q.category
         })),
-        // Comment questions (last 2)
-        ...MIDTERM_QUESTIONS.slice(8).map((q, i) => ({
+        // Comment questions
+        ...commentQuestions.map((q, i) => ({
           question: q.question,
           answer: 0, // No numeric rating for comments
           type: 'comment',
@@ -199,14 +257,29 @@ export default function SubmitFeedbackPage() {
         }))
       ];
 
-      const response = await api.post('/api/feedback', {
+      const payload = {
         student: studentId,
         subject: subject._id,
         feedbackType: feedbackType,
         term: subject.term,
         academicYear: '2025-26',
         answers: allAnswers
+      };
+
+      // Debug: Log the payload being sent
+      console.log('🔍 Frontend: Submitting feedback with payload:', {
+        student: studentId,
+        subject: subject._id,
+        subjectName: subject.name,
+        subjectCode: subject.code,
+        feedbackType: feedbackType,
+        term: subject.term,
+        academicYear: '2025-26',
+        answersCount: allAnswers.length
       });
+      console.log('📤 Frontend: Full payload:', payload);
+
+      const response = await api.post('/api/feedback', payload);
 
       // Show success message
       showSuccess(`${feedbackType.charAt(0).toUpperCase() + feedbackType.slice(1)} feedback submitted successfully!`);
@@ -218,11 +291,14 @@ export default function SubmitFeedbackPage() {
       setTimeout(() => router.push('/my-feedback'), 1500);
       
     } catch (err: any) {
-      console.error('Failed to submit feedback:', err);
+      console.error('🚨 Frontend: Failed to submit feedback:', err);
+      console.error('🚨 Frontend: Error response:', JSON.stringify(err.response, null, 2));
+      console.error('🚨 Frontend: Error response data:', JSON.stringify(err.response?.data, null, 2));
       
       // Handle specific error cases
       if (err.response?.status === 409) {
         // Conflict - already submitted
+        console.log('🚨 Frontend: 409 Conflict detected:', JSON.stringify(err.response.data, null, 2));
         showWarning(`You have already submitted ${feedbackType} feedback for this subject`);
         setSubmitted(true);
         setTimeout(() => router.push('/my-feedback'), 1500);
@@ -354,7 +430,7 @@ export default function SubmitFeedbackPage() {
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5 mr-2 text-blue-200" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
                   </svg>
-                  <p className="text-blue-100 text-sm sm:text-base">Feedback Type: <span className="font-medium">Mid-Term Evaluation</span></p>
+                  <p className="text-blue-100 text-sm sm:text-base">Feedback Type: <span className="font-medium">{feedbackType === 'endterm' ? 'End-Term Evaluation' : 'Mid-Term Evaluation'}</span></p>
                 </div>
               </div>
             </div>
@@ -392,7 +468,7 @@ export default function SubmitFeedbackPage() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                       </svg>
                     </div>
-                    <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-2">📝 Mid-Term Faculty Evaluation</h2>
+                    <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-2">📝 {feedbackType === 'endterm' ? 'End-Term Course & Faculty Evaluation' : 'Mid-Term Faculty Evaluation'}</h2>
                     <p className="text-sm sm:text-base text-gray-600 max-w-2xl mx-auto px-2">
                       Please evaluate your instructor's teaching performance for the first half of this term. 
                       Your feedback is <span className="font-semibold text-blue-600">anonymous</span> and will help improve the learning experience.
@@ -417,9 +493,12 @@ export default function SubmitFeedbackPage() {
                 </div>
                 
                 <div className="space-y-6 sm:space-y-8">
-                  {/* RATING QUESTIONS - EXACTLY 3 SECTIONS */}
-                  {['Teaching Quality', 'Faculty Engagement', 'Course Delivery'].map((category) => {
-                    const categoryQuestions = MIDTERM_QUESTIONS.filter(q => q.category === category && q.type === 'rating');
+                  {/* RATING QUESTIONS - DYNAMIC SECTIONS BASED ON FEEDBACK TYPE */}
+                  {(() => {
+                    const currentQuestions = getCurrentQuestions();
+                    const categories = [...new Set(currentQuestions.filter(q => q.type === 'rating').map(q => q.category))];
+                    return categories.map((category) => {
+                      const categoryQuestions = currentQuestions.filter(q => q.category === category && q.type === 'rating');
                     return (
                       <div key={category} className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4 sm:p-6 border border-gray-200 shadow-sm">
                         <div className="flex flex-col sm:flex-row sm:items-center mb-4 sm:mb-6">
@@ -537,27 +616,79 @@ export default function SubmitFeedbackPage() {
                         </div>
                       </div>
                     );
-                  })}
+                  });
+                })()}
 
-                  {/* COMMENT QUESTIONS - EXACTLY 1 SECTION */}
-                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 sm:p-6 border border-green-200 shadow-sm">
-                    <div className="flex flex-col sm:flex-row sm:items-center mb-4 sm:mb-6">
-                      <div className="flex items-center mb-2 sm:mb-0">
-                        <div className="w-6 h-6 sm:w-8 sm:h-8 bg-green-600 rounded-lg flex items-center justify-center mr-2 sm:mr-3">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 sm:h-5 sm:w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                          </svg>
-                        </div>
-                        <h3 className="text-lg sm:text-xl font-bold text-gray-800">
-                          💬 Detailed Feedback
-                        </h3>
-                      </div>
-                      <span className="ml-auto bg-green-100 text-green-800 text-xs font-medium px-2 sm:px-2.5 py-1 rounded-full">
-                        {MIDTERM_QUESTIONS.filter(q => q.type === 'comment').length} comments
-                      </span>
-                    </div>
-                    <div className="space-y-4 sm:space-y-6">
-                      {MIDTERM_QUESTIONS.filter(q => q.type === 'comment').map((q, index) => (
+                  {/* COMMENT QUESTIONS - DYNAMIC SECTIONS BASED ON FEEDBACK TYPE */}
+                  {(() => {
+                    const currentQuestions = getCurrentQuestions();
+                    const commentQuestions = currentQuestions.filter(q => q.type === 'comment');
+                    
+                    if (feedbackType === 'endterm') {
+                      // Group comments by category for end-term
+                      const commentCategories = [...new Set(commentQuestions.map(q => q.category))];
+                      return commentCategories.map((category) => {
+                        const categoryComments = commentQuestions.filter(q => q.category === category);
+                        return (
+                          <div key={`comment-${category}`} className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 sm:p-6 border border-green-200 shadow-sm mb-6">
+                            <div className="flex flex-col sm:flex-row sm:items-center mb-4 sm:mb-6">
+                              <div className="flex items-center mb-2 sm:mb-0">
+                                <div className="w-6 h-6 sm:w-8 sm:h-8 bg-green-600 rounded-lg flex items-center justify-center mr-2 sm:mr-3">
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 sm:h-5 sm:w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                  </svg>
+                                </div>
+                                <h3 className="text-lg sm:text-xl font-bold text-gray-800">
+                                  💬 {category} Feedback
+                                </h3>
+                              </div>
+                              <span className="ml-auto bg-green-100 text-green-800 text-xs font-medium px-2 sm:px-2.5 py-1 rounded-full">
+                                {categoryComments.length} comments
+                              </span>
+                            </div>
+                            <div className="space-y-4 sm:space-y-6">
+                              {categoryComments.map((q, categoryIndex) => {
+                                const globalIndex = commentQuestions.findIndex(cq => cq.id === q.id);
+                                return (
+                                  <div key={q.id} className="p-3 sm:p-5 bg-white border border-green-200 rounded-lg">
+                                    <label className="block font-semibold text-gray-800 mb-3 sm:mb-4 text-base sm:text-lg leading-relaxed">
+                                      {q.question}
+                                    </label>
+                                    <textarea
+                                      value={comments[globalIndex] || ''}
+                                      onChange={(e) => handleCommentChange(globalIndex, e.target.value)}
+                                      className="w-full p-3 sm:p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none text-sm sm:text-base"
+                                      rows={4}
+                                      placeholder="Share your thoughts..."
+                                    />
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      });
+                    } else {
+                      // Single section for mid-term
+                      return (
+                        <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 sm:p-6 border border-green-200 shadow-sm">
+                          <div className="flex flex-col sm:flex-row sm:items-center mb-4 sm:mb-6">
+                            <div className="flex items-center mb-2 sm:mb-0">
+                              <div className="w-6 h-6 sm:w-8 sm:h-8 bg-green-600 rounded-lg flex items-center justify-center mr-2 sm:mr-3">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 sm:h-5 sm:w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                </svg>
+                              </div>
+                              <h3 className="text-lg sm:text-xl font-bold text-gray-800">
+                                💬 Detailed Feedback
+                              </h3>
+                            </div>
+                            <span className="ml-auto bg-green-100 text-green-800 text-xs font-medium px-2 sm:px-2.5 py-1 rounded-full">
+                              {commentQuestions.length} comments
+                            </span>
+                          </div>
+                          <div className="space-y-4 sm:space-y-6">
+                            {commentQuestions.map((q, index) => (
                         <div key={q.id} className="p-3 sm:p-5 bg-white border border-green-200 rounded-lg">
                           <label className="block font-semibold text-gray-800 mb-3 sm:mb-4 text-base sm:text-lg leading-relaxed">
                             {q.id}. {q.question}
@@ -596,9 +727,12 @@ export default function SubmitFeedbackPage() {
                             )}
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      }
+                    })()}
 
                   {/* Submit Section */}
                   <div className="mt-6 sm:mt-8 p-4 sm:p-6 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
